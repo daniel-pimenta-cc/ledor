@@ -31,10 +31,10 @@
 - [ ] Triagem de issues do GitHub
 
 ## Backlog novo
-- [ ] Modo contexto: dois botoes na UI — um lock que congela a palavra de foco enquanto o usuario rola livremente, e um "voltar para a palavra" que recentra na palavra selecionada. Posicionar de forma elegante em area que faca sentido na interface
-- [ ] Splash screen ao abrir o app
-- [ ] Bug: ao sair e voltar ao app no modo contexto o sync quebra (investigar lifecycle / resume)
-- [ ] Sync de stats (`reading_session` + `books.rating`) entre devices via Drive
+- [x] Modo contexto: lock + recenter no overlay flutuante (mede o RenderBox real da palavra via GlobalKey para centralizar com precisao em paragrafos longos)
+- [x] Splash screen ao abrir o app (flutter_native_splash com paleta light/dark, icone sem o fundo navy)
+- [ ] Bug: ao sair e voltar ao app no modo contexto o sync quebra — em pausa, nao reproduzido na ultima sessao
+- [x] Sync de stats (`reading_session` + `books.rating`) entre devices via Drive (junto com o shard refactor — sessions append-only, rating com timestamp dedicado)
 - [ ] Bookmarks (marcar posicoes nomeadas dentro de um livro/artigo)
 - [ ] Modo TTS (text-to-speech) — alternativa de leitura por audio
-- [ ] Sync incremental: avaliar formato com tabelas/linhas alteradas em vez de manifest monolitico, sem adicionar infra (so Drive)
+- [x] Sync incremental (phase 1): manifest shardado em `library/books.json` + `settings.json` + `sessions.json`; push paraleliza writes e pula shards inalterados. Phase 2 (per-record + index.json) fica pra quando virar gargalo.

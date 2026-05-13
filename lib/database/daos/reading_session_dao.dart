@@ -97,6 +97,25 @@ class ReadingSessionDao extends DatabaseAccessor<AppDatabase>
         .get();
   }
 
+  /// All sessions, ordered by [startedAt]. Used by sync to ship the full
+  /// session log; rows are append-only so the count grows only with reading
+  /// activity (a few KB per book in JSON).
+  Future<List<ReadingSessionTableData>> getAllSessions() {
+    return (select(readingSessionTable)
+          ..orderBy([(t) => OrderingTerm.asc(t.startedAt)]))
+        .get();
+  }
+
+  /// Returns the set of session ids that already exist locally. Used by sync
+  /// when applying remote rows to skip the ones we already have without
+  /// fetching them one-by-one.
+  Future<Set<String>> existingSessionIds() async {
+    final query = selectOnly(readingSessionTable)
+      ..addColumns([readingSessionTable.id]);
+    final rows = await query.get();
+    return rows.map((r) => r.read(readingSessionTable.id)!).toSet();
+  }
+
   Future<int> deleteSessionsForBook(String bookId) {
     return (delete(readingSessionTable)
           ..where((t) => t.bookId.equals(bookId)))

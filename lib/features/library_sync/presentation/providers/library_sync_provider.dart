@@ -33,6 +33,7 @@ final librarySyncServiceProvider = Provider<LibrarySyncService>((ref) {
     gateway: ref.watch(syncFolderGatewayProvider),
     booksDao: ref.watch(booksDaoProvider),
     progressDao: ref.watch(readingProgressDaoProvider),
+    sessionDao: ref.watch(readingSessionDaoProvider),
     tokensDao: ref.watch(cachedTokensDaoProvider),
     failuresDao: ref.watch(syncImportFailuresDaoProvider),
     extractionService: ref.watch(epubExtractionServiceProvider),

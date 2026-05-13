@@ -34,6 +34,12 @@ class BooksTable extends Table {
   /// completion card and persisted so rating survives re-reading.
   IntColumn get rating => integer().nullable()();
 
+  /// Stamped when [rating] is written (including clears). Needed by sync's
+  /// per-field LWW merge — without it, a fresh rating on one device can be
+  /// overwritten by another device whose unrelated update (progress, etc.)
+  /// bumped the parent updatedAt later.
+  DateTimeColumn get ratingUpdatedAt => dateTime().nullable()();
+
   @override
   Set<Column> get primaryKey => {id};
 }

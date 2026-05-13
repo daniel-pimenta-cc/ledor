@@ -15,6 +15,8 @@ SyncLibraryBook _book({
   SyncLibraryProgress? progress,
   DateTime? deletedAt,
   required int updatedAtSec,
+  int? rating,
+  DateTime? ratingUpdatedAt,
 }) {
   return SyncLibraryBook(
     id: id,
@@ -29,6 +31,8 @@ SyncLibraryBook _book({
     progress: progress,
     deletedAt: deletedAt,
     updatedAt: _t(updatedAtSec),
+    rating: rating,
+    ratingUpdatedAt: ratingUpdatedAt,
   );
 }
 
@@ -241,4 +245,138 @@ void main() {
       expect(roundtripped.updatedBy, 'dev-1');
     });
   });
+
+  group('mergeBook rating', () {
+    test('keeps the side whose ratingUpdatedAt is newer', () {
+      final a = _book(
+        id: 'b1',
+        updatedAtSec: 100,
+        rating: 4,
+        ratingUpdatedAt: _t(50),
+      );
+      final b = _book(
+        id: 'b1',
+        updatedAtSec: 100,
+        rating: 5,
+        ratingUpdatedAt: _t(80),
+      );
+      expect(mergeBook(a, b).rating, 5);
+      expect(mergeBook(a, b).ratingUpdatedAt, _t(80));
+    });
+
+    test('preserves rating across unrelated metadata bumps', () {
+      // Rating set on device A at t=50, but device B later bumped progress at
+      // t=200 (parent updatedAt) without rating. Rating must survive.
+      final a = _book(
+        id: 'b1',
+        updatedAtSec: 100,
+        rating: 4,
+        ratingUpdatedAt: _t(50),
+      );
+      final b = _book(
+        id: 'b1',
+        updatedAtSec: 200,
+        rating: null,
+        ratingUpdatedAt: null,
+      );
+      expect(mergeBook(a, b).rating, 4);
+      expect(mergeBook(a, b).ratingUpdatedAt, _t(50));
+    });
+
+    test('null on both sides yields null rating', () {
+      final a = _book(id: 'b1', updatedAtSec: 100);
+      final b = _book(id: 'b1', updatedAtSec: 200);
+      expect(mergeBook(a, b).rating, isNull);
+      expect(mergeBook(a, b).ratingUpdatedAt, isNull);
+    });
+  });
+
+  group('mergeSessionsShard', () {
+    test('unions sessions by id, never duplicates', () {
+      final s1 = _session(id: 's1', bookId: 'b1', startedAtSec: 10);
+      final s2 = _session(id: 's2', bookId: 'b1', startedAtSec: 20);
+      final s3 = _session(id: 's3', bookId: 'b2', startedAtSec: 30);
+      final a = SyncSessionsShard(
+        updatedAt: _t(0),
+        updatedBy: 'a',
+        sessions: [s1, s2],
+      );
+      final b = SyncSessionsShard(
+        updatedAt: _t(0),
+        updatedBy: 'b',
+        sessions: [s2, s3],
+      );
+      final merged = mergeSessionsShard(a, b, 'd');
+      expect(merged.sessions.map((s) => s.id).toList(), ['s1', 's2', 's3']);
+    });
+
+    test('rolls a side as-is when the other is empty', () {
+      final s = _session(id: 's1', bookId: 'b1', startedAtSec: 10);
+      final a = SyncSessionsShard(
+        updatedAt: _t(0),
+        updatedBy: 'a',
+        sessions: [s],
+      );
+      final b = SyncSessionsShard.empty('b');
+      final merged = mergeSessionsShard(a, b, 'd');
+      expect(merged.sessions.length, 1);
+      expect(merged.sessions[0].id, 's1');
+    });
+  });
+
+  group('SyncBooksShard roundtrip', () {
+    test('encode + decode preserves rating fields', () {
+      final shard = SyncBooksShard(
+        updatedAt: _t(0),
+        updatedBy: 'dev-1',
+        books: [
+          _book(
+            id: 'b1',
+            updatedAtSec: 10,
+            rating: 5,
+            ratingUpdatedAt: _t(5),
+          ),
+        ],
+      );
+      final round = SyncBooksShard.decode(shard.encode());
+      expect(round.books[0].rating, 5);
+      expect(round.books[0].ratingUpdatedAt, _t(5));
+    });
+  });
+
+  group('SyncSessionsShard roundtrip', () {
+    test('encode + decode preserves session fields', () {
+      final shard = SyncSessionsShard(
+        updatedAt: _t(0),
+        updatedBy: 'dev-1',
+        sessions: [
+          _session(id: 's1', bookId: 'b1', startedAtSec: 100),
+        ],
+      );
+      final round = SyncSessionsShard.decode(shard.encode());
+      expect(round.sessions[0].id, 's1');
+      expect(round.sessions[0].bookId, 'b1');
+      expect(round.sessions[0].startedAt, _t(100));
+    });
+  });
+}
+
+SyncReadingSession _session({
+  required String id,
+  required String bookId,
+  required int startedAtSec,
+  int durationMs = 60000,
+  int wordsRead = 200,
+}) {
+  return SyncReadingSession(
+    id: id,
+    bookId: bookId,
+    startedAt: _t(startedAtSec),
+    endedAt: _t(startedAtSec + 60),
+    durationMs: durationMs,
+    wordsRead: wordsRead,
+    startWordIndex: 0,
+    endWordIndex: wordsRead,
+    avgWpm: 300,
+  );
 }
