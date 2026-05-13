@@ -488,6 +488,24 @@ abstract class AppLocalizations {
   /// **'RSVP mode'**
   String get switchToRsvpMode;
 
+  /// No description provided for @lockHighlight.
+  ///
+  /// In en, this message translates to:
+  /// **'Lock focused word'**
+  String get lockHighlight;
+
+  /// No description provided for @unlockHighlight.
+  ///
+  /// In en, this message translates to:
+  /// **'Unlock focused word'**
+  String get unlockHighlight;
+
+  /// No description provided for @recenterHighlight.
+  ///
+  /// In en, this message translates to:
+  /// **'Back to focused word'**
+  String get recenterHighlight;
+
   /// No description provided for @hideLibraryPanel.
   ///
   /// In en, this message translates to:

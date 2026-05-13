@@ -221,6 +221,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get switchToRsvpMode => 'RSVP mode';
 
   @override
+  String get lockHighlight => 'Lock focused word';
+
+  @override
+  String get unlockHighlight => 'Unlock focused word';
+
+  @override
+  String get recenterHighlight => 'Back to focused word';
+
+  @override
   String get hideLibraryPanel => 'Hide library';
 
   @override

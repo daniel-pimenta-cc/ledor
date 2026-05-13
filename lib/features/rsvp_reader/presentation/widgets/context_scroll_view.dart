@@ -11,6 +11,7 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/responsive_defaults.dart';
 import '../../../../core/theme/responsive.dart';
 import '../../../../core/utils/font_mapper.dart';
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../../epub_import/domain/entities/chapter.dart';
 import '../../../epub_import/domain/entities/word_token.dart';
 import '../../domain/entities/display_settings.dart';
@@ -57,6 +58,19 @@ class _ContextScrollViewState extends ConsumerState<ContextScrollView> {
   bool _didInitialScroll = false;
   bool _isUserScrolling = false;
   int _lastBuiltChapterCount = 0;
+
+  // Lock pins the focused word in place: scrolling moves the viewport but
+  // doesn't advance the highlight, and releasing the scroll doesn't seek
+  // the engine. Recenter (right-side overlay) jumps the viewport back to
+  // the pinned word.
+  bool _isLocked = false;
+  bool _isHighlightVisible = true;
+
+  // Attached to the highlighted word's container in [_ParagraphWidget]. Used
+  // by [_scrollToHighlight] to measure the word's true on-screen position and
+  // center it precisely — avoids fraction estimates that drift in long
+  // paragraphs with uneven line wrapping.
+  final GlobalKey _highlightedWordKey = GlobalKey();
 
   // Smooth scroll tracking
   List<WordToken> _allTokens = [];
@@ -139,6 +153,11 @@ class _ContextScrollViewState extends ConsumerState<ContextScrollView> {
   }
 
   void _onPositionsChanged() {
+    // Always recompute visibility of the highlight so the recenter overlay
+    // can react even while locked (locked scrolls don't run the rest).
+    _refreshHighlightVisibility();
+
+    if (_isLocked) return;
     if (!_isUserScrolling || _items.isEmpty || _allTokens.isEmpty) return;
 
     // Throttle updates for smooth movement
@@ -182,9 +201,28 @@ class _ContextScrollViewState extends ConsumerState<ContextScrollView> {
   }
 
   void _syncToEngine() {
+    if (_isLocked) return;
     ref
         .read(rsvpEngineProvider(widget.bookId).notifier)
         .seekToWord(_highlightIndex.value);
+  }
+
+  void _refreshHighlightVisibility() {
+    if (_items.isEmpty) return;
+    final highlightItemIdx = _findItemIndex(_highlightIndex.value);
+    final visible = _positionsListener.itemPositions.value
+        .any((p) => p.index == highlightItemIdx);
+    if (visible != _isHighlightVisible) {
+      setState(() => _isHighlightVisible = visible);
+    }
+  }
+
+  void _toggleLock() {
+    setState(() => _isLocked = !_isLocked);
+  }
+
+  void _recenter() {
+    _scrollToHighlight(_highlightIndex.value, animate: true);
   }
 
   void _onWordTap(WordToken token) {
@@ -219,8 +257,9 @@ class _ContextScrollViewState extends ConsumerState<ContextScrollView> {
       _didInitialScroll = false;
     }
 
-    // Sync highlight from engine when not scrolling
-    if (!_isUserScrolling) {
+    // Sync highlight from engine when not scrolling. Locked state pins the
+    // visible word, so we ignore engine advances until the user unlocks.
+    if (!_isUserScrolling && !_isLocked) {
       final newHighlight = state.globalWordIndex;
       if (_highlightIndex.value != newHighlight) {
         _highlightIndex.value = newHighlight;
@@ -263,11 +302,13 @@ class _ContextScrollViewState extends ConsumerState<ContextScrollView> {
         }
         return false;
       },
-      child: Align(
-        alignment: Alignment.topCenter,
-        child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: maxReadableWidth),
-          child: ScrollablePositionedList.builder(
+      child: Stack(
+        children: [
+          Align(
+            alignment: Alignment.topCenter,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: maxReadableWidth),
+              child: ScrollablePositionedList.builder(
         itemCount: _items.length,
         itemScrollController: _scrollController,
         itemPositionsListener: _positionsListener,
@@ -318,12 +359,28 @@ class _ContextScrollViewState extends ConsumerState<ContextScrollView> {
                 currentGlobalIndex: currentHighlight,
                 settings: settings,
                 onWordTap: _onWordTap,
+                highlightKey: _highlightedWordKey,
               );
             },
           );
         },
+              ),
+            ),
           ),
-        ),
+          if (widget.showHighlight)
+            Positioned(
+              right: 12,
+              bottom: 12,
+              child: _LockOverlay(
+                isLocked: _isLocked,
+                showRecenter: _isLocked && !_isHighlightVisible,
+                wordColor: settings.wordColor,
+                backgroundColor: settings.backgroundColor,
+                onToggleLock: _toggleLock,
+                onRecenter: _recenter,
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -366,64 +423,83 @@ class _ContextScrollViewState extends ConsumerState<ContextScrollView> {
     }
   }
 
-  double _wordFractionInItem(int globalWordIndex, int itemIdx) {
-    if (itemIdx < 0 || itemIdx >= _items.length) return 0.0;
-    final item = _items[itemIdx];
-    if (item.isHeader || item.tokens == null || item.tokens!.isEmpty) {
-      return 0.0;
-    }
-    final tokens = item.tokens!;
-    final count = tokens.length;
-    if (count <= 1) return 0.0;
-    final local = globalWordIndex - tokens.first.globalIndex;
-    return (local / (count - 1)).clamp(0.0, 1.0);
-  }
-
-  /// Two-pass scroll: first jump gets the paragraph laid out so
-  /// [ItemPositionsListener] can report its viewport-fraction height, then a
-  /// re-jump offsets by the word's depth inside the paragraph — otherwise
-  /// long paragraphs would push the highlighted word off-screen.
-  void _scrollToHighlight(int globalWordIndex, {required bool animate}) {
+  /// Centers the highlighted word at [AppConstants.contextFocusAlignment] of
+  /// the viewport.
+  ///
+  /// Strategy: ensure the target paragraph is in the render tree via the
+  /// item-based scroll controller, then measure the highlighted word's
+  /// actual render-box position (via [_highlightedWordKey]) and shift the
+  /// underlying scroll offset so the word's centerline lands exactly on
+  /// [focus]. We bypass [Scrollable.ensureVisible] because [WidgetSpan]
+  /// placeholders interact unreliably with viewport reveal math — the
+  /// fraction-based estimate was off in long paragraphs, and ensureVisible
+  /// also missed the mark. Using the word's real bounds is the most direct.
+  Future<void> _scrollToHighlight(int globalWordIndex,
+      {required bool animate}) async {
     if (!_scrollController.isAttached) return;
     final targetItem = _findItemIndex(globalWordIndex);
-    final wordFraction = _wordFractionInItem(globalWordIndex, targetItem);
     final focus = AppConstants.contextFocusAlignment;
 
-    void jumpOrScroll(double alignment) {
-      if (animate) {
-        _scrollController.scrollTo(
-          index: targetItem,
-          duration: const Duration(milliseconds: 250),
-          alignment: alignment,
+    // Step 1: bring the paragraph into the render tree if it isn't already.
+    // Aligning at `focus` keeps the visible jump small for nearby recenters.
+    final inTree = _positionsListener.itemPositions.value
+        .any((p) => p.index == targetItem);
+    if (!inTree) {
+      _scrollController.jumpTo(index: targetItem, alignment: focus);
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted || !_scrollController.isAttached) return;
+    }
+
+    // Step 2: measure the word's true on-screen position and offset the
+    // scroll by exactly the delta needed. The GlobalKey context is read
+    // fresh here (after the mounted check) — the lints below cover the
+    // async-gap analysis the analyzer can't follow.
+    final ctx = _highlightedWordKey.currentContext;
+    if (ctx != null) {
+      // ignore: use_build_context_synchronously
+      final wordBox = ctx.findRenderObject() as RenderBox?;
+      final viewport =
+          wordBox == null ? null : RenderAbstractViewport.maybeOf(wordBox);
+      // ignore: use_build_context_synchronously
+      final scrollable = Scrollable.maybeOf(ctx);
+      if (wordBox != null &&
+          wordBox.attached &&
+          viewport != null &&
+          scrollable != null) {
+        final transform = wordBox.getTransformTo(viewport);
+        final wordRect = MatrixUtils.transformRect(
+          transform,
+          Offset.zero & wordBox.size,
         );
-      } else {
-        _scrollController.jumpTo(
-          index: targetItem,
-          alignment: alignment,
-        );
+        final viewportHeight = viewport.semanticBounds.height;
+        final delta = wordRect.center.dy - viewportHeight * focus;
+        final position = scrollable.position;
+        final target = (position.pixels + delta)
+            .clamp(position.minScrollExtent, position.maxScrollExtent);
+        if (animate) {
+          await position.animateTo(
+            target,
+            duration: const Duration(milliseconds: 280),
+            curve: Curves.easeInOut,
+          );
+        } else {
+          position.jumpTo(target);
+        }
+        return;
       }
     }
 
-    jumpOrScroll(focus);
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_scrollController.isAttached) return;
-      final positions = _positionsListener.itemPositions.value;
-      ItemPosition? pos;
-      for (final p in positions) {
-        if (p.index == targetItem) {
-          pos = p;
-          break;
-        }
-      }
-      if (pos == null) return;
-      final paragraphHeight = pos.itemTrailingEdge - pos.itemLeadingEdge;
-      if (paragraphHeight <= 0) return;
-      final adjusted = (focus - paragraphHeight * wordFraction)
-          .clamp(-2.0, focus);
-      if ((adjusted - focus).abs() < 0.005) return;
-      jumpOrScroll(adjusted);
-    });
+    // Fallback: render tree didn't yield a usable render box (rare). Plain
+    // SPL scroll to the paragraph at [focus] is "close enough".
+    if (animate) {
+      await _scrollController.scrollTo(
+        index: targetItem,
+        duration: const Duration(milliseconds: 280),
+        alignment: focus,
+      );
+    } else {
+      _scrollController.jumpTo(index: targetItem, alignment: focus);
+    }
   }
 
   void _snapToEndIfAtBottom() {
@@ -470,11 +546,17 @@ class _ParagraphWidget extends StatelessWidget {
   final DisplaySettings settings;
   final ValueChanged<WordToken>? onWordTap;
 
+  /// Attached to the highlighted token's render container so the parent
+  /// state can measure its on-screen position precisely (used by recenter).
+  /// Null when [showHighlight] is off.
+  final GlobalKey? highlightKey;
+
   const _ParagraphWidget({
     required this.tokens,
     required this.currentGlobalIndex,
     required this.settings,
     required this.onWordTap,
+    this.highlightKey,
   });
 
   @override
@@ -509,6 +591,7 @@ class _ParagraphWidget extends StatelessWidget {
                 child: GestureDetector(
                   onTap: onWordTap == null ? null : () => onWordTap!(token),
                   child: Container(
+                    key: highlightKey,
                     padding:
                         const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                     margin: EdgeInsets.only(right: joinsNext ? 0 : 4),
@@ -541,4 +624,90 @@ class _ParagraphWidget extends StatelessWidget {
     );
   }
 
+}
+
+/// Floating pill in the bottom-right of the context view. Houses the lock
+/// toggle and (when the focused word is off-screen while locked) the
+/// recenter action. Visuals draw from [DisplaySettings] so they stay
+/// consistent with the live theme preview, never from `Theme.of(context)`.
+class _LockOverlay extends StatelessWidget {
+  final bool isLocked;
+  final bool showRecenter;
+  final Color wordColor;
+  final Color backgroundColor;
+  final VoidCallback onToggleLock;
+  final VoidCallback onRecenter;
+
+  const _LockOverlay({
+    required this.isLocked,
+    required this.showRecenter,
+    required this.wordColor,
+    required this.backgroundColor,
+    required this.onToggleLock,
+    required this.onRecenter,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final pillBg = backgroundColor.withAlpha(220);
+    final borderColor = wordColor.withAlpha(38);
+
+    Widget pill(Widget child) => Container(
+          decoration: BoxDecoration(
+            color: pillBg,
+            shape: BoxShape.circle,
+            border: Border.all(color: borderColor),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withAlpha(28),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: child,
+        );
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 180),
+          transitionBuilder: (child, anim) => ScaleTransition(
+            scale: anim,
+            child: FadeTransition(opacity: anim, child: child),
+          ),
+          child: showRecenter
+              ? Padding(
+                  key: const ValueKey('recenter'),
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: pill(
+                    IconButton(
+                      tooltip: l10n.recenterHighlight,
+                      iconSize: 20,
+                      visualDensity: VisualDensity.compact,
+                      onPressed: onRecenter,
+                      icon: Icon(Icons.my_location, color: wordColor),
+                    ),
+                  ),
+                )
+              : const SizedBox.shrink(key: ValueKey('no-recenter')),
+        ),
+        pill(
+          IconButton(
+            tooltip: isLocked ? l10n.unlockHighlight : l10n.lockHighlight,
+            iconSize: 20,
+            visualDensity: VisualDensity.compact,
+            onPressed: onToggleLock,
+            icon: Icon(
+              isLocked ? Icons.lock : Icons.lock_open,
+              color: isLocked ? wordColor : wordColor.withAlpha(170),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 }

@@ -221,6 +221,15 @@ class AppLocalizationsPt extends AppLocalizations {
   String get switchToRsvpMode => 'Modo RSVP';
 
   @override
+  String get lockHighlight => 'Travar palavra de foco';
+
+  @override
+  String get unlockHighlight => 'Destravar palavra de foco';
+
+  @override
+  String get recenterHighlight => 'Voltar para a palavra';
+
+  @override
   String get hideLibraryPanel => 'Esconder biblioteca';
 
   @override
