@@ -11,6 +11,7 @@ import '../../../../database/app_database.dart';
 import '../../../../database/daos/books_dao.dart';
 import '../../../../database/daos/cached_tokens_dao.dart';
 import '../../../../database/daos/reading_progress_dao.dart';
+import '../../../../database/daos/reading_session_dao.dart';
 import '../../../../database/daos/sync_import_failures_dao.dart';
 import '../../../../database/tables/book_source.dart';
 import '../../../epub_import/data/services/epub_extraction_service.dart';
@@ -20,7 +21,16 @@ import '../../domain/entities/sync_config.dart';
 import '../../domain/entities/sync_library.dart';
 import '../../domain/repositories/sync_folder_gateway.dart';
 
-const _kLibraryFile = 'library.json';
+// Legacy monolithic manifest. Read once on first sync after upgrade so its
+// contents can be migrated into the sharded layout; deleted right after.
+const _kLegacyLibraryFile = 'library.json';
+
+// New sharded layout under `library/` keeps each concern in its own file so a
+// progress write doesn't drag settings/sessions over the wire and vice-versa.
+const _kBooksShardFile = 'library/books.json';
+const _kSettingsShardFile = 'library/settings.json';
+const _kSessionsShardFile = 'library/sessions.json';
+
 const _kBooksDir = 'books';
 
 /// Pure functions that describe what the settings snapshot looks like on
@@ -88,6 +98,7 @@ class LibrarySyncService {
   final SyncFolderGateway _gateway;
   final BooksDao _booksDao;
   final ReadingProgressDao _progressDao;
+  final ReadingSessionDao _sessionDao;
   final CachedTokensDao _tokensDao;
   final SyncImportFailuresDao _failuresDao;
   final EpubExtractionService _extractionService;
@@ -96,12 +107,14 @@ class LibrarySyncService {
     required SyncFolderGateway gateway,
     required BooksDao booksDao,
     required ReadingProgressDao progressDao,
+    required ReadingSessionDao sessionDao,
     required CachedTokensDao tokensDao,
     required SyncImportFailuresDao failuresDao,
     required EpubExtractionService extractionService,
   })  : _gateway = gateway,
         _booksDao = booksDao,
         _progressDao = progressDao,
+        _sessionDao = sessionDao,
         _tokensDao = tokensDao,
         _failuresDao = failuresDao,
         _extractionService = extractionService;
@@ -119,11 +132,14 @@ class LibrarySyncService {
   }) async {
     final folder = config.driveFolderId!;
 
-    // 1. Kick off the three independent Drive reads in parallel. Previously
-    // these were serial, costing ~3× the latency of the slowest one. Wall-
-    // clock total is dominated by whichever finishes last.
+    // 1. Fire off every independent Drive read in parallel. Each await
+    // afterwards is for the one we need next; wall-clock cost is whichever
+    // of these finishes last.
     final isReadableF = _gateway.isReadable(folder);
-    final readManifestF = _gateway.readText(folder, _kLibraryFile);
+    final legacyManifestF = _gateway.readText(folder, _kLegacyLibraryFile);
+    final booksShardF = _gateway.readText(folder, _kBooksShardFile);
+    final settingsShardF = _gateway.readText(folder, _kSettingsShardFile);
+    final sessionsShardF = _gateway.readText(folder, _kSessionsShardFile);
     final listBooksF = config.syncEpubs
         ? _gateway.listFiles(folder, _kBooksDir).catchError(
               (_) => <String>[],
@@ -134,97 +150,93 @@ class LibrarySyncService {
       throw StateError('Sync folder is not readable: $folder');
     }
 
-    final remoteRaw = await readManifestF;
-    SyncLibrary remote;
-    if (remoteRaw == null || remoteRaw.trim().isEmpty) {
-      remote = SyncLibrary.empty(config.deviceId);
-    } else {
-      remote = SyncLibrary.decode(remoteRaw);
-    }
+    // 2. Decode remote shards. If the new shards are absent we look for a
+    // legacy `library.json` and migrate its contents into shard memory; the
+    // file itself is removed at push time so other devices can also adopt
+    // the new layout without seeing it again.
+    final remoteShards = await _loadRemoteShards(
+      booksShardF: booksShardF,
+      settingsShardF: settingsShardF,
+      sessionsShardF: sessionsShardF,
+      legacyManifestF: legacyManifestF,
+      deviceId: config.deviceId,
+    );
 
-    // 2. Collect the books-dir inventory (launched in step 1).
+    // 3. Inventory the books folder + auto-import orphans (only when EPUB
+    // sync is enabled).
     Set<String> remoteEpubFiles = const {};
     if (config.syncEpubs) {
       remoteEpubFiles = (await listBooksF).toSet();
-
-      // Auto-import any EPUBs dropped directly in the sync folder that
-      // aren't yet tracked by the manifest or the local DB. These become
-      // regular local books; the subsequent snapshot will include them.
       await _autoImportOrphanFiles(
         folder: folder,
-        remote: remote,
+        remoteBooks: remoteShards.books,
         remoteEpubFiles: remoteEpubFiles,
         onProgress: onImportProgress,
       );
     }
 
-    // 3. Snapshot the (now possibly augmented) local library.
-    // If the notifier didn't mark settings dirty this session, reuse the
-    // remote timestamp so the snapshot doesn't look artificially newer than
-    // the manifest — otherwise every sync pushes a fresh settings block and
-    // the manifest-unchanged skip never triggers.
+    // 4. Build local shard snapshots (now possibly augmented with the
+    // freshly auto-imported books). Reuse the remote settings timestamp
+    // when the user didn't touch settings this session so the skip-write
+    // check fires.
     final settingsTs = localSettingsUpdatedAt ??
-        remote.settings?.updatedAt ??
+        remoteShards.settings.settings?.updatedAt ??
         DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
-    final local = await _buildLocalSnapshot(
+    final local = await _buildLocalShards(
       config: config,
       localSettings: readSettings(),
       localSettingsUpdatedAt: settingsTs,
     );
 
-    // 4. Merge.
-    final rawMerged = mergeLibraries(local, remote, config.deviceId);
-    // Garbage-collect zombie tombstones: entries with deletedAt whose
-    // syncFileName is already claimed by an active merged book. These are
-    // leftovers from an older orphan-reimport bug (deleted book → file
-    // stayed in Drive → auto-imported under a new uuid with the same
-    // filename). The active entry now owns that filename, so the tombstone
-    // propagates nothing useful to other devices — drop it to stop every
-    // sync from logging `skippedTombstones` forever.
-    final activeFileNames = <String>{
-      for (final b in rawMerged.books)
-        if (b.deletedAt == null) b.syncFileName ?? '${b.id}.epub',
-    };
-    final compactedBooks = rawMerged.books.where((b) {
-      if (b.deletedAt == null) return true;
-      final name = b.syncFileName ?? '${b.id}.epub';
-      return !activeFileNames.contains(name);
-    }).toList();
-    final compacted = compactedBooks.length == rawMerged.books.length
-        ? rawMerged
-        : SyncLibrary(
-            schemaVersion: rawMerged.schemaVersion,
-            updatedAt: rawMerged.updatedAt,
-            updatedBy: rawMerged.updatedBy,
-            settings: rawMerged.settings,
-            books: compactedBooks,
-          );
-    final merged = compacted.copyWithMeta(
-      updatedAt: DateTime.now().toUtc(),
-      updatedBy: config.deviceId,
+    // 5. Merge each shard, then compact zombie tombstones (see docs).
+    final mergedBooks = _compactZombieTombstones(
+      mergeBooksShard(local.books, remoteShards.books, config.deviceId),
+      config.deviceId,
     );
+    final mergedSettings =
+        mergeSettingsShard(local.settings, remoteShards.settings, config.deviceId);
+    final mergedSessions =
+        mergeSessionsShard(local.sessions, remoteShards.sessions, config.deviceId);
 
-    // 5. Apply remote → local for anything where remote won.
-    await _applyToLocal(
-      merged: merged,
+    // 6. Apply remote → local where remote won.
+    await _applyShardsToLocal(
+      merged: _MergedShards(
+        books: mergedBooks,
+        settings: mergedSettings,
+        sessions: mergedSessions,
+      ),
       localBefore: local,
       config: config,
       applySettings: applySettings,
     );
 
-    // 6. Push the merged snapshot back to the folder — but only if content
-    // actually changed. Stamping a fresh updatedAt/updatedBy on every sync
-    // triggers a ~3s Drive round-trip (find + update) for zero useful delta
-    // when the user didn't touch anything since the last push.
-    if (!_libraryContentEquals(merged, remote)) {
-      await _gateway.writeText(folder, _kLibraryFile, merged.encode());
+    // 7. Push each shard only if its content actually changed. The legacy
+    // monolith is deleted on first sync after upgrade.
+    if (remoteShards.legacyPresent) {
+      try {
+        await _gateway.deleteFile(folder, _kLegacyLibraryFile);
+      } catch (_) {/* best-effort; next sync will retry */}
     }
+    final pushes = <Future<void>>[];
+    if (!_booksShardEquals(mergedBooks, remoteShards.books)) {
+      pushes.add(
+          _gateway.writeText(folder, _kBooksShardFile, mergedBooks.encode()));
+    }
+    if (!_settingsShardEquals(mergedSettings, remoteShards.settings)) {
+      pushes.add(_gateway.writeText(
+          folder, _kSettingsShardFile, mergedSettings.encode()));
+    }
+    if (!_sessionsShardEquals(mergedSessions, remoteShards.sessions)) {
+      pushes.add(_gateway.writeText(
+          folder, _kSessionsShardFile, mergedSessions.encode()));
+    }
+    await Future.wait(pushes);
 
-    // 7. Upload any local EPUBs that the folder is missing (if sync on).
+    // 8. Upload any local EPUBs the folder is missing (when EPUB sync on).
     if (config.syncEpubs) {
       await _uploadMissingEpubs(
         folder: folder,
-        merged: merged,
+        merged: mergedBooks,
         remoteEpubFiles: remoteEpubFiles,
       );
     }
@@ -232,20 +244,94 @@ class LibrarySyncService {
     return DateTime.now();
   }
 
-  Future<SyncLibrary> _buildLocalSnapshot({
+  /// Loads the three shards. Falls back to the legacy `library.json` only
+  /// when none of the shards exist remotely (fresh upgrade); otherwise the
+  /// legacy file is treated as already-migrated and ignored.
+  Future<_RemoteShards> _loadRemoteShards({
+    required Future<String?> booksShardF,
+    required Future<String?> settingsShardF,
+    required Future<String?> sessionsShardF,
+    required Future<String?> legacyManifestF,
+    required String deviceId,
+  }) async {
+    final booksRaw = await booksShardF;
+    final settingsRaw = await settingsShardF;
+    final sessionsRaw = await sessionsShardF;
+    final legacyRaw = await legacyManifestF;
+    final legacyPresent = legacyRaw != null && legacyRaw.trim().isNotEmpty;
+
+    final anyShardPresent = (booksRaw != null && booksRaw.trim().isNotEmpty) ||
+        (settingsRaw != null && settingsRaw.trim().isNotEmpty) ||
+        (sessionsRaw != null && sessionsRaw.trim().isNotEmpty);
+
+    if (!anyShardPresent && legacyPresent) {
+      final legacy = SyncLibrary.decode(legacyRaw);
+      return _RemoteShards(
+        books: SyncBooksShard(
+          updatedAt: legacy.updatedAt,
+          updatedBy: legacy.updatedBy,
+          books: legacy.books,
+        ),
+        settings: SyncSettingsShard(
+          updatedAt: legacy.updatedAt,
+          updatedBy: legacy.updatedBy,
+          settings: legacy.settings,
+        ),
+        sessions: SyncSessionsShard.empty(deviceId),
+        legacyPresent: true,
+      );
+    }
+
+    return _RemoteShards(
+      books: booksRaw == null || booksRaw.trim().isEmpty
+          ? SyncBooksShard.empty(deviceId)
+          : SyncBooksShard.decode(booksRaw),
+      settings: settingsRaw == null || settingsRaw.trim().isEmpty
+          ? SyncSettingsShard.empty(deviceId)
+          : SyncSettingsShard.decode(settingsRaw),
+      sessions: sessionsRaw == null || sessionsRaw.trim().isEmpty
+          ? SyncSessionsShard.empty(deviceId)
+          : SyncSessionsShard.decode(sessionsRaw),
+      legacyPresent: legacyPresent,
+    );
+  }
+
+  SyncBooksShard _compactZombieTombstones(
+    SyncBooksShard shard,
+    String deviceId,
+  ) {
+    final activeFileNames = <String>{
+      for (final b in shard.books)
+        if (b.deletedAt == null) b.syncFileName ?? '${b.id}.epub',
+    };
+    final compactedBooks = shard.books.where((b) {
+      if (b.deletedAt == null) return true;
+      final name = b.syncFileName ?? '${b.id}.epub';
+      return !activeFileNames.contains(name);
+    }).toList();
+    if (compactedBooks.length == shard.books.length) return shard;
+    return SyncBooksShard(
+      schemaVersion: shard.schemaVersion,
+      updatedAt: shard.updatedAt,
+      updatedBy: deviceId,
+      books: compactedBooks,
+    );
+  }
+
+  Future<_LocalShards> _buildLocalShards({
     required SyncConfig config,
     required DisplaySettings localSettings,
     required DateTime localSettingsUpdatedAt,
   }) async {
     // Articles are local-only — they have no backing EPUB to upload and the
-    // sync manifest is an EPUB library format. Skip them here.
+    // shards target EPUB libraries. Skip them here.
     final books = (await _booksDao.getAllBooks())
         .where((b) => b.source == BookSource.epub)
         .toList();
-    final snapshot = <SyncLibraryBook>[];
+    final bookRows = <SyncLibraryBook>[];
     for (final book in books) {
       final progress = await _progressDao.getProgressForBook(book.id);
-      snapshot.add(SyncLibraryBook(
+      bookRows.add(SyncLibraryBook(
         id: book.id,
         title: book.title,
         author: book.author,
@@ -265,29 +351,60 @@ class LibrarySyncService {
               ),
         deletedAt: null,
         updatedAt: book.lastReadAt ?? book.importedAt,
+        rating: book.rating,
+        ratingUpdatedAt: book.ratingUpdatedAt,
       ));
     }
 
-    return SyncLibrary(
-      updatedAt: DateTime.now().toUtc(),
-      updatedBy: config.deviceId,
-      settings: SyncLibrarySettings(
-        values: displaySettingsToMap(localSettings),
-        updatedAt: localSettingsUpdatedAt,
+    // Sessions are append-only: we ship every local row and the merge does
+    // a set-union by id remotely.
+    final localSessions = await _sessionDao.getAllSessions();
+    final sessionRows = localSessions
+        .map((s) => SyncReadingSession(
+              id: s.id,
+              bookId: s.bookId,
+              startedAt: s.startedAt,
+              endedAt: s.endedAt,
+              durationMs: s.durationMs,
+              wordsRead: s.wordsRead,
+              startWordIndex: s.startWordIndex,
+              endWordIndex: s.endWordIndex,
+              avgWpm: s.avgWpm,
+            ))
+        .toList();
+
+    final now = DateTime.now().toUtc();
+    return _LocalShards(
+      books: SyncBooksShard(
+        updatedAt: now,
+        updatedBy: config.deviceId,
+        books: bookRows,
       ),
-      books: snapshot,
+      settings: SyncSettingsShard(
+        updatedAt: now,
+        updatedBy: config.deviceId,
+        settings: SyncLibrarySettings(
+          values: displaySettingsToMap(localSettings),
+          updatedAt: localSettingsUpdatedAt,
+        ),
+      ),
+      sessions: SyncSessionsShard(
+        updatedAt: now,
+        updatedBy: config.deviceId,
+        sessions: sessionRows,
+      ),
     );
   }
 
-  Future<void> _applyToLocal({
-    required SyncLibrary merged,
-    required SyncLibrary localBefore,
+  Future<void> _applyShardsToLocal({
+    required _MergedShards merged,
+    required _LocalShards localBefore,
     required SyncConfig config,
     required ApplySettingsCallback applySettings,
   }) async {
-    final localById = {for (final b in localBefore.books) b.id: b};
+    final localById = {for (final b in localBefore.books.books) b.id: b};
 
-    for (final book in merged.books) {
+    for (final book in merged.books.books) {
       try {
         final local = localById[book.id];
 
@@ -323,10 +440,11 @@ class LibrarySyncService {
           continue;
         }
 
-        // Book exists locally: update metadata + progress if merged differs.
+        // Book exists locally: update metadata + progress + rating when
+        // merged differs.
         // DateTime comparisons use isAtSameMomentAs because local times come
         // from Drift (local TZ, isUtc=false) while remote times come from
-        // the JSON manifest (isUtc=true). Default DateTime == compares both
+        // shard JSON (isUtc=true). Default DateTime == compares both
         // microsSinceEpoch AND isUtc, so the same instant on the two sides
         // would always register as different — producing a needless write
         // per book on every sync.
@@ -352,23 +470,70 @@ class LibrarySyncService {
         if (lastReadDiffers) {
           await _booksDao.setLastReadAt(book.id, book.lastReadAt!);
         }
+
+        // Rating LWW per its own timestamp.
+        final remoteRatingTs = book.ratingUpdatedAt;
+        final localRatingTs = local.ratingUpdatedAt;
+        final ratingDiffers = remoteRatingTs != null &&
+            (localRatingTs == null ||
+                remoteRatingTs.isAfter(localRatingTs) ||
+                book.rating != local.rating);
+        if (ratingDiffers) {
+          // Only apply when the remote timestamp is newer-or-equal; equality
+          // with a different value would already be caught by the merge
+          // (the merge picks one deterministically, and we just persist it).
+          if (localRatingTs == null ||
+              remoteRatingTs.isAfter(localRatingTs) ||
+              remoteRatingTs.isAtSameMomentAs(localRatingTs)) {
+            await _booksDao.applySyncedRating(
+                book.id, book.rating, remoteRatingTs);
+          }
+        }
       } catch (e, st) {
         debugPrint('Failed to apply remote book "${book.id}": $e\n$st');
       }
+    }
+
+    // Sessions: insert any remote ids the local DB doesn't have yet. They
+    // never mutate, so we don't update existing rows.
+    final existingIds = await _sessionDao.existingSessionIds();
+    int newSessions = 0;
+    for (final s in merged.sessions.sessions) {
+      if (existingIds.contains(s.id)) continue;
+      try {
+        await _sessionDao.insertSession(ReadingSessionTableCompanion.insert(
+          id: s.id,
+          bookId: s.bookId,
+          startedAt: s.startedAt,
+          endedAt: s.endedAt,
+          durationMs: s.durationMs,
+          wordsRead: s.wordsRead,
+          startWordIndex: s.startWordIndex,
+          endWordIndex: s.endWordIndex,
+          avgWpm: s.avgWpm,
+        ));
+        newSessions++;
+      } catch (e, st) {
+        debugPrint('Failed to apply remote session "${s.id}": $e\n$st');
+      }
+    }
+    if (newSessions > 0) {
+      debugPrint('[sync] imported $newSessions remote session(s)');
     }
 
     // Settings: only apply when remote wins (its updatedAt > local's).
     // Isolated in its own try/catch so a prefs write failure doesn't bail
     // out of the sync before we write the merged manifest back to the
     // remote folder.
-    final localSettingsTs = localBefore.settings?.updatedAt;
-    final mergedSettingsTs = merged.settings?.updatedAt;
-    if (merged.settings != null &&
+    final localSettingsTs = localBefore.settings.settings?.updatedAt;
+    final mergedSettingsTs = merged.settings.settings?.updatedAt;
+    if (merged.settings.settings != null &&
         (localSettingsTs == null ||
             (mergedSettingsTs != null &&
                 mergedSettingsTs.isAfter(localSettingsTs)))) {
       try {
-        await applySettings(displaySettingsFromMap(merged.settings!.values));
+        await applySettings(
+            displaySettingsFromMap(merged.settings.settings!.values));
       } catch (e, st) {
         debugPrint('Failed to apply remote settings: $e\n$st');
       }
@@ -489,7 +654,7 @@ class LibrarySyncService {
 
   Future<void> _uploadMissingEpubs({
     required String folder,
-    required SyncLibrary merged,
+    required SyncBooksShard merged,
     required Set<String> remoteEpubFiles,
   }) async {
     // Filenames claimed by at least one active (non-tombstoned) book in the
@@ -547,14 +712,14 @@ class LibrarySyncService {
   /// but is out of scope here.
   Future<void> _autoImportOrphanFiles({
     required String folder,
-    required SyncLibrary remote,
+    required SyncBooksShard remoteBooks,
     required Set<String> remoteEpubFiles,
     ImportProgressCallback? onProgress,
   }) async {
     await _failuresDao.retainOnly(remoteEpubFiles);
     final previouslyFailed = await _failuresDao.getAllFileNames();
 
-    final knownInManifest = remote.books
+    final knownInManifest = remoteBooks.books
         .where((b) => b.deletedAt == null && b.syncFileName != null)
         .map((b) => b.syncFileName!)
         .toSet();
@@ -564,7 +729,7 @@ class LibrarySyncService {
     // active re-uploads, repeat forever). Treat them as "known" so the file
     // is left alone; the next _uploadMissingEpubs pass will clean it up via
     // the tombstone's delete branch.
-    final tombstonedInManifest = remote.books
+    final tombstonedInManifest = remoteBooks.books
         .where((b) => b.deletedAt != null && b.syncFileName != null)
         .map((b) => b.syncFileName!)
         .toSet();
@@ -648,17 +813,11 @@ class LibrarySyncService {
     }
   }
 
-  /// True when two manifests describe the same library state, ignoring the
-  /// per-sync metadata (`updatedAt`/`updatedBy`) that changes every run.
-  /// Used to skip a ~3s round-trip when the user didn't actually touch
-  /// anything between syncs.
-  bool _libraryContentEquals(SyncLibrary a, SyncLibrary b) {
+  /// True when two books shards describe the same book set, ignoring the
+  /// per-sync metadata that flips every run. Skipping the write here saves a
+  /// ~1.5s Drive round-trip when the user didn't touch any book this session.
+  bool _booksShardEquals(SyncBooksShard a, SyncBooksShard b) {
     if (a.books.length != b.books.length) return false;
-    if (jsonEncode(a.settings?.toJson()) !=
-        jsonEncode(b.settings?.toJson())) {
-      return false;
-    }
-    // Sort by id so ordering differences don't cause false negatives.
     final aBooks = [...a.books]..sort((x, y) => x.id.compareTo(y.id));
     final bBooks = [...b.books]..sort((x, y) => x.id.compareTo(y.id));
     for (int i = 0; i < aBooks.length; i++) {
@@ -669,7 +828,25 @@ class LibrarySyncService {
     return true;
   }
 
-  /// Write a tombstone to the remote library for [bookId] so other devices
+  bool _settingsShardEquals(SyncSettingsShard a, SyncSettingsShard b) {
+    return jsonEncode(a.settings?.toJson()) ==
+        jsonEncode(b.settings?.toJson());
+  }
+
+  bool _sessionsShardEquals(SyncSessionsShard a, SyncSessionsShard b) {
+    if (a.sessions.length != b.sessions.length) return false;
+    final aSessions = [...a.sessions]..sort((x, y) => x.id.compareTo(y.id));
+    final bSessions = [...b.sessions]..sort((x, y) => x.id.compareTo(y.id));
+    for (int i = 0; i < aSessions.length; i++) {
+      if (jsonEncode(aSessions[i].toJson()) !=
+          jsonEncode(bSessions[i].toJson())) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /// Write a tombstone to the books shard for [bookId] so other devices
   /// drop it on their next sync. Called from the delete path.
   Future<void> pushTombstone({
     required SyncConfig config,
@@ -679,10 +856,10 @@ class LibrarySyncService {
     final folder = config.driveFolderId!;
     if (!await _gateway.isReadable(folder)) return;
 
-    final raw = await _gateway.readText(folder, _kLibraryFile);
-    SyncLibrary remote = raw == null || raw.trim().isEmpty
-        ? SyncLibrary.empty(config.deviceId)
-        : SyncLibrary.decode(raw);
+    final raw = await _gateway.readText(folder, _kBooksShardFile);
+    SyncBooksShard remote = raw == null || raw.trim().isEmpty
+        ? SyncBooksShard.empty(config.deviceId)
+        : SyncBooksShard.decode(raw);
 
     final updated = <SyncLibraryBook>[];
     SyncLibraryBook? deletedEntry;
@@ -715,13 +892,12 @@ class LibrarySyncService {
       updated.add(tombstone);
     }
 
-    final next = SyncLibrary(
+    final next = SyncBooksShard(
       updatedAt: DateTime.now().toUtc(),
       updatedBy: config.deviceId,
-      settings: remote.settings,
       books: updated,
     );
-    await _gateway.writeText(folder, _kLibraryFile, next.encode());
+    await _gateway.writeText(folder, _kBooksShardFile, next.encode());
 
     if (config.syncEpubs && deletedEntry != null) {
       await _gateway.deleteFile(folder, _epubRelPath(deletedEntry));
@@ -729,17 +905,47 @@ class LibrarySyncService {
   }
 }
 
-extension on SyncLibrary {
-  SyncLibrary copyWithMeta({
-    required DateTime updatedAt,
-    required String updatedBy,
-  }) {
-    return SyncLibrary(
-      schemaVersion: schemaVersion,
-      updatedAt: updatedAt,
-      updatedBy: updatedBy,
-      settings: settings,
-      books: books,
-    );
-  }
+/// In-memory wrapper for what we read from Drive.
+class _RemoteShards {
+  final SyncBooksShard books;
+  final SyncSettingsShard settings;
+  final SyncSessionsShard sessions;
+
+  /// True when `library.json` is still present remotely (and was migrated
+  /// into [books]/[settings]). The sync flow deletes the legacy file on
+  /// push so other devices don't see it on the next pull.
+  final bool legacyPresent;
+
+  const _RemoteShards({
+    required this.books,
+    required this.settings,
+    required this.sessions,
+    required this.legacyPresent,
+  });
+}
+
+/// In-memory wrapper for the snapshot we built off the local DB.
+class _LocalShards {
+  final SyncBooksShard books;
+  final SyncSettingsShard settings;
+  final SyncSessionsShard sessions;
+
+  const _LocalShards({
+    required this.books,
+    required this.settings,
+    required this.sessions,
+  });
+}
+
+/// Output of merging local × remote, per shard.
+class _MergedShards {
+  final SyncBooksShard books;
+  final SyncSettingsShard settings;
+  final SyncSessionsShard sessions;
+
+  const _MergedShards({
+    required this.books,
+    required this.settings,
+    required this.sessions,
+  });
 }

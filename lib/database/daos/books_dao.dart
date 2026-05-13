@@ -51,9 +51,32 @@ class BooksDao extends DatabaseAccessor<AppDatabase> with _$BooksDaoMixin {
   /// Pass `null` to clear a previously set rating. Any out-of-range value
   /// is clamped at the call site (we don't enforce here so the rating
   /// picker can stay the source of truth on validation).
+  ///
+  /// Stamps [ratingUpdatedAt] on every write (including clears) so sync's
+  /// per-field LWW can compare rating recency across devices independently
+  /// of progress updates.
   Future<void> updateRating(String bookId, int? rating) {
     return (update(booksTable)..where((t) => t.id.equals(bookId))).write(
-      BooksTableCompanion(rating: Value(rating)),
+      BooksTableCompanion(
+        rating: Value(rating),
+        ratingUpdatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Sync uses this to apply a rating coming from a remote device. The
+  /// remote timestamp is preserved verbatim so subsequent LWW comparisons
+  /// against other devices stay consistent.
+  Future<void> applySyncedRating(
+    String bookId,
+    int? rating,
+    DateTime? ratingUpdatedAt,
+  ) {
+    return (update(booksTable)..where((t) => t.id.equals(bookId))).write(
+      BooksTableCompanion(
+        rating: Value(rating),
+        ratingUpdatedAt: Value(ratingUpdatedAt),
+      ),
     );
   }
 

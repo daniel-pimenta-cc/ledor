@@ -156,6 +156,18 @@ class $BooksTableTable extends BooksTable
     type: DriftSqlType.int,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _ratingUpdatedAtMeta = const VerificationMeta(
+    'ratingUpdatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> ratingUpdatedAt =
+      GeneratedColumn<DateTime>(
+        'rating_updated_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -172,6 +184,7 @@ class $BooksTableTable extends BooksTable
     sourceUrl,
     siteName,
     rating,
+    ratingUpdatedAt,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -283,6 +296,15 @@ class $BooksTableTable extends BooksTable
         rating.isAcceptableOrUnknown(data['rating']!, _ratingMeta),
       );
     }
+    if (data.containsKey('rating_updated_at')) {
+      context.handle(
+        _ratingUpdatedAtMeta,
+        ratingUpdatedAt.isAcceptableOrUnknown(
+          data['rating_updated_at']!,
+          _ratingUpdatedAtMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -348,6 +370,10 @@ class $BooksTableTable extends BooksTable
         DriftSqlType.int,
         data['${effectivePrefix}rating'],
       ),
+      ratingUpdatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}rating_updated_at'],
+      ),
     );
   }
 
@@ -388,6 +414,12 @@ class BooksTableData extends DataClass implements Insertable<BooksTableData> {
   /// Reader rating: null = unrated, 1..5 otherwise. Rendered on the book
   /// completion card and persisted so rating survives re-reading.
   final int? rating;
+
+  /// Stamped when [rating] is written (including clears). Needed by sync's
+  /// per-field LWW merge — without it, a fresh rating on one device can be
+  /// overwritten by another device whose unrelated update (progress, etc.)
+  /// bumped the parent updatedAt later.
+  final DateTime? ratingUpdatedAt;
   const BooksTableData({
     required this.id,
     required this.title,
@@ -403,6 +435,7 @@ class BooksTableData extends DataClass implements Insertable<BooksTableData> {
     this.sourceUrl,
     this.siteName,
     this.rating,
+    this.ratingUpdatedAt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -434,6 +467,9 @@ class BooksTableData extends DataClass implements Insertable<BooksTableData> {
     }
     if (!nullToAbsent || rating != null) {
       map['rating'] = Variable<int>(rating);
+    }
+    if (!nullToAbsent || ratingUpdatedAt != null) {
+      map['rating_updated_at'] = Variable<DateTime>(ratingUpdatedAt);
     }
     return map;
   }
@@ -468,6 +504,9 @@ class BooksTableData extends DataClass implements Insertable<BooksTableData> {
       rating: rating == null && nullToAbsent
           ? const Value.absent()
           : Value(rating),
+      ratingUpdatedAt: ratingUpdatedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(ratingUpdatedAt),
     );
   }
 
@@ -491,6 +530,7 @@ class BooksTableData extends DataClass implements Insertable<BooksTableData> {
       sourceUrl: serializer.fromJson<String?>(json['sourceUrl']),
       siteName: serializer.fromJson<String?>(json['siteName']),
       rating: serializer.fromJson<int?>(json['rating']),
+      ratingUpdatedAt: serializer.fromJson<DateTime?>(json['ratingUpdatedAt']),
     );
   }
   @override
@@ -511,6 +551,7 @@ class BooksTableData extends DataClass implements Insertable<BooksTableData> {
       'sourceUrl': serializer.toJson<String?>(sourceUrl),
       'siteName': serializer.toJson<String?>(siteName),
       'rating': serializer.toJson<int?>(rating),
+      'ratingUpdatedAt': serializer.toJson<DateTime?>(ratingUpdatedAt),
     };
   }
 
@@ -529,6 +570,7 @@ class BooksTableData extends DataClass implements Insertable<BooksTableData> {
     Value<String?> sourceUrl = const Value.absent(),
     Value<String?> siteName = const Value.absent(),
     Value<int?> rating = const Value.absent(),
+    Value<DateTime?> ratingUpdatedAt = const Value.absent(),
   }) => BooksTableData(
     id: id ?? this.id,
     title: title ?? this.title,
@@ -544,6 +586,9 @@ class BooksTableData extends DataClass implements Insertable<BooksTableData> {
     sourceUrl: sourceUrl.present ? sourceUrl.value : this.sourceUrl,
     siteName: siteName.present ? siteName.value : this.siteName,
     rating: rating.present ? rating.value : this.rating,
+    ratingUpdatedAt: ratingUpdatedAt.present
+        ? ratingUpdatedAt.value
+        : this.ratingUpdatedAt,
   );
   BooksTableData copyWithCompanion(BooksTableCompanion data) {
     return BooksTableData(
@@ -573,6 +618,9 @@ class BooksTableData extends DataClass implements Insertable<BooksTableData> {
       sourceUrl: data.sourceUrl.present ? data.sourceUrl.value : this.sourceUrl,
       siteName: data.siteName.present ? data.siteName.value : this.siteName,
       rating: data.rating.present ? data.rating.value : this.rating,
+      ratingUpdatedAt: data.ratingUpdatedAt.present
+          ? data.ratingUpdatedAt.value
+          : this.ratingUpdatedAt,
     );
   }
 
@@ -592,7 +640,8 @@ class BooksTableData extends DataClass implements Insertable<BooksTableData> {
           ..write('source: $source, ')
           ..write('sourceUrl: $sourceUrl, ')
           ..write('siteName: $siteName, ')
-          ..write('rating: $rating')
+          ..write('rating: $rating, ')
+          ..write('ratingUpdatedAt: $ratingUpdatedAt')
           ..write(')'))
         .toString();
   }
@@ -613,6 +662,7 @@ class BooksTableData extends DataClass implements Insertable<BooksTableData> {
     sourceUrl,
     siteName,
     rating,
+    ratingUpdatedAt,
   );
   @override
   bool operator ==(Object other) =>
@@ -631,7 +681,8 @@ class BooksTableData extends DataClass implements Insertable<BooksTableData> {
           other.source == this.source &&
           other.sourceUrl == this.sourceUrl &&
           other.siteName == this.siteName &&
-          other.rating == this.rating);
+          other.rating == this.rating &&
+          other.ratingUpdatedAt == this.ratingUpdatedAt);
 }
 
 class BooksTableCompanion extends UpdateCompanion<BooksTableData> {
@@ -649,6 +700,7 @@ class BooksTableCompanion extends UpdateCompanion<BooksTableData> {
   final Value<String?> sourceUrl;
   final Value<String?> siteName;
   final Value<int?> rating;
+  final Value<DateTime?> ratingUpdatedAt;
   final Value<int> rowid;
   const BooksTableCompanion({
     this.id = const Value.absent(),
@@ -665,6 +717,7 @@ class BooksTableCompanion extends UpdateCompanion<BooksTableData> {
     this.sourceUrl = const Value.absent(),
     this.siteName = const Value.absent(),
     this.rating = const Value.absent(),
+    this.ratingUpdatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   BooksTableCompanion.insert({
@@ -682,6 +735,7 @@ class BooksTableCompanion extends UpdateCompanion<BooksTableData> {
     this.sourceUrl = const Value.absent(),
     this.siteName = const Value.absent(),
     this.rating = const Value.absent(),
+    this.ratingUpdatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        title = Value(title),
@@ -702,6 +756,7 @@ class BooksTableCompanion extends UpdateCompanion<BooksTableData> {
     Expression<String>? sourceUrl,
     Expression<String>? siteName,
     Expression<int>? rating,
+    Expression<DateTime>? ratingUpdatedAt,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -719,6 +774,7 @@ class BooksTableCompanion extends UpdateCompanion<BooksTableData> {
       if (sourceUrl != null) 'source_url': sourceUrl,
       if (siteName != null) 'site_name': siteName,
       if (rating != null) 'rating': rating,
+      if (ratingUpdatedAt != null) 'rating_updated_at': ratingUpdatedAt,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -738,6 +794,7 @@ class BooksTableCompanion extends UpdateCompanion<BooksTableData> {
     Value<String?>? sourceUrl,
     Value<String?>? siteName,
     Value<int?>? rating,
+    Value<DateTime?>? ratingUpdatedAt,
     Value<int>? rowid,
   }) {
     return BooksTableCompanion(
@@ -755,6 +812,7 @@ class BooksTableCompanion extends UpdateCompanion<BooksTableData> {
       sourceUrl: sourceUrl ?? this.sourceUrl,
       siteName: siteName ?? this.siteName,
       rating: rating ?? this.rating,
+      ratingUpdatedAt: ratingUpdatedAt ?? this.ratingUpdatedAt,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -804,6 +862,9 @@ class BooksTableCompanion extends UpdateCompanion<BooksTableData> {
     if (rating.present) {
       map['rating'] = Variable<int>(rating.value);
     }
+    if (ratingUpdatedAt.present) {
+      map['rating_updated_at'] = Variable<DateTime>(ratingUpdatedAt.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -827,6 +888,7 @@ class BooksTableCompanion extends UpdateCompanion<BooksTableData> {
           ..write('sourceUrl: $sourceUrl, ')
           ..write('siteName: $siteName, ')
           ..write('rating: $rating, ')
+          ..write('ratingUpdatedAt: $ratingUpdatedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -2597,6 +2659,7 @@ typedef $$BooksTableTableCreateCompanionBuilder =
       Value<String?> sourceUrl,
       Value<String?> siteName,
       Value<int?> rating,
+      Value<DateTime?> ratingUpdatedAt,
       Value<int> rowid,
     });
 typedef $$BooksTableTableUpdateCompanionBuilder =
@@ -2615,6 +2678,7 @@ typedef $$BooksTableTableUpdateCompanionBuilder =
       Value<String?> sourceUrl,
       Value<String?> siteName,
       Value<int?> rating,
+      Value<DateTime?> ratingUpdatedAt,
       Value<int> rowid,
     });
 
@@ -2757,6 +2821,11 @@ class $$BooksTableTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<DateTime> get ratingUpdatedAt => $composableBuilder(
+    column: $table.ratingUpdatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
   Expression<bool> readingProgressTableRefs(
     Expression<bool> Function($$ReadingProgressTableTableFilterComposer f) f,
   ) {
@@ -2886,6 +2955,11 @@ class $$BooksTableTableOrderingComposer
     column: $table.rating,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<DateTime> get ratingUpdatedAt => $composableBuilder(
+    column: $table.ratingUpdatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$BooksTableTableAnnotationComposer
@@ -2950,6 +3024,11 @@ class $$BooksTableTableAnnotationComposer
 
   GeneratedColumn<int> get rating =>
       $composableBuilder(column: $table.rating, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get ratingUpdatedAt => $composableBuilder(
+    column: $table.ratingUpdatedAt,
+    builder: (column) => column,
+  );
 
   Expression<T> readingProgressTableRefs<T extends Object>(
     Expression<T> Function($$ReadingProgressTableTableAnnotationComposer a) f,
@@ -3049,6 +3128,7 @@ class $$BooksTableTableTableManager
                 Value<String?> sourceUrl = const Value.absent(),
                 Value<String?> siteName = const Value.absent(),
                 Value<int?> rating = const Value.absent(),
+                Value<DateTime?> ratingUpdatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => BooksTableCompanion(
                 id: id,
@@ -3065,6 +3145,7 @@ class $$BooksTableTableTableManager
                 sourceUrl: sourceUrl,
                 siteName: siteName,
                 rating: rating,
+                ratingUpdatedAt: ratingUpdatedAt,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -3083,6 +3164,7 @@ class $$BooksTableTableTableManager
                 Value<String?> sourceUrl = const Value.absent(),
                 Value<String?> siteName = const Value.absent(),
                 Value<int?> rating = const Value.absent(),
+                Value<DateTime?> ratingUpdatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => BooksTableCompanion.insert(
                 id: id,
@@ -3099,6 +3181,7 @@ class $$BooksTableTableTableManager
                 sourceUrl: sourceUrl,
                 siteName: siteName,
                 rating: rating,
+                ratingUpdatedAt: ratingUpdatedAt,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
