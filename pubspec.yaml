@@ -93,6 +93,7 @@ dev_dependencies:
   integration_test:
     sdk: flutter
   flutter_launcher_icons: ^0.14.3
+  flutter_native_splash: ^2.4.6
 
 flutter:
   generate: true
@@ -110,3 +111,21 @@ flutter_launcher_icons:
   min_sdk_android: 21
   adaptive_icon_background: "#1F2937"
   adaptive_icon_foreground: "assets/icon/icon_final.png"
+
+# Splash screen. Light/dark variants pulled from AppPalette (paper / ink-on-paper).
+# Android 12+ uses the dedicated splash API; older Androids and iOS fall back to
+# the classic launch screen. Regenerate with:
+#   dart run flutter_native_splash:create
+flutter_native_splash:
+  color: "#F8F3EA"
+  color_dark: "#15120F"
+  image: "assets/icon/icon_final_transparent.png"
+  image_dark: "assets/icon/icon_final_transparent.png"
+  android_12:
+    color: "#F8F3EA"
+    color_dark: "#15120F"
+    image: "assets/icon/icon_final_transparent.png"
+    image_dark: "assets/icon/icon_final_transparent.png"
+  android: true
+  ios: true
+  web: false

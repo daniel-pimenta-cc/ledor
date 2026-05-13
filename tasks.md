@@ -29,3 +29,12 @@
 - [ ] Entry point na biblioteca para reabrir a tela de completion de livros já terminados (hoje só auto-trigger + URL direta)
 - [ ] Yearly recap — reutilizar pipeline do monthly com layout diferente
 - [ ] Triagem de issues do GitHub
+
+## Backlog novo
+- [ ] Modo contexto: dois botoes na UI — um lock que congela a palavra de foco enquanto o usuario rola livremente, e um "voltar para a palavra" que recentra na palavra selecionada. Posicionar de forma elegante em area que faca sentido na interface
+- [ ] Splash screen ao abrir o app
+- [ ] Bug: ao sair e voltar ao app no modo contexto o sync quebra (investigar lifecycle / resume)
+- [ ] Sync de stats (`reading_session` + `books.rating`) entre devices via Drive
+- [ ] Bookmarks (marcar posicoes nomeadas dentro de um livro/artigo)
+- [ ] Modo TTS (text-to-speech) — alternativa de leitura por audio
+- [ ] Sync incremental: avaliar formato com tabelas/linhas alteradas em vez de manifest monolitico, sem adicionar infra (so Drive)
