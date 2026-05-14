@@ -91,6 +91,8 @@ dev_dependencies:
   json_serializable: ^6.9.4
   mocktail: ^1.0.4
   shared_preferences_platform_interface: ^2.4.1
+  path_provider_platform_interface: ^2.1.2
+  archive: ^4.0.7
   integration_test:
     sdk: flutter
   flutter_launcher_icons: ^0.14.3
