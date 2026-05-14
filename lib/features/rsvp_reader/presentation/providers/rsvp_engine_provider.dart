@@ -120,18 +120,11 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
   }
 
   /// Returns the current effective WPM accounting for ramp-up.
-  ///
-  /// Starts at [rampUpStartFraction] of target WPM and linearly
-  /// increases to 100% over [rampUpWords] words.
-  double _effectiveWpm() {
-    final target = state.wpm.toDouble();
-    if (!state.displaySettings.rampUp) return target;
-    if (_wordsInSession >= AppConstants.rampUpWords) return target;
-
-    final progress = _wordsInSession / AppConstants.rampUpWords;
-    final startWpm = target * AppConstants.rampUpStartFraction;
-    return startWpm + (target - startWpm) * progress;
-  }
+  double _effectiveWpm() => computeEffectiveWpm(
+        targetWpm: state.wpm,
+        wordsInSession: _wordsInSession,
+        rampUpEnabled: state.displaySettings.rampUp,
+      );
 
   // ---------- Public controls ----------
 
@@ -365,6 +358,26 @@ final rsvpEngineProvider = StateNotifierProvider.autoDispose
     .family<RsvpEngineNotifier, RsvpState, String>(
   (ref, bookId) => RsvpEngineNotifier(ref, bookId),
 );
+
+/// Returns the effective WPM during ramp-up.
+///
+/// Starts at [AppConstants.rampUpStartFraction] of [targetWpm] and linearly
+/// climbs to [targetWpm] after [AppConstants.rampUpWords] words. Returns
+/// [targetWpm] unchanged when [rampUpEnabled] is false or the ramp is
+/// already complete.
+double computeEffectiveWpm({
+  required int targetWpm,
+  required int wordsInSession,
+  required bool rampUpEnabled,
+}) {
+  final target = targetWpm.toDouble();
+  if (!rampUpEnabled) return target;
+  if (wordsInSession >= AppConstants.rampUpWords) return target;
+
+  final progress = wordsInSession / AppConstants.rampUpWords;
+  final startWpm = target * AppConstants.rampUpStartFraction;
+  return startWpm + (target - startWpm) * progress;
+}
 
 /// Returns the rounded avg WPM for a session with [durationMs] elapsed
 /// and [wordsRead] ticks — or `null` if the session should be dropped as

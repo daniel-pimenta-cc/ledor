@@ -90,6 +90,7 @@ dev_dependencies:
   freezed: ^3.0.0
   json_serializable: ^6.9.4
   mocktail: ^1.0.4
+  shared_preferences_platform_interface: ^2.4.1
   integration_test:
     sdk: flutter
   flutter_launcher_icons: ^0.14.3
