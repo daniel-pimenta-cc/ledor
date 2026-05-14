@@ -1,43 +1,43 @@
 # Tasks
 
 ## Bugs
-- [x] Scroll travado no modo contexto — precisa rolar suave como manteiga
-- [x] Ao pausar, o texto volta para o início ao invés de focar na palavra atual (resolvido junto com o fix do scroll)
-- [x] Botão de configurações no leitor não abre nada
-- [x] Tags de estilo do EPUB vazando no texto (CSS aparecendo entre capítulos com imagens) — `HtmlStripper._skipTags`
+- [x] Context-mode scroll feels stuck — needs to glide
+- [x] On pause, the text jumps back to the beginning instead of focusing on the current word (fixed alongside the scroll fix)
+- [x] Settings button in the reader doesn't open anything
+- [x] EPUB style tags leaking into the text (CSS visible between chapters with images) — `HtmlStripper._skipTags`
 
 ## Features
-- [x] Ramp-up de velocidade — ao dar play, começar mais devagar e acelerar gradualmente até o WPM desejado ao invés de começar na velocidade máxima direto
-- [x] Navegação por capítulos — ter uma forma clara de visualizar a lista de capítulos e navegar entre eles
-- [x] Modo ereader — terceiro modo de leitura sem highlight nem controles (ebook tradicional)
-- [x] Marcadores de capítulo no slider de progresso (com tooltip do título via value indicator)
-- [x] Linha de foco abaixo da palavra (modo focus puro ou focus + progresso, configurável)
+- [x] Speed ramp-up — when pressing play, start slower and gradually accelerate to the target WPM instead of hitting full speed instantly
+- [x] Chapter navigation — a clear way to view the chapter list and jump between chapters
+- [x] Ereader mode — third reading mode without highlight or controls (traditional ebook)
+- [x] Chapter markers on the progress slider (with chapter-title tooltip via value indicator)
+- [x] Focus line below the word (focus-only or focus + progress, configurable)
 
 ## Polish
-- [x] Polir scroll do modo contexto — velocity-based stepping (word/sentence/paragraph), highlight em pill com glow sutil, dead zone para seleção fina
-- [x] Preview de fonte no settings (cada item do dropdown renderizado na própria fonte + linha de amostra)
-- [x] Consolidar telas de configuração (DisplaySettingsPanel compartilhado entre bottom sheet e tela full-screen)
+- [x] Polish the context-mode scroll — velocity-based stepping (word/sentence/paragraph), highlight pill with subtle glow, dead zone for fine selection
+- [x] Font preview in settings (each dropdown item rendered in its own font, plus a sample line)
+- [x] Consolidate settings screens (shared `DisplaySettingsPanel` between the bottom sheet and the full-screen page)
 
-## Pendente
-- [x] Import de artigos web por URL (readability extractor em Dart puro, tabs Books/Articles na biblioteca)
-- [x] Share sheet Android (intent-filter + `receive_sharing_intent`, coordinator global de navegação/snackbar em `app.dart`)
-- [ ] Share sheet iOS — Xcode target precisa ser criado num Mac, passos em [docs/share-extension-ios.md](docs/share-extension-ios.md)
-- [x] Tablet layout pass (landscape liberado, grid adaptativo 2/3/4, master-detail em tablet landscape)
-- [x] Reading stats: sessões de leitura (tabela `reading_session` v5) + dashboard `/stats` com charts weekly/monthly (fl_chart)
-- [x] Monthly recap: imagem 9:16 compartilhável do mês com livros finalizados + em leitura, gerada via `RepaintBoundary -> PNG -> share_plus`
-- [x] Book completion: tela disparada no fim do livro com stats detalhadas, rating 0-5 estrelas (coluna `books.rating` v6), card 9:16 compartilhável com toggle "incluir stats"
-- [x] Entry point na biblioteca para reabrir a tela de completion de livros já terminados — long-press num livro Lido mostra "Ver tela de conclusão"; reader settings sheet/side panel ganhou botão "Finalizar livro" pra livros em andamento (bumpa progresso até o fim e abre completion)
-- [ ] Yearly recap — reutilizar pipeline do monthly com layout diferente
-- [ ] Triagem de issues do GitHub
+## In flight
+- [x] Import web articles by URL (pure-Dart readability extractor, Books/Articles tabs in the library)
+- [x] Android share sheet (intent-filter + `receive_sharing_intent`, global navigation/snackbar coordinator in `app.dart`)
+- [ ] iOS share sheet — the Xcode target needs to be created on a Mac, steps in [docs/share-extension-ios.md](docs/share-extension-ios.md)
+- [x] Tablet layout pass (landscape unlocked, adaptive grid 2/3/4, master-detail on tablet landscape)
+- [x] Reading stats: reading sessions (`reading_session` table v5) + `/stats` dashboard with weekly/monthly charts (fl_chart)
+- [x] Monthly recap: shareable 9:16 image of the month with finished + in-progress books, rendered via `RepaintBoundary -> PNG -> share_plus`
+- [x] Book completion: screen triggered at end-of-book with detailed stats, 0-5 star rating (column `books.rating` v6), shareable 9:16 card with a "include stats" toggle
+- [x] Entry point in the library to reopen the completion screen for already-finished books — long-press a Read book to show "View completion screen"; the reader settings sheet / side panel gained a "Finish book" button for in-progress books (bumps progress to the end and opens completion)
+- [ ] Yearly recap — reuse the monthly pipeline with a different layout
+- [ ] GitHub issue triage
 
-## Backlog novo
-- [x] Modo contexto: lock + recenter no overlay flutuante (mede o RenderBox real da palavra via GlobalKey para centralizar com precisao em paragrafos longos)
-- [x] Splash screen ao abrir o app (flutter_native_splash com paleta light/dark, icone sem o fundo navy)
-- [ ] Bug: ao sair e voltar ao app no modo contexto o sync quebra — em pausa, nao reproduzido na ultima sessao
-- [x] Sync de stats (`reading_session` + `books.rating`) entre devices via Drive (junto com o shard refactor — sessions append-only, rating com timestamp dedicado)
-- [ ] Bookmarks (marcar posicoes nomeadas dentro de um livro/artigo)
-- [ ] Modo TTS (text-to-speech) — alternativa de leitura por audio
-- [x] Sync incremental (phase 1): manifest shardado em `library/books.json` + `settings.json` + `sessions.json`; push paraleliza writes e pula shards inalterados. Phase 2 (per-record + index.json) fica pra quando virar gargalo.
-- [ ] Melhorar ramp-up de velocidade (curva mais natural? configurar duracao/word count?)
-- [ ] Bug: investigar import quando o usuario joga um EPUB direto na pasta `RSVP Reader/books/` no Drive (orphan import via `_autoImportOrphanFiles`) — algo nao esta funcionando como esperado
-- [ ] Suporte a imagens nos livros (figuras inline do EPUB) — hoje so o texto e tokenizado e a capa e extraida; imagens inline sao descartadas no `HtmlStripper`/tokenizer
+## New backlog
+- [x] Context mode: lock + recenter on the floating overlay (measures the word's real `RenderBox` via a `GlobalKey` to centre precisely in long paragraphs)
+- [x] Splash screen on app start (flutter_native_splash with light/dark palette, icon without the navy background)
+- [ ] Bug: returning to the app in context mode breaks the sync — while paused; not reproduced in the latest session
+- [x] Sync stats (`reading_session` + `books.rating`) across devices via Drive (together with the shard refactor — sessions append-only, rating with a dedicated timestamp)
+- [ ] Bookmarks (named save points inside a book/article)
+- [ ] TTS mode (text-to-speech) — alternative audio playback
+- [x] Incremental sync (phase 1): sharded manifest in `library/books.json` + `settings.json` + `sessions.json`; push parallelises writes and skips unchanged shards. Phase 2 (per-record + index.json) is parked until it becomes a bottleneck.
+- [ ] Improve speed ramp-up (more natural curve? configurable duration/word count?)
+- [ ] Bug: investigate imports when the user drops an EPUB straight into the `RSVP Reader/books/` Drive folder (orphan import via `_autoImportOrphanFiles`) — something isn't behaving as expected
+- [ ] Image support in books (inline figures from EPUB) — today only text is tokenized and the cover is extracted; inline images are dropped in `HtmlStripper`/tokenizer
