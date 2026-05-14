@@ -15,14 +15,14 @@ class PlatformCapabilities {
     return Platform.isAndroid || Platform.isIOS;
   }
 
-  /// Drive sync. Android uses the native `google_sign_in` flow. Linux
-  /// uses an OAuth loopback flow against credentials baked in at build
-  /// time via --dart-define; if those weren't provided, the section is
-  /// hidden so we don't surface a button that can only error.
+  /// Drive sync. Both Android and Linux now need the same Web Application
+  /// OAuth client_id in `.env` — Android uses it via `serverClientId` in
+  /// google_sign_in so file visibility (drive.file scope is per-client_id)
+  /// matches the desktop. Without credentials the section is hidden.
   /// iOS would need a separate provisioning profile and is not wired up.
   static bool get supportsDriveSync {
     if (kIsWeb) return false;
-    if (Platform.isAndroid) return true;
+    if (Platform.isAndroid) return desktopOAuthCredentialsConfigured;
     if (Platform.isLinux) return desktopOAuthCredentialsConfigured;
     return false;
   }

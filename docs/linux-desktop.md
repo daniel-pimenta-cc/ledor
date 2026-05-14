@@ -62,7 +62,11 @@ O sync usa o mesmo `DriveSyncFolderGateway` do Android — só a auth muda. No L
 
 ### Setup das credenciais
 
-Crie um OAuth Client ID **type "Desktop application"** no [Google Cloud Console](https://console.cloud.google.com/apis/credentials) (mesmo projeto/consent screen que o Android — apenas adicionando um client adicional). Para apps desktop, o "client secret" não é confidencial pelo design do protocolo (Google permite embutir), mas mantenha fora do repo.
+Crie um OAuth Client ID **type "Web application"** no [Google Cloud Console](https://console.cloud.google.com/apis/credentials), no mesmo projeto/consent screen do Android. Em **Authorized redirect URIs** adicione `http://127.0.0.1` (sem porta — pra loopback IPs o Google ignora a porta).
+
+> Por que "Web application" e não "Desktop"? O scope `drive.file` filtra visibilidade de arquivos **por OAuth client_id**. Pra Android e desktop verem a mesma pasta `RSVP Reader/` no Drive, ambos passam pelo mesmo client_id — Android usa `serverClientId` em `google_sign_in` apontando pra esse Web client. Clients "Desktop application" não funcionam como `serverClientId`.
+
+O Android também precisa de um **Android OAuth client** separado registrado no mesmo projeto (com package name + SHA-1 do certificado de signing); o `google_sign_in` usa esse pra verificar o app no dispositivo. Esse Android client não vai no `.env` — fica registrado no Cloud Console e o Play Services pega automaticamente.
 
 Copie `.env.example` pra `.env` na raiz do projeto e preencha os dois valores:
 

@@ -11,9 +11,11 @@ import 'package:url_launcher/url_launcher.dart';
 import 'drive_auth_backend.dart';
 
 /// OAuth credentials are loaded from `.env` (bundled as an asset). They
-/// must come from a "Desktop application" client in Google Cloud Console.
-/// The "secret" for desktop apps is not actually confidential per Google's
-/// own guidance, but we still keep `.env` out of source control.
+/// must come from a "Web application" client in Google Cloud Console with
+/// `http://127.0.0.1` listed as an authorized redirect URI. The same
+/// client_id is reused by the Android backend (via google_sign_in's
+/// `serverClientId`) so Drive's `drive.file` scope sees the same folder
+/// on both platforms.
 const _clientIdKey = 'RSVP_OAUTH_CLIENT_ID';
 const _clientSecretKey = 'RSVP_OAUTH_CLIENT_SECRET';
 
