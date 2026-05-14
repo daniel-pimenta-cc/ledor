@@ -1,23 +1,23 @@
-# Motor RSVP
+# RSVP Engine
 
 ## Ticker vs Timer
 
-Usa `Ticker` (nao `Timer.periodic`). Vantagens:
-- Sincronizado com refresh rate da tela (60fps)
-- Automaticamente pausado quando app vai para background
-- Precisao superior para 600+ WPM (~100ms por palavra)
+Uses `Ticker` (not `Timer.periodic`). Advantages:
+- Synced to the screen refresh rate (60fps)
+- Automatically paused when the app goes to the background
+- Higher precision at 600+ WPM (~100ms per word)
 
-## Ciclo principal
+## Main loop
 
 ```
 _onTick(elapsed):
   if elapsed >= _nextWordAt:
-    _advanceWord()        // muda para proxima palavra
-    _wordsInSession++     // conta para ramp-up
-    _scheduleNext()       // calcula quando exibir a proxima
+    _advanceWord()        // move to the next word
+    _wordsInSession++     // counts toward ramp-up
+    _scheduleNext()       // computes when to show the next one
 
 _scheduleNext():
-  effectiveWpm = _effectiveWpm()          // com ramp-up
+  effectiveWpm = _effectiveWpm()          // with ramp-up
   baseMs = 60000 / effectiveWpm
   multiplier = smartTiming ? word.timingMultiplier : 1.0
   _nextWordAt = _elapsed + baseMs * multiplier
@@ -25,91 +25,91 @@ _scheduleNext():
 
 ## ORP (Optimal Recognition Point)
 
-Arquivo: `lib/core/utils/orp_calculator.dart`
+File: `lib/core/utils/orp_calculator.dart`
 
-Posicao da letra de foco dentro da palavra (~30% do inicio). Lookup table para 1-13 chars, formula `floor(len * 0.35)` para maiores. Unicode-aware (acentos PT-BR).
+Position of the focus letter within the word (~30% from the start). Lookup table for 1-13 chars, formula `floor(len * 0.35)` for longer ones. Unicode-aware (handles PT-BR accents).
 
-| Comprimento | ORP Index | Exemplo |
+| Length | ORP Index | Example |
 |---|---|---|
 | 1 | 0 | **e** |
 | 2-3 | 0 | **o**f |
 | 4-5 | 1 | w**o**rld |
-| 6-8 | 2 | le**i**tura |
-| 9-11 | 3 | apr**e**sentar |
-| 12-13 | 4 | apre**s**entacao |
+| 6-8 | 2 | re**a**ding |
+| 9-11 | 3 | exh**a**usted |
+| 12-13 | 4 | exha**u**sted! |
 | 14+ | floor(len * 0.35) | — |
 
 ## Word Timing
 
-Arquivo: `lib/core/utils/word_timing.dart`
+File: `lib/core/utils/word_timing.dart`
 
-Multiplicadores sobre `60000ms / WPM`:
+Multipliers applied on top of `60000ms / WPM`:
 
-| Contexto | Multiplicador |
+| Context | Multiplier |
 |---|---|
-| Palavra curta (<=3) | 0.9x |
-| Palavra longa (>6) | +0.1x por char extra |
+| Short word (<=3) | 0.9x |
+| Long word (>6) | +0.1x per extra char |
 | `.` `!` `?` | 2.0x |
 | `,` `;` | 1.5x |
 | `:` | 1.8x |
 | `...` | 2.5x |
-| Inicio paragrafo | 1.5x |
-| Inicio capitulo | 3.0x |
+| Paragraph start | 1.5x |
+| Chapter start | 3.0x |
 
-Clamp final: 0.5x — 5.0x. Toggle `smartTiming` desativa os multiplicadores.
+Final clamp: 0.5x — 5.0x. The `smartTiming` toggle disables all the multipliers.
 
 ## Ramp-Up
 
-Opcional (toggle nas configs, default ON). Ao dar play:
-- Comeca em `rampUpStartFraction` (70%) do WPM alvo
-- Acelera linearmente ao longo de `rampUpWords` (30) palavras
-- Reseta a cada play
+Optional (toggle in settings, default ON). On play:
+- Starts at `rampUpStartFraction` (70%) of the target WPM
+- Linearly accelerates over `rampUpWords` (30) words
+- Resets on every play
 
 ```
 effectiveWpm = startWpm + (targetWpm - startWpm) * (wordsInSession / rampUpWords)
 ```
 
-Constantes em `AppConstants`.
+Constants live in `AppConstants`.
 
-## Auto-Scale de palavras longas
+## Auto-Scale for long words
 
-No `RsvpWordDisplay`, se a palavra nao cabe na largura disponivel com a fonte configurada, a fonte e reduzida de 2 em 2 (minimo 16px) ate caber. Isso evita corte em palavras longas do portugues.
+In `RsvpWordDisplay`, if the word does not fit the available width at the configured font size, the font shrinks by 2px at a time (minimum 16px) until it fits. Prevents cropping for long Portuguese words.
 
-## Modos de leitura
+## Reading modes
 
-3 modos no enum `ReaderMode`:
+3 modes in the `ReaderMode` enum:
 
-- **`rsvp`**: palavra unica com ORP. Ativo durante play.
-- **`scroll`**: texto completo com highlight (pill arredondada com glow sutil). Ativo ao pausar ou ao abrir livro. Suporta tap-to-seek em qualquer palavra.
-- **`ereader`**: texto completo sem highlight, sem controles. Leitura tradicional (ebook). Toggleavel por icone no top bar.
+- **`rsvp`**: single word with ORP. Active during play.
+- **`scroll`**: full text with a highlight (rounded pill with a soft glow). Active when paused or when opening a book. Supports tap-to-seek on any word.
+- **`ereader`**: full text without highlight, no controls. Traditional ebook reading. Toggleable via the top bar icon.
 
-Transicoes:
-- Play/pause: alterna `rsvp` ↔ `scroll`. AnimatedSwitcher com fade 200ms.
-- Toggle ereader (via top bar): `engine.toggleEreaderMode()`. Ao entrar, pausa o ticker e salva progresso. Ao sair, volta para `scroll`.
-- `RsvpControls` so e renderizado quando `mode != ereader`.
+Transitions:
+- Play/pause: alternates `rsvp` ↔ `scroll`. `AnimatedSwitcher` with a 200ms fade.
+- Toggle ereader (via top bar): `engine.toggleEreaderMode()`. On enter, the ticker pauses and progress is saved. On exit, it returns to `scroll`.
+- `RsvpControls` is only rendered when `mode != ereader`.
 
 ### Velocity-based scroll tracking
 
-O `ContextScrollView` rastreia velocidade do scroll via `ScrollUpdateNotification.scrollDelta` e suaviza com EMA (`0.7 * anterior + 0.3 * novo`). Throttle de 80ms entre updates. Granularidade depende de `|velocity|`:
+`ContextScrollView` tracks scroll velocity via `ScrollUpdateNotification.scrollDelta` and smooths it with an EMA (`0.7 * previous + 0.3 * new`). 80ms throttle between updates. Granularity depends on `|velocity|`:
 
-| Velocidade | Stepping |
+| Velocity | Stepping |
 |---|---|
-| `< 0.3` | dead zone (ignora) |
-| `0.3 - 8` | palavra por palavra |
-| `8 - 25` | frase por frase (`.` `!` `?`) |
-| `> 25` | paragrafo por paragrafo |
+| `< 0.3` | dead zone (ignored) |
+| `0.3 - 8` | word by word |
+| `8 - 25` | sentence by sentence (`.` `!` `?`) |
+| `> 25` | paragraph by paragraph |
 
-Boundaries de paragrafo/frase pre-computadas em `_paragraphBoundaries` e `_sentenceBoundaries` na construcao da lista (binary search no lookup). Catch-up: se o highlight sai da viewport, snapa para o paragrafo no centro (40% da altura).
+Paragraph and sentence boundaries are precomputed into `_paragraphBoundaries` and `_sentenceBoundaries` when the list is built (binary search on lookup). Catch-up: if the highlight leaves the viewport, it snaps to the paragraph centred at 40% of the height.
 
-O scroll view usa `ValueNotifier<int>` local para o highlight (nao Riverpod) — evita rebuild cascade durante scroll. Sync com engine acontece so no `ScrollDirection.idle`.
+The scroll view uses a local `ValueNotifier<int>` for the highlight (not Riverpod) — avoids the rebuild cascade during scroll. Sync with the engine only happens on `ScrollDirection.idle`.
 
 ## Focus line
 
-Linha horizontal opcional abaixo da palavra no modo RSVP. Configurada por dois flags em `DisplaySettings`:
+Optional horizontal line below the word in RSVP mode. Controlled by two flags in `DisplaySettings`:
 
-- `showFocusLine` (default `true`): liga/desliga a linha
-- `focusLineShowsProgress` (default `true`): track + parte preenchida (cor `orpColor`) proporcional a `globalWordIndex / totalWords`
+- `showFocusLine` (default `true`): toggles the line on/off
+- `focusLineShowsProgress` (default `true`): track + filled portion (using `orpColor`) proportional to `globalWordIndex / totalWords`
 
-Quando `focusLineShowsProgress = false`, a linha e renderizada solida em `wordColor.withAlpha(60)` — apenas ancora visual para o olhar.
+When `focusLineShowsProgress = false`, the line renders as a solid `wordColor.withAlpha(60)` — purely a visual anchor for the eye.
 
-A linha vai de borda a borda da tela (`left: 0, right: 0`). Por isso o `RsvpWordDisplay` aplica internamente toda a margem horizontal para a palavra (`margin = 32`) — o widget pai NAO deve adicionar Padding lateral, ou a linha ficaria com gap visivel das laterais.
+The line spans edge to edge (`left: 0, right: 0`). For that reason `RsvpWordDisplay` applies the full horizontal margin internally for the word (`margin = 32`) — the parent widget MUST NOT add lateral padding, otherwise the line would be visibly inset from the screen edges.
