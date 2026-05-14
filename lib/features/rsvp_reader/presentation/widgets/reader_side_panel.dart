@@ -6,6 +6,7 @@ import '../../domain/entities/display_settings.dart';
 import '../providers/reader_side_panel_provider.dart';
 import '../providers/rsvp_engine_provider.dart';
 import 'display_settings_panel.dart';
+import 'finish_book_button.dart';
 
 /// Tablet-landscape auxiliary panel hosted inside the reader's body. Renders
 /// either the display-settings panel or a chapter list. Colours are derived
@@ -57,7 +58,20 @@ class ReaderSidePanel extends ConsumerWidget {
                         AppSpacing.lg,
                         AppSpacing.lg,
                       ),
-                      child: DisplaySettingsPanel(bookId: bookId),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          DisplaySettingsPanel(bookId: bookId),
+                          const SizedBox(height: AppSpacing.lg),
+                          FinishBookButton(
+                            bookId: bookId,
+                            settings: settings,
+                            onBeforeNavigate: () => ref
+                                .read(readerSidePanelProvider.notifier)
+                                .state = ReaderSidePanelMode.none,
+                          ),
+                        ],
+                      ),
                     )
                   : _ChapterList(bookId: bookId, settings: settings),
             ),

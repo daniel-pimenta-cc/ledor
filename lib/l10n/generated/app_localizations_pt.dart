@@ -38,6 +38,22 @@ class AppLocalizationsPt extends AppLocalizations {
   String get markAsRead => 'Marcar como lido';
 
   @override
+  String get viewCompletion => 'Ver tela de conclusão';
+
+  @override
+  String get finishBook => 'Finalizar livro';
+
+  @override
+  String get finishBookConfirmTitle => 'Finalizar este livro?';
+
+  @override
+  String get finishBookConfirmBody =>
+      'Vamos saltar seu progresso até o fim e abrir a tela de conclusão pra você avaliar.';
+
+  @override
+  String get finishBookConfirmCta => 'Finalizar';
+
+  @override
   String markedAsRead(String title) {
     return '\"$title\" marcado como lido';
   }

@@ -26,7 +26,7 @@
 - [x] Reading stats: sessões de leitura (tabela `reading_session` v5) + dashboard `/stats` com charts weekly/monthly (fl_chart)
 - [x] Monthly recap: imagem 9:16 compartilhável do mês com livros finalizados + em leitura, gerada via `RepaintBoundary -> PNG -> share_plus`
 - [x] Book completion: tela disparada no fim do livro com stats detalhadas, rating 0-5 estrelas (coluna `books.rating` v6), card 9:16 compartilhável com toggle "incluir stats"
-- [ ] Entry point na biblioteca para reabrir a tela de completion de livros já terminados (hoje só auto-trigger + URL direta)
+- [x] Entry point na biblioteca para reabrir a tela de completion de livros já terminados — long-press num livro Lido mostra "Ver tela de conclusão"; reader settings sheet/side panel ganhou botão "Finalizar livro" pra livros em andamento (bumpa progresso até o fim e abre completion)
 - [ ] Yearly recap — reutilizar pipeline do monthly com layout diferente
 - [ ] Triagem de issues do GitHub
 
@@ -38,3 +38,6 @@
 - [ ] Bookmarks (marcar posicoes nomeadas dentro de um livro/artigo)
 - [ ] Modo TTS (text-to-speech) — alternativa de leitura por audio
 - [x] Sync incremental (phase 1): manifest shardado em `library/books.json` + `settings.json` + `sessions.json`; push paraleliza writes e pula shards inalterados. Phase 2 (per-record + index.json) fica pra quando virar gargalo.
+- [ ] Melhorar ramp-up de velocidade (curva mais natural? configurar duracao/word count?)
+- [ ] Bug: investigar import quando o usuario joga um EPUB direto na pasta `RSVP Reader/books/` no Drive (orphan import via `_autoImportOrphanFiles`) — algo nao esta funcionando como esperado
+- [ ] Suporte a imagens nos livros (figuras inline do EPUB) — hoje so o texto e tokenizado e a capa e extraida; imagens inline sao descartadas no `HtmlStripper`/tokenizer

@@ -38,6 +38,22 @@ class AppLocalizationsEn extends AppLocalizations {
   String get markAsRead => 'Mark as read';
 
   @override
+  String get viewCompletion => 'View completion';
+
+  @override
+  String get finishBook => 'Finish book';
+
+  @override
+  String get finishBookConfirmTitle => 'Finish this book?';
+
+  @override
+  String get finishBookConfirmBody =>
+      'We\'ll jump your progress to the end and open the completion screen so you can rate it.';
+
+  @override
+  String get finishBookConfirmCta => 'Finish';
+
+  @override
   String markedAsRead(String title) {
     return 'Marked \"$title\" as read';
   }

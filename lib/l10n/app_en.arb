@@ -9,6 +9,11 @@
   "deleteBook": "Delete Book",
   "deleteBookConfirm": "Are you sure you want to delete \"{title}\"?",
   "markAsRead": "Mark as read",
+  "viewCompletion": "View completion",
+  "finishBook": "Finish book",
+  "finishBookConfirmTitle": "Finish this book?",
+  "finishBookConfirmBody": "We'll jump your progress to the end and open the completion screen so you can rate it.",
+  "finishBookConfirmCta": "Finish",
   "markedAsRead": "Marked \"{title}\" as read",
   "@markedAsRead": {
     "placeholders": {

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/display_settings_provider.dart';
 import 'display_settings_panel.dart';
+import 'finish_book_button.dart';
 
 /// Bottom sheet wrapper around [DisplaySettingsPanel], shown from the reader.
 class ReaderSettingsSheet extends ConsumerWidget {
@@ -42,6 +43,12 @@ class ReaderSettingsSheet extends ConsumerWidget {
                 const SizedBox(height: 16),
                 DisplaySettingsPanel(bookId: bookId),
                 const SizedBox(height: 24),
+                FinishBookButton(
+                  bookId: bookId,
+                  settings: settings,
+                  onBeforeNavigate: () => Navigator.of(context).maybePop(),
+                ),
+                const SizedBox(height: 16),
               ],
             ),
           ),

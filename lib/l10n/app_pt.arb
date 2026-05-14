@@ -9,6 +9,11 @@
   "deleteBook": "Excluir Livro",
   "deleteBookConfirm": "Tem certeza que deseja excluir \"{title}\"?",
   "markAsRead": "Marcar como lido",
+  "viewCompletion": "Ver tela de conclusão",
+  "finishBook": "Finalizar livro",
+  "finishBookConfirmTitle": "Finalizar este livro?",
+  "finishBookConfirmBody": "Vamos saltar seu progresso até o fim e abrir a tela de conclusão pra você avaliar.",
+  "finishBookConfirmCta": "Finalizar",
   "markedAsRead": "\"{title}\" marcado como lido",
   "@markedAsRead": {
     "placeholders": {

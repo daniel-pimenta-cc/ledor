@@ -183,6 +183,23 @@ class LibraryList extends ConsumerWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
+              // Only books that crossed the "Read" threshold get the
+              // completion-screen entry point. Watching the provider here
+              // keeps the tile in sync if progress changes while the sheet
+              // is open (rare but cheap).
+              Consumer(builder: (ctx, ref, _) {
+                final progress =
+                    ref.watch(bookProgressProvider(bookId)).valueOrNull ?? 0.0;
+                if (progress < 0.99) return const SizedBox.shrink();
+                return ListTile(
+                  leading: const Icon(Icons.emoji_events_outlined),
+                  title: Text(l10n.viewCompletion),
+                  onTap: () {
+                    Navigator.of(sheetCtx).pop();
+                    context.push('/books/$bookId/completion');
+                  },
+                );
+              }),
               ListTile(
                 leading: const Icon(Icons.check_circle_outline),
                 title: Text(l10n.markAsRead),

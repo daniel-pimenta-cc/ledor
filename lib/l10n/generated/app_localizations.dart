@@ -152,6 +152,36 @@ abstract class AppLocalizations {
   /// **'Mark as read'**
   String get markAsRead;
 
+  /// No description provided for @viewCompletion.
+  ///
+  /// In en, this message translates to:
+  /// **'View completion'**
+  String get viewCompletion;
+
+  /// No description provided for @finishBook.
+  ///
+  /// In en, this message translates to:
+  /// **'Finish book'**
+  String get finishBook;
+
+  /// No description provided for @finishBookConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Finish this book?'**
+  String get finishBookConfirmTitle;
+
+  /// No description provided for @finishBookConfirmBody.
+  ///
+  /// In en, this message translates to:
+  /// **'We\'ll jump your progress to the end and open the completion screen so you can rate it.'**
+  String get finishBookConfirmBody;
+
+  /// No description provided for @finishBookConfirmCta.
+  ///
+  /// In en, this message translates to:
+  /// **'Finish'**
+  String get finishBookConfirmCta;
+
   /// No description provided for @markedAsRead.
   ///
   /// In en, this message translates to:
