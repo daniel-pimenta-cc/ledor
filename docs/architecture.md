@@ -54,7 +54,11 @@ Pipeline: EPUB bytes → `epub_pro` → chapters → `HtmlStripper` → `TextTok
 Pipeline: URL → `http.get` → HTML → `ReadabilityExtractor` → `HtmlStripper` → `TextTokenizer` → `ParsedBook` (1 chapter) → `persistParsedBook(source: BookSource.article)`. Details in [article-import.md](article-import.md).
 
 ### library_sync
-Syncs library metadata, `reading_progress`, and `DisplaySettings` through an "RSVP Reader" folder the app creates in the user's Google Drive (scope `drive.file` — it only sees files the app itself created). Single backend via `DriveSyncFolderGateway` (implements `SyncFolderGateway`); `DriveAuthNotifier` handles sign-in/sign-out and produces the authenticated `http.Client`. `SyncConfig.driveFolderId` caches the root folder id. **Filters `source='epub'`** — articles are always local. Android-only.
+Syncs the library manifest, `reading_progress`, `DisplaySettings`, ratings, and reading sessions through an "RSVP Reader" folder the app creates in the user's Google Drive (scope `drive.file` — it only sees files the app itself created). Available on **Android** and **Linux desktop**.
+
+Single gateway via `DriveSyncFolderGateway` (implements `SyncFolderGateway`); the per-platform auth is abstracted behind `DriveAuthBackend` (`lib/features/library_sync/data/auth/`): `GoogleSignInDriveAuthBackend` on mobile, `DesktopOAuthDriveAuthBackend` on desktop (loopback OAuth via `googleapis_auth.clientViaUserConsent`, system browser via `url_launcher`, refresh token in `flutter_secure_storage`/libsecret). `DriveAuthNotifier` only depends on the abstraction, so the gateway / sync service / manifest code is identical across platforms. `SyncConfig.driveFolderId` caches the root folder id. **Filters `source='epub'`** — articles are always local.
+
+The manifest is sharded into three files (`library/books.json` + `library/settings.json` + `library/sessions.json`); pushes parallelise writes via `Future.wait` and skip any shard whose JSON-encoded content is unchanged (ignoring `updatedAt`/`updatedBy`). Sessions are append-only by id; rating uses a dedicated `ratingUpdatedAt` for per-field LWW so unrelated bumps don't clobber a fresh rating.
 
 `LibrarySyncService.sync()` pipeline:
 1. 3 parallel reads: `isReadable` + `readManifest` + `listFiles(books/)` — these used to run serially; now they only pay the `max()` of their latencies (~1.5s instead of ~4.5s).
@@ -80,7 +84,8 @@ Core feature. Widgets organised into focused files:
 - `RsvpWordDisplay` — RichText with ORP anchor. Auto-scales long words. Margins and font scale are responsive via `ResponsiveDefaults`.
 
 **Context mode:**
-- `ContextScrollView` — virtualised list of chapters + paragraphs. Highlight via a local ValueNotifier, velocity-based stepping, syncs with the engine on scroll end. `ConstrainedBox(maxWidth: 720)` on wide screens. `showHighlight: false` serves the ereader mode.
+- `ContextScrollView` — virtualised list of chapters + paragraphs. Highlight via a local ValueNotifier, velocity-based stepping, syncs with the engine on scroll end. `ConstrainedBox(maxWidth: 720)` on wide screens. `showHighlight: false` serves the ereader mode. A floating bottom-right overlay houses a **lock** toggle (freezes the scroll while the engine keeps advancing) and a **recenter** button that measures the highlighted word's actual `RenderBox` via `GlobalKey` + `getTransformTo(viewport)` so long-paragraph centring is pixel-accurate, not character-fraction-estimated.
+- `RsvpParagraphView` — extracted public widget that renders a single paragraph's tokens with the highlight pill. Lives outside `ContextScrollView` so it's testable without the engine provider.
 
 **Controls (dock):**
 - `RsvpControls` — compositor. `AnimatedSize` on the column so it grows when the WPM drawer opens.
@@ -102,6 +107,7 @@ Core feature. Widgets organised into focused files:
 - `ReaderSettingsSheet` — DraggableScrollableSheet wrapping DisplaySettingsPanel.
 - `ChapterListSheet` — chapter list for navigation.
 - `ReaderSidePanel` — right-hand side panel on tablet landscape (settings or chapters), driven by `readerSidePanelProvider`.
+- `FinishBookButton` — manual "Finish book" action surfaced in the reader settings sheet and side panel for books still in progress. Confirms via dialog, bumps progress to the last word, and routes to the completion screen — useful for books whose tail is acknowledgements or references.
 
 ### settings
 Full-screen screen: Appearance section (`SegmentedButton<ThemeMode>`) + `DisplaySettingsPanel()` + `SyncSettingsSection` + About. Background and colours come from `DisplaySettings` (live preview), except Appearance which uses the global theme.
@@ -111,7 +117,7 @@ Local telemetry with three presentation surfaces:
 
 - **`ReadingStatsScreen` (`/stats`)** — TabBar Weekly (7d) / Monthly (30d). Summary cards, stacked bar "words per day" (coloured per book), bar "time per day", line "wpm trend" (fl_chart). Book breakdown ordered by time. 2-column layout on tablet landscape.
 - **`MonthlyRecapScreen` (`/stats/recap`)** — preview of the 9:16 `MonthlyRecapCard` + Share button. Card with a highlighted "Finished" section, an "In progress" section below, and a footer with totals.
-- **`BookCompletionScreen` (`/books/:id/completion`)** — fired automatically by the reader at end-of-book (via `RsvpState.finishTicket`). Star picker 0-5 (persists to `books.rating`), detailed stats block, "Include stats in the image" toggle, shareable 9:16 `BookCompletionCard`.
+- **`BookCompletionScreen` (`/books/:id/completion`)** — fired automatically by the reader at end-of-book (via `RsvpState.finishTicket`), and also reachable manually: long-press a Read book in the library to reopen it, or use the reader's "Finish book" button on an in-progress book. Star picker 0-5 (persists to `books.rating` + `ratingUpdatedAt` for sync), detailed stats block, "Include stats in the image" toggle, shareable 9:16 `BookCompletionCard`.
 
 Pure aggregations (`buildSnapshot`, `buildMonthlyRecap`, `buildCompletionSummary`) live alongside the `StreamProvider.family` / `FutureProvider.family`. **Share cards use a fixed palette (theme-independent)** so the exported PNG looks the same for everyone. Details in [reading-stats.md](reading-stats.md).
 
@@ -146,8 +152,8 @@ Main providers:
 
 ## Database (Drift/SQLite)
 
-Schema version **6**. Tables:
-- `BooksTable` — metadata: id, title, author, filePath, coverImage, totalWords, chapterCount, importedAt, lastReadAt, syncFileName, **source** (BookSource.epub|article), **sourceUrl**, **siteName**, **rating** (nullable int 0-5, v6).
+Schema version **7**. Tables:
+- `BooksTable` — metadata: id, title, author, filePath, coverImage, totalWords, chapterCount, importedAt, lastReadAt, syncFileName, **source** (BookSource.epub|article), **sourceUrl**, **siteName**, **rating** (nullable int 0-5, v6), **ratingUpdatedAt** (nullable, v7 — sync's per-field LWW clock for rating).
 - `ReadingProgressTable` — position per book (bookId PK, chapterIndex, wordIndex, wpm, updatedAt).
 - `ReadingSessionTable` (v5) — one row per continuous stretch of `isPlaying=true`. Fields: id, bookId, startedAt, endedAt, durationMs, wordsRead, startWordIndex, endWordIndex, avgWpm. No FK on `bookId` (history survives a delete). Indices on `startedAt` and `bookId`.
 - `CachedTokensTable` — pre-processed tokens per chapter (bookId, chapterIndex, chapterTitle, tokensJson, wordCount, paragraphCount).
@@ -155,7 +161,7 @@ Schema version **6**. Tables:
 
 `BookSource` (`lib/database/tables/book_source.dart`) is a set of string constants (not a Dart enum).
 
-**Migrations**: every bump increments `schemaVersion` and adds an `if (from < N)` block in `MigrationStrategy`. The bumps so far: v2 syncFileName on books, v3 sync_import_failures table, v4 article source fields on books, v5 reading_session + indices, v6 rating on books.
+**Migrations**: every bump increments `schemaVersion` and adds an `if (from < N)` block in `MigrationStrategy`. The bumps so far: v2 syncFileName on books, v3 sync_import_failures table, v4 article source fields on books, v5 reading_session + indices, v6 rating on books, v7 ratingUpdatedAt on books (per-field LWW for sync).
 
 ## Data flow
 

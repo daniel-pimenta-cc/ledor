@@ -69,13 +69,16 @@ lib/
         screens/    rsvp_reader_screen (modes, top bar, side panel host,
                     ref.listen em finishTicket -> /books/:id/completion)
         widgets/    rsvp_word_display, context_scroll_view,
+                    rsvp_paragraph_view (extraido pra testar sem engine provider),
                     rsvp_controls (dock compositor),
                     controls_shell, controls_meta_row, controls_progress_row,
                     controls_transport_row, seek_slider,
                     wpm_selector (capsule + preset drawer compartilhado),
                     display_settings_panel + display_settings_widgets (part),
-                    reader_settings_sheet, chapter_list_sheet, reader_side_panel
-        providers/  rsvp_engine_provider (flush de sessao em pause/end/ereader/dispose),
+                    reader_settings_sheet, chapter_list_sheet, reader_side_panel,
+                    finish_book_button (entrada manual pra tela de completion)
+        providers/  rsvp_engine_provider (flush de sessao em pause/end/ereader/dispose,
+                    computeEffectiveWpm + computeSessionAvgWpm como helpers puros),
                     display_settings_provider, reader_side_panel_provider
     reading_stats/   # telemetria + dashboards + shareable cards
       domain/entities/  stats_range, stats_snapshot, monthly_recap, book_completion_summary
@@ -114,7 +117,8 @@ lib/
 - **WPM selector compartilhado**: `WpmSelector` (all-in-one) usado em settings; `WpmCapsule` + `WpmPresetRow` usados separadamente nos controles. Preset drawer gera valores dinamicamente (atual ± incrementos de 50, clamped min/max), auto-centraliza o chip selecionado no scroll. Capsule com +/- faz ajuste fino de 25.
 - **Biblioteca com tabs**: `LibraryScreen` separa "Livros" (source=epub) de "Artigos" (source=article) via `TabBar`. O FAB (`LibraryFab`) muda de acao conforme a tab ativa.
 - **Reading sessions**: cada trecho continuo de `isPlaying=true` (play -> pause/end/ereader/dispose) vira uma row em `reading_session`. Seeks durante play nao quebram a sessao. Threshold 3s/5 words descarta taps acidentais. Ver [docs/reading-stats.md](docs/reading-stats.md).
-- **Stats + recap + completion**: feature `reading_stats` consome sessions para (a) dashboard `/stats` com charts weekly/monthly (fl_chart), (b) recap mensal `/stats/recap` com PNG compartilhavel, (c) tela de conclusao `/books/:id/completion` disparada automaticamente ao chegar no final de um livro (via `RsvpState.finishTicket`). Rating 0-5 estrelas persiste em `books.rating`. Share cards usam paleta fixa (independente de tema) e capturam via `RepaintBoundary -> toImage -> share_plus`.
+- **Stats + recap + completion**: feature `reading_stats` consome sessions para (a) dashboard `/stats` com charts weekly/monthly (fl_chart), (b) recap mensal `/stats/recap` com PNG compartilhavel, (c) tela de conclusao `/books/:id/completion` disparada automaticamente ao chegar no final de um livro (via `RsvpState.finishTicket`). Entradas manuais: long-press num livro Lido na biblioteca reabre a tela; `FinishBookButton` (no sheet/side panel do reader) bumpa o progresso pro fim e abre completion pra livros em andamento. Rating 0-5 estrelas persiste em `books.rating` + `ratingUpdatedAt` (timestamp dedicado pro LWW de sync). Share cards usam paleta fixa (independente de tema) e capturam via `RepaintBoundary -> toImage -> share_plus`.
+- **Lock + recenter no context view**: overlay flutuante (bottom-right) com toggle de lock (impede o scroll de seguir o highlight enquanto a engine avanca) + botao de recenter. O recenter mede o `RenderBox` real da palavra atual via `GlobalKey` + `getTransformTo(viewport)` em vez de estimar por fracao de caractere — centralizacao precisa em paragrafos longos. A pill em si vem do `RsvpParagraphView` que carrega o `highlightKey`.
 
 ## Regras
 
@@ -135,7 +139,7 @@ lib/
 - **Tombstone + syncFileName em sync**: um livro ativo sempre vence disputa de `syncFileName` contra um tombstone (em `_uploadMissingEpubs` o tombstone e pulado com `skippedTombstones`; em `_autoImportOrphanFiles` o filename tombstonado e tratado como "ja conhecido" para nao ressuscitar como orfao). Qualquer codigo novo que itere `merged.books` e opere por filename deve respeitar essa invariante. Tombstones cujo filename e reivindicado por um ativo sao compactados fora do merged antes do push.
 - **Sync sharded** (`library/books.json` + `library/settings.json` + `library/sessions.json`): cada shard tem seu proprio `_*ShardEquals` que compara conteudo JSON-encoded ignorando `updatedAt`/`updatedBy`. Push paraleliza writes via `Future.wait`; shards inalterados nao sobem. O monolito `library.json` antigo e migrado in-memory na primeira sync e deletado em seguida. Ao adicionar campos novos a `SyncLibraryBook`/sessions/settings, garantir que entrem no `toJson` — os equals dependem disso. Sessions sao append-only por id (merge = uniao); rating tem seu proprio `ratingUpdatedAt` pro LWW imune a bumps de outros campos.
 - **`DriveSyncFolderGateway._fileIdCache`**: caches `fileId` por `(parentId, fileName)`. Populado opportunisticamente por `listFiles`, `readBytes`, e branch "create" de `writeBytes`. Consumido por todas as operacoes pra pular o `_findFile` (~500-700ms). `deleteFile` invalida a entrada; `clearCache()` no disconnect. Nao e thread-safe; assume uma unica sync em andamento por gateway (serializado pelo `LibrarySyncNotifier`).
-- Testes unitarios dos core utils sao prioridade (ORP, timing, tokenizer, HTML stripper, readability). HTML stripper deve cobrir tags `_skipTags` para evitar regressao de CSS/JS vazando no texto. Logica pura de stats tambem (`computeSessionAvgWpm`, `buildSnapshot`, `buildMonthlyRecap`, `buildCompletionSummary`).
+- Testes unitarios dos core utils sao prioridade (ORP, timing, tokenizer, HTML stripper, readability). HTML stripper deve cobrir tags `_skipTags` para evitar regressao de CSS/JS vazando no texto. Logica pura de stats e engine tambem (`computeSessionAvgWpm`, `computeEffectiveWpm`, `buildSnapshot`, `buildMonthlyRecap`, `buildCompletionSummary`). Para testar o `RsvpEngineNotifier` use mocktail nas DAOs + stub do `LibrarySyncNotifier` (o real le `syncConfigProvider` no `schedulePush` e atrapalha o pending-async do flutter_test). Pra exercitar o pipeline de import sem fixture binario, use `test/fixtures/build_minimal_epub.dart` (constroi EPUB 2 valido em runtime via `archive`).
 - **Share cards (recap, completion)**: paleta fixa (`_paper`, `_ink`, `_accent` etc. hardcoded nos widgets), NAO derivada de `Theme.of(context)` — exportacao deve ser consistente entre usuarios. Fonts via `GoogleFonts.inter()` / `GoogleFonts.lora()` (strings `'Inter'`/`'Lora'` nao sao asset families registrados).
 - **Engine e finishTicket**: qualquer ponto novo de saida de `isPlaying=true` (alem de pause/end/ereader/dispose) deve chamar `_flushSession()` antes de zerar contadores. Fim-de-livro organico (`_advanceWord` hit end, nao seek) incrementa `state.finishTicket` para disparar a tela de completion.
 - **Arquivos pequenos**: widgets extraidos em arquivos focados (1 responsabilidade). Controles do reader: `rsvp_controls.dart` compoe; subwidgets em `controls_*.dart` + `seek_slider.dart`. Biblioteca: `library_screen.dart` compoe; subwidgets em `library_*.dart`.
