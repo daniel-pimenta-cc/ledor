@@ -1,6 +1,5 @@
 import 'dart:collection';
 
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -16,6 +15,7 @@ import '../../../epub_import/domain/entities/chapter.dart';
 import '../../../epub_import/domain/entities/word_token.dart';
 import '../../domain/entities/display_settings.dart';
 import '../providers/rsvp_engine_provider.dart';
+import 'rsvp_paragraph_view.dart';
 
 /// A scroll item is either a chapter header or a paragraph of words.
 class _ScrollItem {
@@ -343,7 +343,7 @@ class _ContextScrollViewState extends ConsumerState<ContextScrollView> {
           }
 
           if (!widget.showHighlight) {
-            return _ParagraphWidget(
+            return RsvpParagraphView(
               tokens: item.tokens!,
               currentGlobalIndex: -1,
               settings: settings,
@@ -354,7 +354,7 @@ class _ContextScrollViewState extends ConsumerState<ContextScrollView> {
           return ValueListenableBuilder<int>(
             valueListenable: _highlightIndex,
             builder: (context, currentHighlight, _) {
-              return _ParagraphWidget(
+              return RsvpParagraphView(
                 tokens: item.tokens!,
                 currentGlobalIndex: currentHighlight,
                 settings: settings,
@@ -536,92 +536,6 @@ class _ContextScrollViewState extends ConsumerState<ContextScrollView> {
         _highlightIndex.value = item.tokens!.first.globalIndex;
       }
     }
-  }
-
-}
-
-class _ParagraphWidget extends StatelessWidget {
-  final List<WordToken> tokens;
-  final int currentGlobalIndex;
-  final DisplaySettings settings;
-  final ValueChanged<WordToken>? onWordTap;
-
-  /// Attached to the highlighted token's render container so the parent
-  /// state can measure its on-screen position precisely (used by recenter).
-  /// Null when [showHighlight] is off.
-  final GlobalKey? highlightKey;
-
-  const _ParagraphWidget({
-    required this.tokens,
-    required this.currentGlobalIndex,
-    required this.settings,
-    required this.onWordTap,
-    this.highlightKey,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final baseFontSize = settings.contextFontSize;
-    final baseStyle = GoogleFonts.getFont(
-      mapFontFamily(settings.fontFamily),
-      fontSize: baseFontSize,
-      color: settings.wordColor.withAlpha(180),
-      height: 1.8,
-    );
-    final highlightTextStyle = GoogleFonts.getFont(
-      mapFontFamily(settings.fontFamily),
-      fontSize: baseFontSize,
-      color: settings.wordColor,
-      fontWeight: FontWeight.w600,
-    );
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: Text.rich(
-        TextSpan(
-          children: tokens.map((token) {
-            final isHighlighted = token.globalIndex == currentGlobalIndex;
-            // Sub-tokens of a hyphenated compound (e.g. "guarda-") are
-            // glued to the next token instead of followed by a space.
-            final joinsNext = token.text.endsWith('-');
-            if (isHighlighted) {
-              return WidgetSpan(
-                alignment: PlaceholderAlignment.baseline,
-                baseline: TextBaseline.alphabetic,
-                child: GestureDetector(
-                  onTap: onWordTap == null ? null : () => onWordTap!(token),
-                  child: Container(
-                    key: highlightKey,
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                    margin: EdgeInsets.only(right: joinsNext ? 0 : 4),
-                    decoration: BoxDecoration(
-                      color: settings.highlightColor.withAlpha(
-                          (settings.highlightColor.a * 255.0 * 0.7).round().clamp(0, 255)),
-                      borderRadius: BorderRadius.circular(4),
-                      boxShadow: [
-                        BoxShadow(
-                          color: settings.highlightColor.withAlpha(40),
-                          blurRadius: 6,
-                        ),
-                      ],
-                    ),
-                    child: Text(token.text, style: highlightTextStyle),
-                  ),
-                ),
-              );
-            }
-            return TextSpan(
-              text: joinsNext ? token.text : '${token.text} ',
-              style: baseStyle,
-              recognizer: onWordTap == null
-                  ? null
-                  : (TapGestureRecognizer()..onTap = () => onWordTap!(token)),
-            );
-          }).toList(),
-        ),
-      ),
-    );
   }
 
 }
