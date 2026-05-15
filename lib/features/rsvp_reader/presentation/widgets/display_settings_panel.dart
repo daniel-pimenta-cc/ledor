@@ -113,6 +113,24 @@ class DisplaySettingsPanel extends ConsumerWidget {
                 (s) => s.copyWith(focusLineShowsProgress: v)),
           ),
         ],
+        const SizedBox(height: 12),
+
+        _OrpIndicatorRow(
+          label: l10n.settingsOrpIndicator,
+          subtitle: l10n.settingsOrpIndicatorDesc,
+          labelColor: settings.wordColor,
+          orpColor: settings.orpColor,
+          backgroundColor: settings.backgroundColor,
+          value: settings.orpIndicator,
+          labelFor: (style) => switch (style) {
+            OrpIndicatorStyle.notch => l10n.orpIndicatorNotch,
+            OrpIndicatorStyle.lineAbove => l10n.orpIndicatorLineAbove,
+            OrpIndicatorStyle.linesAround => l10n.orpIndicatorLinesAround,
+            OrpIndicatorStyle.off => l10n.orpIndicatorOff,
+          },
+          onChanged: (v) =>
+              _update(ref, bookId, (s) => s.copyWith(orpIndicator: v)),
+        ),
       ],
     );
   }

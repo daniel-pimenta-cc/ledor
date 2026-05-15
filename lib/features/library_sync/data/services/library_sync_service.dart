@@ -52,6 +52,7 @@ Map<String, dynamic> displaySettingsToMap(DisplaySettings s) => {
       'rampUp': s.rampUp,
       'showFocusLine': s.showFocusLine,
       'focusLineShowsProgress': s.focusLineShowsProgress,
+      'orpIndicator': s.orpIndicator.name,
     };
 
 DisplaySettings displaySettingsFromMap(Map<String, dynamic> m) {
@@ -72,7 +73,16 @@ DisplaySettings displaySettingsFromMap(Map<String, dynamic> m) {
     rampUp: m['rampUp'] as bool?,
     showFocusLine: m['showFocusLine'] as bool?,
     focusLineShowsProgress: m['focusLineShowsProgress'] as bool?,
+    orpIndicator: _orpIndicatorFromName(m['orpIndicator'] as String?),
   );
+}
+
+OrpIndicatorStyle? _orpIndicatorFromName(String? raw) {
+  if (raw == null) return null;
+  for (final s in OrpIndicatorStyle.values) {
+    if (s.name == raw) return s;
+  }
+  return null;
 }
 
 /// Called after pull to apply the synced DisplaySettings (the provider layer

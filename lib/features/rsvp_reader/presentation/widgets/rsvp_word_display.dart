@@ -9,6 +9,19 @@ import '../../../../core/utils/font_mapper.dart';
 import '../../../epub_import/domain/entities/word_token.dart';
 import '../../domain/entities/display_settings.dart';
 
+/// Keys used to find each ORP indicator subtree in tests. notch and
+/// lineAbove each produce a single subtree above the word; linesAround
+/// produces two short vertical ticks (above + below) centered on the ORP
+/// letter.
+@visibleForTesting
+const orpIndicatorNotchKey = Key('rsvp.orpIndicator.notch');
+@visibleForTesting
+const orpIndicatorTopLineKey = Key('rsvp.orpIndicator.topLine');
+@visibleForTesting
+const orpIndicatorTopTickKey = Key('rsvp.orpIndicator.topTick');
+@visibleForTesting
+const orpIndicatorBottomTickKey = Key('rsvp.orpIndicator.bottomTick');
+
 /// Renders a single word with the ORP letter highlighted.
 ///
 /// The ORP letter is anchored at [horizontalPosition] of the available width.
@@ -76,30 +89,91 @@ class RsvpWordDisplay extends StatelessWidget {
           const notchGap = AppConstants.rsvpNotchGap;
           const focusLineGap = AppConstants.rsvpFocusLineGap;
           const focusLineHeight = AppConstants.rsvpFocusLineHeight;
+          const orpLineWidth = AppConstants.rsvpOrpLineWidth;
+          const orpLineHeight = AppConstants.rsvpOrpLineHeight;
+          const orpTickLength = AppConstants.rsvpOrpTickLength;
+          const orpTickThickness = AppConstants.rsvpOrpTickThickness;
+          const orpTickGap = AppConstants.rsvpOrpTickGap;
+
+          final style = settings.orpIndicator;
+          // notch/lineAbove use only a top slot; linesAround pads top AND
+          // bottom for a vertical tick on each side of the ORP letter; off
+          // collapses both.
+          final hasTopIndicator = style == OrpIndicatorStyle.notch ||
+              style == OrpIndicatorStyle.lineAbove ||
+              style == OrpIndicatorStyle.linesAround;
+          final hasBottomTick = style == OrpIndicatorStyle.linesAround;
+
+          final topSpace = hasTopIndicator ? notchHeight + notchGap : 0.0;
+          final bottomTickSpace =
+              hasBottomTick ? orpTickGap + orpTickLength : 0.0;
 
           final showLine = settings.showFocusLine;
           final lineTotalSpace =
               showLine ? focusLineGap + focusLineHeight : 0.0;
 
+          final wordTop = topSpace;
+          final focusLineTop =
+              wordTop + m.textHeight + bottomTickSpace + focusLineGap;
+
+          // Horizontal center of the ORP letter inside the laid-out word —
+          // used to anchor the vertical ticks in `linesAround`.
+          final orpCenterX = offsetX + m.beforeWidth + m.orpWidth / 2;
+
+          // Thin marks need more opacity than the notch (which is a chunky
+          // triangle at 40%) — otherwise they almost disappear at 1.5px.
+          final indicatorColor = settings.orpColor.withAlpha(210);
+
           return SizedBox(
             width: maxWidth,
-            height: m.textHeight + notchHeight + notchGap + lineTotalSpace,
+            height: m.textHeight + topSpace + bottomTickSpace + lineTotalSpace,
             child: Stack(
               clipBehavior: Clip.none,
               children: [
-                // Notch at anchor point
-                Positioned(
-                  left: anchorX - 4,
-                  top: 0,
-                  child: CustomPaint(
-                    size: const Size(8, notchHeight),
-                    painter: _NotchPainter(settings.orpColor.withAlpha(102)),
+                if (style == OrpIndicatorStyle.notch)
+                  Positioned(
+                    left: anchorX - 4,
+                    top: 0,
+                    child: CustomPaint(
+                      key: orpIndicatorNotchKey,
+                      size: const Size(8, notchHeight),
+                      painter:
+                          _NotchPainter(settings.orpColor.withAlpha(102)),
+                    ),
                   ),
-                ),
-                // The word
+                if (style == OrpIndicatorStyle.lineAbove)
+                  Positioned(
+                    left: anchorX - orpLineWidth / 2,
+                    top: notchHeight - orpLineHeight,
+                    child: CustomPaint(
+                      key: orpIndicatorTopLineKey,
+                      size: const Size(orpLineWidth, orpLineHeight),
+                      painter: _OrpLinePainter(indicatorColor),
+                    ),
+                  ),
+                if (style == OrpIndicatorStyle.linesAround) ...[
+                  Positioned(
+                    left: orpCenterX - orpTickThickness / 2,
+                    top: wordTop - orpTickGap - orpTickLength,
+                    child: CustomPaint(
+                      key: orpIndicatorTopTickKey,
+                      size: const Size(orpTickThickness, orpTickLength),
+                      painter: _OrpLinePainter(indicatorColor),
+                    ),
+                  ),
+                  Positioned(
+                    left: orpCenterX - orpTickThickness / 2,
+                    top: wordTop + m.textHeight + orpTickGap,
+                    child: CustomPaint(
+                      key: orpIndicatorBottomTickKey,
+                      size: const Size(orpTickThickness, orpTickLength),
+                      painter: _OrpLinePainter(indicatorColor),
+                    ),
+                  ),
+                ],
                 Positioned(
                   left: offsetX,
-                  top: notchHeight + notchGap,
+                  top: wordTop,
                   child: RichText(
                     text: TextSpan(
                       children: [
@@ -110,12 +184,11 @@ class RsvpWordDisplay extends StatelessWidget {
                     ),
                   ),
                 ),
-                // Focus / progress line below the word — full width
                 if (showLine)
                   Positioned(
                     left: 0,
                     right: 0,
-                    top: notchHeight + notchGap + m.textHeight + focusLineGap,
+                    top: focusLineTop,
                     height: focusLineHeight,
                     child: _FocusLine(
                       progress: progress,
@@ -215,6 +288,23 @@ class _NotchPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_NotchPainter oldDelegate) => oldDelegate.color != color;
+}
+
+class _OrpLinePainter extends CustomPainter {
+  final Color color;
+  _OrpLinePainter(this.color);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.drawRect(
+      Rect.fromLTWH(0, 0, size.width, size.height),
+      Paint()..color = color,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_OrpLinePainter oldDelegate) =>
+      oldDelegate.color != color;
 }
 
 /// Thin horizontal line below the word.

@@ -266,6 +266,25 @@ class AppLocalizationsPt extends AppLocalizations {
       'Usa a linha de foco também para mostrar o progresso de leitura';
 
   @override
+  String get settingsOrpIndicator => 'Marcador da letra de foco';
+
+  @override
+  String get settingsOrpIndicatorDesc =>
+      'Escolha como apontar para a letra de foco';
+
+  @override
+  String get orpIndicatorNotch => 'Triângulo';
+
+  @override
+  String get orpIndicatorLineAbove => 'Linha acima';
+
+  @override
+  String get orpIndicatorLinesAround => 'Linhas ao redor';
+
+  @override
+  String get orpIndicatorOff => 'Nenhum';
+
+  @override
   String get librarySectionInProgress => 'Em progresso';
 
   @override

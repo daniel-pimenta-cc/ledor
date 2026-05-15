@@ -43,6 +43,7 @@ class DisplaySettingsNotifier extends StateNotifier<DisplaySettings> {
       _prefs.getBool('${_prefix}rampUp'),
       _prefs.getBool('${_prefix}showFocusLine'),
       _prefs.getBool('${_prefix}focusLineProgress'),
+      _prefs.getString('${_prefix}orpIndicator'),
     ]);
     state = DisplaySettings(
       wpm: results[0] as int? ?? AppConstants.defaultWpm,
@@ -64,7 +65,16 @@ class DisplaySettingsNotifier extends StateNotifier<DisplaySettings> {
       rampUp: results[12] as bool? ?? true,
       showFocusLine: results[13] as bool? ?? true,
       focusLineShowsProgress: results[14] as bool? ?? true,
+      orpIndicator: _parseOrpIndicator(results[15] as String?),
     );
+  }
+
+  static OrpIndicatorStyle _parseOrpIndicator(String? raw) {
+    if (raw == null) return OrpIndicatorStyle.notch;
+    for (final s in OrpIndicatorStyle.values) {
+      if (s.name == raw) return s;
+    }
+    return OrpIndicatorStyle.notch;
   }
 
   Future<void> update(DisplaySettings Function(DisplaySettings) updater) async {
@@ -122,6 +132,7 @@ class DisplaySettingsNotifier extends StateNotifier<DisplaySettings> {
       _prefs.setBool('${_prefix}showFocusLine', state.showFocusLine),
       _prefs.setBool(
           '${_prefix}focusLineProgress', state.focusLineShowsProgress),
+      _prefs.setString('${_prefix}orpIndicator', state.orpIndicator.name),
     ]);
   }
 }

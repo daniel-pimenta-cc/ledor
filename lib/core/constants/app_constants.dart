@@ -51,6 +51,25 @@ abstract final class AppConstants {
   /// Vertical gap between the notch and the word.
   static const double rsvpNotchGap = 4.0;
 
+  /// Width of the horizontal line drawn above the ORP letter when the
+  /// indicator style is `lineAbove`. About the width of one or two glyphs
+  /// so the line reads as a tick mark, not a bar.
+  static const double rsvpOrpLineWidth = 18.0;
+
+  /// Thickness of the horizontal ORP line. Kept thin (1.5px) so it reads
+  /// as a line, not a block.
+  static const double rsvpOrpLineHeight = 1.5;
+
+  /// Length (vertical) of the short vertical tick marks above and below
+  /// the ORP letter when the indicator style is `linesAround`.
+  static const double rsvpOrpTickLength = 5.0;
+
+  /// Thickness (horizontal) of the vertical tick marks.
+  static const double rsvpOrpTickThickness = 1.5;
+
+  /// Gap between the word and each vertical tick in `linesAround`.
+  static const double rsvpOrpTickGap = 3.0;
+
   /// Vertical gap between the word and the focus line below it.
   static const double rsvpFocusLineGap = 10.0;
 

@@ -572,6 +572,42 @@ abstract class AppLocalizations {
   /// **'Use the focus line to also display reading progress'**
   String get settingsFocusLineProgressDesc;
 
+  /// No description provided for @settingsOrpIndicator.
+  ///
+  /// In en, this message translates to:
+  /// **'Focus letter marker'**
+  String get settingsOrpIndicator;
+
+  /// No description provided for @settingsOrpIndicatorDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose how the focus letter is pointed at'**
+  String get settingsOrpIndicatorDesc;
+
+  /// No description provided for @orpIndicatorNotch.
+  ///
+  /// In en, this message translates to:
+  /// **'Notch'**
+  String get orpIndicatorNotch;
+
+  /// No description provided for @orpIndicatorLineAbove.
+  ///
+  /// In en, this message translates to:
+  /// **'Line above'**
+  String get orpIndicatorLineAbove;
+
+  /// No description provided for @orpIndicatorLinesAround.
+  ///
+  /// In en, this message translates to:
+  /// **'Lines around'**
+  String get orpIndicatorLinesAround;
+
+  /// No description provided for @orpIndicatorOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Off'**
+  String get orpIndicatorOff;
+
   /// No description provided for @librarySectionInProgress.
   ///
   /// In en, this message translates to:

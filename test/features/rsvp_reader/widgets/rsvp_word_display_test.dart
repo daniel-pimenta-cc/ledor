@@ -168,5 +168,71 @@ void main() {
       // Bigger horizontalPosition moves the word's left edge further right.
       expect(right.dx, greaterThan(left.dx));
     });
+
+    group('orpIndicator', () {
+      testWidgets('defaults to notch — triangle present, other marks absent',
+          (tester) async {
+        await _pump(tester, word: _token('reading'));
+        expect(find.byKey(orpIndicatorNotchKey), findsOneWidget);
+        expect(find.byKey(orpIndicatorTopLineKey), findsNothing);
+        expect(find.byKey(orpIndicatorTopTickKey), findsNothing);
+        expect(find.byKey(orpIndicatorBottomTickKey), findsNothing);
+      });
+
+      testWidgets('lineAbove draws the top line and hides the notch',
+          (tester) async {
+        const settings =
+            DisplaySettings(orpIndicator: OrpIndicatorStyle.lineAbove);
+        await _pump(tester, word: _token('reading'), settings: settings);
+        expect(find.byKey(orpIndicatorNotchKey), findsNothing);
+        expect(find.byKey(orpIndicatorTopLineKey), findsOneWidget);
+        expect(find.byKey(orpIndicatorTopTickKey), findsNothing);
+        expect(find.byKey(orpIndicatorBottomTickKey), findsNothing);
+      });
+
+      testWidgets('linesAround draws short vertical ticks above and below',
+          (tester) async {
+        const settings =
+            DisplaySettings(orpIndicator: OrpIndicatorStyle.linesAround);
+        await _pump(tester, word: _token('reading'), settings: settings);
+        expect(find.byKey(orpIndicatorNotchKey), findsNothing);
+        expect(find.byKey(orpIndicatorTopLineKey), findsNothing);
+        expect(find.byKey(orpIndicatorTopTickKey), findsOneWidget);
+        expect(find.byKey(orpIndicatorBottomTickKey), findsOneWidget);
+      });
+
+      testWidgets('off hides every indicator', (tester) async {
+        const settings =
+            DisplaySettings(orpIndicator: OrpIndicatorStyle.off);
+        await _pump(tester, word: _token('reading'), settings: settings);
+        expect(find.byKey(orpIndicatorNotchKey), findsNothing);
+        expect(find.byKey(orpIndicatorTopLineKey), findsNothing);
+        expect(find.byKey(orpIndicatorTopTickKey), findsNothing);
+        expect(find.byKey(orpIndicatorBottomTickKey), findsNothing);
+      });
+
+      testWidgets(
+        'linesAround ticks share the same x — vertically aligned on the ORP letter',
+        (tester) async {
+          const settings =
+              DisplaySettings(orpIndicator: OrpIndicatorStyle.linesAround);
+          await _pump(tester, word: _token('reading', orpIndex: 2),
+              settings: settings);
+
+          final topBox = tester
+              .renderObject<RenderBox>(find.byKey(orpIndicatorTopTickKey));
+          final bottomBox = tester
+              .renderObject<RenderBox>(find.byKey(orpIndicatorBottomTickKey));
+
+          final topPos = topBox.localToGlobal(Offset.zero);
+          final bottomPos = bottomBox.localToGlobal(Offset.zero);
+
+          // Top + bottom ticks share the same x, with bottom positioned
+          // lower than top.
+          expect(topPos.dx, closeTo(bottomPos.dx, 0.5));
+          expect(bottomPos.dy, greaterThan(topPos.dy));
+        },
+      );
+    });
   });
 }

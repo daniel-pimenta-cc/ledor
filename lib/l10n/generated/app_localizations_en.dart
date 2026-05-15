@@ -266,6 +266,25 @@ class AppLocalizationsEn extends AppLocalizations {
       'Use the focus line to also display reading progress';
 
   @override
+  String get settingsOrpIndicator => 'Focus letter marker';
+
+  @override
+  String get settingsOrpIndicatorDesc =>
+      'Choose how the focus letter is pointed at';
+
+  @override
+  String get orpIndicatorNotch => 'Notch';
+
+  @override
+  String get orpIndicatorLineAbove => 'Line above';
+
+  @override
+  String get orpIndicatorLinesAround => 'Lines around';
+
+  @override
+  String get orpIndicatorOff => 'Off';
+
+  @override
   String get librarySectionInProgress => 'In progress';
 
   @override

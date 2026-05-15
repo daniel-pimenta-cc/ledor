@@ -2,6 +2,23 @@ import 'dart:ui';
 
 import '../../../../core/constants/app_constants.dart';
 
+/// Visual style used to point at the ORP letter above (and optionally below)
+/// the word in the RSVP display.
+enum OrpIndicatorStyle {
+  /// Downward triangle above the ORP letter. Default — matches the original
+  /// design.
+  notch,
+
+  /// Short horizontal line above the ORP letter.
+  lineAbove,
+
+  /// Short horizontal lines both above and below the ORP letter.
+  linesAround,
+
+  /// No indicator drawn.
+  off,
+}
+
 class DisplaySettings {
   final int wpm;
   final double fontSize;
@@ -18,6 +35,7 @@ class DisplaySettings {
   final bool rampUp;
   final bool showFocusLine;
   final bool focusLineShowsProgress;
+  final OrpIndicatorStyle orpIndicator;
 
   const DisplaySettings({
     this.wpm = AppConstants.defaultWpm,
@@ -35,6 +53,7 @@ class DisplaySettings {
     this.rampUp = true,
     this.showFocusLine = true,
     this.focusLineShowsProgress = true,
+    this.orpIndicator = OrpIndicatorStyle.notch,
   });
 
   Color get wordColor => Color(wordColorValue);
@@ -58,6 +77,7 @@ class DisplaySettings {
     bool? rampUp,
     bool? showFocusLine,
     bool? focusLineShowsProgress,
+    OrpIndicatorStyle? orpIndicator,
   }) {
     return DisplaySettings(
       wpm: wpm ?? this.wpm,
@@ -76,6 +96,7 @@ class DisplaySettings {
       showFocusLine: showFocusLine ?? this.showFocusLine,
       focusLineShowsProgress:
           focusLineShowsProgress ?? this.focusLineShowsProgress,
+      orpIndicator: orpIndicator ?? this.orpIndicator,
     );
   }
 }
