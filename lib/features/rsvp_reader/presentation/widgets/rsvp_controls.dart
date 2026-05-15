@@ -52,11 +52,13 @@ class _RsvpControlsState extends ConsumerState<RsvpControls> {
           mainAxisSize: MainAxisSize.min,
           children: [
             ControlsMetaRow(state: state, l10n: l10n),
-            const SizedBox(height: AppSpacing.xs),
-            SeekSlider(
-              state: state,
-              onChanged: engine.seekToWord,
-            ),
+            if (settings.showProgressSlider) ...[
+              const SizedBox(height: AppSpacing.xs),
+              SeekSlider(
+                state: state,
+                onChanged: engine.seekToWord,
+              ),
+            ],
             ControlsProgressRow(
               state: state,
               l10n: l10n,

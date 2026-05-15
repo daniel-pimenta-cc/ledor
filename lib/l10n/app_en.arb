@@ -106,6 +106,8 @@
   "recenterHighlight": "Back to focused word",
   "hideLibraryPanel": "Hide library",
   "showLibraryPanel": "Show library",
+  "settingsProgressSlider": "Progress slider",
+  "settingsProgressSliderDesc": "Show the seek bar with chapter markers above the playback controls",
   "settingsFocusLine": "Focus line",
   "settingsFocusLineDesc": "Show a thin line below the word to anchor your gaze",
   "settingsFocusLineProgress": "Progress on focus line",

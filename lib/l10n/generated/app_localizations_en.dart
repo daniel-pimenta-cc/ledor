@@ -252,6 +252,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get showLibraryPanel => 'Show library';
 
   @override
+  String get settingsProgressSlider => 'Progress slider';
+
+  @override
+  String get settingsProgressSliderDesc =>
+      'Show the seek bar with chapter markers above the playback controls';
+
+  @override
   String get settingsFocusLine => 'Focus line';
 
   @override

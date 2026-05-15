@@ -36,6 +36,7 @@ class DisplaySettings {
   final bool showFocusLine;
   final bool focusLineShowsProgress;
   final OrpIndicatorStyle orpIndicator;
+  final bool showProgressSlider;
 
   const DisplaySettings({
     this.wpm = AppConstants.defaultWpm,
@@ -54,6 +55,7 @@ class DisplaySettings {
     this.showFocusLine = true,
     this.focusLineShowsProgress = true,
     this.orpIndicator = OrpIndicatorStyle.notch,
+    this.showProgressSlider = true,
   });
 
   Color get wordColor => Color(wordColorValue);
@@ -78,6 +80,7 @@ class DisplaySettings {
     bool? showFocusLine,
     bool? focusLineShowsProgress,
     OrpIndicatorStyle? orpIndicator,
+    bool? showProgressSlider,
   }) {
     return DisplaySettings(
       wpm: wpm ?? this.wpm,
@@ -97,6 +100,7 @@ class DisplaySettings {
       focusLineShowsProgress:
           focusLineShowsProgress ?? this.focusLineShowsProgress,
       orpIndicator: orpIndicator ?? this.orpIndicator,
+      showProgressSlider: showProgressSlider ?? this.showProgressSlider,
     );
   }
 }

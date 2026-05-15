@@ -53,6 +53,7 @@ Map<String, dynamic> displaySettingsToMap(DisplaySettings s) => {
       'showFocusLine': s.showFocusLine,
       'focusLineShowsProgress': s.focusLineShowsProgress,
       'orpIndicator': s.orpIndicator.name,
+      'showProgressSlider': s.showProgressSlider,
     };
 
 DisplaySettings displaySettingsFromMap(Map<String, dynamic> m) {
@@ -74,6 +75,7 @@ DisplaySettings displaySettingsFromMap(Map<String, dynamic> m) {
     showFocusLine: m['showFocusLine'] as bool?,
     focusLineShowsProgress: m['focusLineShowsProgress'] as bool?,
     orpIndicator: _orpIndicatorFromName(m['orpIndicator'] as String?),
+    showProgressSlider: m['showProgressSlider'] as bool?,
   );
 }
 

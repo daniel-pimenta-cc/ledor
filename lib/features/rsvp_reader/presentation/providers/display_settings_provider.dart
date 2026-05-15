@@ -44,6 +44,7 @@ class DisplaySettingsNotifier extends StateNotifier<DisplaySettings> {
       _prefs.getBool('${_prefix}showFocusLine'),
       _prefs.getBool('${_prefix}focusLineProgress'),
       _prefs.getString('${_prefix}orpIndicator'),
+      _prefs.getBool('${_prefix}showProgressSlider'),
     ]);
     state = DisplaySettings(
       wpm: results[0] as int? ?? AppConstants.defaultWpm,
@@ -66,6 +67,7 @@ class DisplaySettingsNotifier extends StateNotifier<DisplaySettings> {
       showFocusLine: results[13] as bool? ?? true,
       focusLineShowsProgress: results[14] as bool? ?? true,
       orpIndicator: _parseOrpIndicator(results[15] as String?),
+      showProgressSlider: results[16] as bool? ?? true,
     );
   }
 
@@ -133,6 +135,8 @@ class DisplaySettingsNotifier extends StateNotifier<DisplaySettings> {
       _prefs.setBool(
           '${_prefix}focusLineProgress', state.focusLineShowsProgress),
       _prefs.setString('${_prefix}orpIndicator', state.orpIndicator.name),
+      _prefs.setBool(
+          '${_prefix}showProgressSlider', state.showProgressSlider),
     ]);
   }
 }

@@ -548,6 +548,18 @@ abstract class AppLocalizations {
   /// **'Show library'**
   String get showLibraryPanel;
 
+  /// No description provided for @settingsProgressSlider.
+  ///
+  /// In en, this message translates to:
+  /// **'Progress slider'**
+  String get settingsProgressSlider;
+
+  /// No description provided for @settingsProgressSliderDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Show the seek bar with chapter markers above the playback controls'**
+  String get settingsProgressSliderDesc;
+
   /// No description provided for @settingsFocusLine.
   ///
   /// In en, this message translates to:

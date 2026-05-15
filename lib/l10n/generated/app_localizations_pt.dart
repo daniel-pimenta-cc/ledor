@@ -252,6 +252,13 @@ class AppLocalizationsPt extends AppLocalizations {
   String get showLibraryPanel => 'Mostrar biblioteca';
 
   @override
+  String get settingsProgressSlider => 'Barra de progresso';
+
+  @override
+  String get settingsProgressSliderDesc =>
+      'Exibe a barra de progresso com marcadores de capítulo acima dos controles';
+
+  @override
   String get settingsFocusLine => 'Linha de foco';
 
   @override

@@ -131,6 +131,16 @@ class DisplaySettingsPanel extends ConsumerWidget {
           onChanged: (v) =>
               _update(ref, bookId, (s) => s.copyWith(orpIndicator: v)),
         ),
+        const SizedBox(height: 8),
+
+        _SwitchRow(
+          label: l10n.settingsProgressSlider,
+          subtitle: l10n.settingsProgressSliderDesc,
+          labelColor: settings.wordColor,
+          value: settings.showProgressSlider,
+          onChanged: (v) => _update(
+              ref, bookId, (s) => s.copyWith(showProgressSlider: v)),
+        ),
       ],
     );
   }

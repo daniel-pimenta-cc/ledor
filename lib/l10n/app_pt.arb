@@ -80,6 +80,8 @@
   "recenterHighlight": "Voltar para a palavra",
   "hideLibraryPanel": "Esconder biblioteca",
   "showLibraryPanel": "Mostrar biblioteca",
+  "settingsProgressSlider": "Barra de progresso",
+  "settingsProgressSliderDesc": "Exibe a barra de progresso com marcadores de capítulo acima dos controles",
   "settingsFocusLine": "Linha de foco",
   "settingsFocusLineDesc": "Exibe uma linha fina abaixo da palavra para ancorar o olhar",
   "settingsFocusLineProgress": "Progresso na linha de foco",
