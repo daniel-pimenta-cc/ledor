@@ -236,6 +236,81 @@ class _ColorRow extends StatelessWidget {
   }
 }
 
+/// Segmented picker for [DisplaySettings.timeRemainingMode]. Three text-only
+/// options sit next to the meta row in the reader, so a SegmentedButton with
+/// text labels is sufficient (no preview tile needed).
+class _TimeRemainingRow extends StatelessWidget {
+  final String label;
+  final String subtitle;
+  final Color labelColor;
+  final Color orpColor;
+  final TimeRemainingMode value;
+  final String Function(TimeRemainingMode) labelFor;
+  final ValueChanged<TimeRemainingMode> onChanged;
+
+  const _TimeRemainingRow({
+    required this.label,
+    required this.subtitle,
+    required this.labelColor,
+    required this.orpColor,
+    required this.value,
+    required this.labelFor,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: TextStyle(color: labelColor, fontSize: 14)),
+        const SizedBox(height: 2),
+        Text(
+          subtitle,
+          style: TextStyle(color: labelColor.withAlpha(140), fontSize: 11),
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          width: double.infinity,
+          child: SegmentedButton<TimeRemainingMode>(
+            segments: [
+              for (final m in TimeRemainingMode.values)
+                ButtonSegment(value: m, label: Text(labelFor(m))),
+            ],
+            selected: {value},
+            showSelectedIcon: false,
+            onSelectionChanged: (s) => onChanged(s.first),
+            style: ButtonStyle(
+              // The reader palette is independent of the global theme, so
+              // override both bg + fg to keep the selected pill readable on
+              // any reader background.
+              backgroundColor: WidgetStateProperty.resolveWith(
+                (states) => states.contains(WidgetState.selected)
+                    ? orpColor.withAlpha(40)
+                    : Colors.transparent,
+              ),
+              foregroundColor: WidgetStateProperty.resolveWith(
+                (states) => states.contains(WidgetState.selected)
+                    ? orpColor
+                    : labelColor.withAlpha(190),
+              ),
+              overlayColor: WidgetStateProperty.all(
+                orpColor.withAlpha(30),
+              ),
+              side: WidgetStateProperty.all(
+                BorderSide(color: labelColor.withAlpha(50)),
+              ),
+              textStyle: WidgetStateProperty.all(
+                const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 /// Picker for the ORP indicator visual style. Renders each option as a small
 /// preview tile (matching the four indicator styles) above a row of labels.
 /// Selection lives in [DisplaySettings.orpIndicator] and feeds [RsvpWordDisplay].

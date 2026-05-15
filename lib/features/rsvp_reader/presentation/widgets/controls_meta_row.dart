@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../l10n/generated/app_localizations.dart';
+import '../../domain/entities/display_settings.dart';
 import '../../domain/entities/rsvp_state.dart';
 
 class ControlsMetaRow extends StatelessWidget {
@@ -14,6 +15,13 @@ class ControlsMetaRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final settings = state.displaySettings;
     final muted = settings.wordColor.withAlpha(150);
+    final timeLabel = switch (settings.timeRemainingMode) {
+      TimeRemainingMode.total =>
+        l10n.minutesRemaining(state.estimatedMinutesRemaining),
+      TimeRemainingMode.chapter =>
+        l10n.minutesRemaining(state.chapterMinutesRemaining),
+      TimeRemainingMode.off => null,
+    };
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
       child: Row(
@@ -32,16 +40,18 @@ class ControlsMetaRow extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             ),
           ),
-          const SizedBox(width: AppSpacing.md),
-          Text(
-            l10n.minutesRemaining(state.estimatedMinutesRemaining),
-            style: TextStyle(
-              color: muted,
-              fontSize: 12,
-              fontFeatures: const [FontFeature.tabularFigures()],
-              letterSpacing: 0.3,
+          if (timeLabel != null) ...[
+            const SizedBox(width: AppSpacing.md),
+            Text(
+              timeLabel,
+              style: TextStyle(
+                color: muted,
+                fontSize: 12,
+                fontFeatures: const [FontFeature.tabularFigures()],
+                letterSpacing: 0.3,
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );

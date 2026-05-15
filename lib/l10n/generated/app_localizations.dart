@@ -560,6 +560,36 @@ abstract class AppLocalizations {
   /// **'Show the seek bar with chapter markers above the playback controls'**
   String get settingsProgressSliderDesc;
 
+  /// No description provided for @settingsTimeRemaining.
+  ///
+  /// In en, this message translates to:
+  /// **'Time remaining'**
+  String get settingsTimeRemaining;
+
+  /// No description provided for @settingsTimeRemainingDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'How to display the time remaining next to the chapter title'**
+  String get settingsTimeRemainingDesc;
+
+  /// No description provided for @timeRemainingTotal.
+  ///
+  /// In en, this message translates to:
+  /// **'Whole book'**
+  String get timeRemainingTotal;
+
+  /// No description provided for @timeRemainingChapter.
+  ///
+  /// In en, this message translates to:
+  /// **'Current chapter'**
+  String get timeRemainingChapter;
+
+  /// No description provided for @timeRemainingOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Off'**
+  String get timeRemainingOff;
+
   /// No description provided for @settingsFocusLine.
   ///
   /// In en, this message translates to:

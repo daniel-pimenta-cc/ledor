@@ -141,6 +141,22 @@ class DisplaySettingsPanel extends ConsumerWidget {
           onChanged: (v) => _update(
               ref, bookId, (s) => s.copyWith(showProgressSlider: v)),
         ),
+        const SizedBox(height: 12),
+
+        _TimeRemainingRow(
+          label: l10n.settingsTimeRemaining,
+          subtitle: l10n.settingsTimeRemainingDesc,
+          labelColor: settings.wordColor,
+          orpColor: settings.orpColor,
+          value: settings.timeRemainingMode,
+          labelFor: (mode) => switch (mode) {
+            TimeRemainingMode.total => l10n.timeRemainingTotal,
+            TimeRemainingMode.chapter => l10n.timeRemainingChapter,
+            TimeRemainingMode.off => l10n.timeRemainingOff,
+          },
+          onChanged: (v) =>
+              _update(ref, bookId, (s) => s.copyWith(timeRemainingMode: v)),
+        ),
       ],
     );
   }

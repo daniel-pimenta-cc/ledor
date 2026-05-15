@@ -53,6 +53,17 @@ class RsvpState {
     return (remaining / wpm).ceil();
   }
 
+  /// Estimated minutes left in the current chapter at [wpm]. Mirrors
+  /// [estimatedMinutesRemaining] but scoped to `chapters[currentChapterIndex]`.
+  int get chapterMinutesRemaining {
+    if (wpm <= 0) return 0;
+    if (chapters.isEmpty || currentChapterIndex >= chapters.length) return 0;
+    final chapterWords = chapters[currentChapterIndex].tokens.length;
+    final remaining = chapterWords - currentWordIndex;
+    if (remaining <= 0) return 0;
+    return (remaining / wpm).ceil();
+  }
+
   RsvpState copyWith({
     String? bookId,
     List<Chapter>? chapters,

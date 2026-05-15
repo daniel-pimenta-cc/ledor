@@ -45,6 +45,7 @@ class DisplaySettingsNotifier extends StateNotifier<DisplaySettings> {
       _prefs.getBool('${_prefix}focusLineProgress'),
       _prefs.getString('${_prefix}orpIndicator'),
       _prefs.getBool('${_prefix}showProgressSlider'),
+      _prefs.getString('${_prefix}timeRemainingMode'),
     ]);
     state = DisplaySettings(
       wpm: results[0] as int? ?? AppConstants.defaultWpm,
@@ -68,6 +69,7 @@ class DisplaySettingsNotifier extends StateNotifier<DisplaySettings> {
       focusLineShowsProgress: results[14] as bool? ?? true,
       orpIndicator: _parseOrpIndicator(results[15] as String?),
       showProgressSlider: results[16] as bool? ?? true,
+      timeRemainingMode: _parseTimeRemainingMode(results[17] as String?),
     );
   }
 
@@ -77,6 +79,14 @@ class DisplaySettingsNotifier extends StateNotifier<DisplaySettings> {
       if (s.name == raw) return s;
     }
     return OrpIndicatorStyle.notch;
+  }
+
+  static TimeRemainingMode _parseTimeRemainingMode(String? raw) {
+    if (raw == null) return TimeRemainingMode.total;
+    for (final m in TimeRemainingMode.values) {
+      if (m.name == raw) return m;
+    }
+    return TimeRemainingMode.total;
   }
 
   Future<void> update(DisplaySettings Function(DisplaySettings) updater) async {
@@ -137,6 +147,8 @@ class DisplaySettingsNotifier extends StateNotifier<DisplaySettings> {
       _prefs.setString('${_prefix}orpIndicator', state.orpIndicator.name),
       _prefs.setBool(
           '${_prefix}showProgressSlider', state.showProgressSlider),
+      _prefs.setString(
+          '${_prefix}timeRemainingMode', state.timeRemainingMode.name),
     ]);
   }
 }

@@ -259,6 +259,22 @@ class AppLocalizationsEn extends AppLocalizations {
       'Show the seek bar with chapter markers above the playback controls';
 
   @override
+  String get settingsTimeRemaining => 'Time remaining';
+
+  @override
+  String get settingsTimeRemainingDesc =>
+      'How to display the time remaining next to the chapter title';
+
+  @override
+  String get timeRemainingTotal => 'Whole book';
+
+  @override
+  String get timeRemainingChapter => 'Current chapter';
+
+  @override
+  String get timeRemainingOff => 'Off';
+
+  @override
   String get settingsFocusLine => 'Focus line';
 
   @override

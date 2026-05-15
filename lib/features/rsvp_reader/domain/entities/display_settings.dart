@@ -19,6 +19,19 @@ enum OrpIndicatorStyle {
   off,
 }
 
+/// What the reader shows next to the chapter title in the controls meta row.
+enum TimeRemainingMode {
+  /// Total minutes left in the whole book. Default — matches the original
+  /// design.
+  total,
+
+  /// Minutes left in the current chapter only.
+  chapter,
+
+  /// Hide the time-remaining text entirely.
+  off,
+}
+
 class DisplaySettings {
   final int wpm;
   final double fontSize;
@@ -37,6 +50,7 @@ class DisplaySettings {
   final bool focusLineShowsProgress;
   final OrpIndicatorStyle orpIndicator;
   final bool showProgressSlider;
+  final TimeRemainingMode timeRemainingMode;
 
   const DisplaySettings({
     this.wpm = AppConstants.defaultWpm,
@@ -56,6 +70,7 @@ class DisplaySettings {
     this.focusLineShowsProgress = true,
     this.orpIndicator = OrpIndicatorStyle.notch,
     this.showProgressSlider = true,
+    this.timeRemainingMode = TimeRemainingMode.total,
   });
 
   Color get wordColor => Color(wordColorValue);
@@ -81,6 +96,7 @@ class DisplaySettings {
     bool? focusLineShowsProgress,
     OrpIndicatorStyle? orpIndicator,
     bool? showProgressSlider,
+    TimeRemainingMode? timeRemainingMode,
   }) {
     return DisplaySettings(
       wpm: wpm ?? this.wpm,
@@ -101,6 +117,7 @@ class DisplaySettings {
           focusLineShowsProgress ?? this.focusLineShowsProgress,
       orpIndicator: orpIndicator ?? this.orpIndicator,
       showProgressSlider: showProgressSlider ?? this.showProgressSlider,
+      timeRemainingMode: timeRemainingMode ?? this.timeRemainingMode,
     );
   }
 }

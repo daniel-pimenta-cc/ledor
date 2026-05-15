@@ -259,6 +259,22 @@ class AppLocalizationsPt extends AppLocalizations {
       'Exibe a barra de progresso com marcadores de capítulo acima dos controles';
 
   @override
+  String get settingsTimeRemaining => 'Tempo restante';
+
+  @override
+  String get settingsTimeRemainingDesc =>
+      'Como exibir o tempo restante ao lado do título do capítulo';
+
+  @override
+  String get timeRemainingTotal => 'Livro inteiro';
+
+  @override
+  String get timeRemainingChapter => 'Capítulo atual';
+
+  @override
+  String get timeRemainingOff => 'Desligado';
+
+  @override
   String get settingsFocusLine => 'Linha de foco';
 
   @override

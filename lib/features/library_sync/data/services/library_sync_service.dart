@@ -54,6 +54,7 @@ Map<String, dynamic> displaySettingsToMap(DisplaySettings s) => {
       'focusLineShowsProgress': s.focusLineShowsProgress,
       'orpIndicator': s.orpIndicator.name,
       'showProgressSlider': s.showProgressSlider,
+      'timeRemainingMode': s.timeRemainingMode.name,
     };
 
 DisplaySettings displaySettingsFromMap(Map<String, dynamic> m) {
@@ -76,6 +77,8 @@ DisplaySettings displaySettingsFromMap(Map<String, dynamic> m) {
     focusLineShowsProgress: m['focusLineShowsProgress'] as bool?,
     orpIndicator: _orpIndicatorFromName(m['orpIndicator'] as String?),
     showProgressSlider: m['showProgressSlider'] as bool?,
+    timeRemainingMode:
+        _timeRemainingModeFromName(m['timeRemainingMode'] as String?),
   );
 }
 
@@ -83,6 +86,14 @@ OrpIndicatorStyle? _orpIndicatorFromName(String? raw) {
   if (raw == null) return null;
   for (final s in OrpIndicatorStyle.values) {
     if (s.name == raw) return s;
+  }
+  return null;
+}
+
+TimeRemainingMode? _timeRemainingModeFromName(String? raw) {
+  if (raw == null) return null;
+  for (final m in TimeRemainingMode.values) {
+    if (m.name == raw) return m;
   }
   return null;
 }
