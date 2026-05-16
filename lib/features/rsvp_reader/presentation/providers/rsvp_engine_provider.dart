@@ -137,7 +137,10 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
     _ticker ??= vsync.createTicker(_onTick);
 
     _elapsed = Duration.zero;
-    _nextWordAt = Duration.zero;
+    // Hold the first word for the pre-roll delay so the scroll → rsvp
+    // AnimatedSwitcher can finish and the eyes have time to focus before
+    // the engine starts advancing.
+    _nextWordAt = AppConstants.playPreRollDelay;
     _wordsInSession = 0;
     _sessionStartedAt = DateTime.now();
     _sessionStartWordIndex = state.globalWordIndex;
@@ -361,10 +364,14 @@ final rsvpEngineProvider = StateNotifierProvider.autoDispose
 
 /// Returns the effective WPM during ramp-up.
 ///
-/// Starts at [AppConstants.rampUpStartFraction] of [targetWpm] and linearly
-/// climbs to [targetWpm] after [AppConstants.rampUpWords] words. Returns
-/// [targetWpm] unchanged when [rampUpEnabled] is false or the ramp is
-/// already complete.
+/// Starts at [AppConstants.rampUpStartFraction] of [targetWpm] and follows
+/// an ease-out cubic curve (`1 - (1 - t)^3`) to [targetWpm] over
+/// [AppConstants.rampUpWords] words. The eased shape spends most of the
+/// ramp near the target so the final convergence is gentle instead of a
+/// hard linear hand-off — which used to feel abrupt at high target WPMs.
+///
+/// Returns [targetWpm] unchanged when [rampUpEnabled] is false or the
+/// ramp is already complete.
 double computeEffectiveWpm({
   required int targetWpm,
   required int wordsInSession,
@@ -374,9 +381,11 @@ double computeEffectiveWpm({
   if (!rampUpEnabled) return target;
   if (wordsInSession >= AppConstants.rampUpWords) return target;
 
-  final progress = wordsInSession / AppConstants.rampUpWords;
+  final t = wordsInSession / AppConstants.rampUpWords;
+  final inv = 1.0 - t;
+  final eased = 1.0 - inv * inv * inv;
   final startWpm = target * AppConstants.rampUpStartFraction;
-  return startWpm + (target - startWpm) * progress;
+  return startWpm + (target - startWpm) * eased;
 }
 
 /// Returns the rounded avg WPM for a session with [durationMs] elapsed

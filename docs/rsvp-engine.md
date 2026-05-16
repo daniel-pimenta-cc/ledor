@@ -62,14 +62,31 @@ Final clamp: 0.5x — 5.0x. The `smartTiming` toggle disables all the multiplier
 
 Optional (toggle in settings, default ON). On play:
 - Starts at `rampUpStartFraction` (70%) of the target WPM
-- Linearly accelerates over `rampUpWords` (30) words
+- Follows an ease-out cubic curve over `rampUpWords` (30) words
 - Resets on every play
 
 ```
-effectiveWpm = startWpm + (targetWpm - startWpm) * (wordsInSession / rampUpWords)
+t          = wordsInSession / rampUpWords
+eased      = 1 - (1 - t)^3
+effectiveWpm = startWpm + (targetWpm - startWpm) * eased
 ```
 
+The eased curve spends most of the window near the target (at the
+midpoint it is already 87.5% of the way there), so the final convergence
+is gentle instead of a hard linear hand-off — used to feel abrupt at
+high target WPMs.
+
 Constants live in `AppConstants`.
+
+## Play pre-roll
+
+When `play()` fires, the engine arms `_nextWordAt` to
+`AppConstants.playPreRollDelay` (500ms) instead of `Duration.zero`. The
+first word stays on screen long enough for the scroll → rsvp
+`AnimatedSwitcher` fade (`AppDurations.slow`, 320ms) to finish and for
+the eyes to settle before the engine starts advancing. The pre-roll is
+unconditional — every play, including a quick play after a pause, gets
+the same head-start.
 
 ## Auto-Scale for long words
 

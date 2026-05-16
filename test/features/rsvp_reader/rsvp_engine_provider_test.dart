@@ -250,16 +250,45 @@ void main() {
       expect(w, 400.0);
     });
 
-    test('interpolates linearly across the ramp window', () {
+    test('follows an ease-out cubic curve across the ramp window', () {
+      const targetWpm = 400;
       const target = 400.0;
       final start = target * AppConstants.rampUpStartFraction;
+      final delta = target - start;
+
+      // Ease-out cubic spends most of the ramp near the target — at the
+      // halfway point the effective WPM is at 1 - (1 - 0.5)^3 = 0.875 of
+      // the way from start to target, well past the linear midpoint.
       final mid = computeEffectiveWpm(
-        targetWpm: 400,
+        targetWpm: targetWpm,
         wordsInSession: AppConstants.rampUpWords ~/ 2,
         rampUpEnabled: true,
       );
-      // Halfway through the ramp the WPM is halfway between start and target.
-      expect(mid, closeTo((start + target) / 2, 0.01));
+      expect(mid, closeTo(start + delta * 0.875, 0.01));
+      expect(mid, greaterThan((start + target) / 2));
+
+      // Three-quarters of the way through the ramp we're nearly at target
+      // (1 - 0.25^3 = 0.984375). The curve glides into the final WPM
+      // instead of slamming into it on the last word.
+      final lateQuarter = computeEffectiveWpm(
+        targetWpm: targetWpm,
+        wordsInSession: (AppConstants.rampUpWords * 3) ~/ 4,
+        rampUpEnabled: true,
+      );
+      expect(lateQuarter, closeTo(start + delta * 0.984375, 0.5));
+    });
+
+    test('is monotonically non-decreasing as wordsInSession grows', () {
+      double previous = double.negativeInfinity;
+      for (var i = 0; i <= AppConstants.rampUpWords; i++) {
+        final current = computeEffectiveWpm(
+          targetWpm: 500,
+          wordsInSession: i,
+          rampUpEnabled: true,
+        );
+        expect(current, greaterThanOrEqualTo(previous));
+        previous = current;
+      }
     });
   });
 

@@ -11,6 +11,12 @@ abstract final class AppConstants {
   /// Ramp-up: starting speed as fraction of target WPM (0.5 = 50%).
   static const double rampUpStartFraction = 0.7;
 
+  /// Time the first word stays on screen after pressing play before the
+  /// engine advances. Covers the `AppDurations.slow` AnimatedSwitcher fade
+  /// between scroll → rsvp plus a small buffer so the eyes have time to
+  /// settle on the word before it moves.
+  static const Duration playPreRollDelay = Duration(milliseconds: 500);
+
   static const double defaultFontSize = 48.0;
   static const double defaultContextFontSize = 18.0;
   static const double minFontSize = 20.0;
