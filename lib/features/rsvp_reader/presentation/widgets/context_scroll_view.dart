@@ -1,4 +1,5 @@
 import 'dart:collection';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -11,21 +12,33 @@ import '../../../../core/constants/responsive_defaults.dart';
 import '../../../../core/theme/responsive.dart';
 import '../../../../core/utils/font_mapper.dart';
 import '../../../../l10n/generated/app_localizations.dart';
+import '../../../book_library/data/services/inline_image_storage.dart';
 import '../../../epub_import/domain/entities/chapter.dart';
 import '../../../epub_import/domain/entities/word_token.dart';
 import '../../domain/entities/display_settings.dart';
 import '../providers/rsvp_engine_provider.dart';
+import '../screens/fullscreen_image_screen.dart';
 import 'rsvp_paragraph_view.dart';
 
-/// A scroll item is either a chapter header or a paragraph of words.
+/// A scroll item is one of: a chapter header, a paragraph of words, or an
+/// inline image (occupies its own row, taps to fullscreen).
 class _ScrollItem {
   final String? chapterTitle; // non-null → header item
   final List<WordToken>? tokens; // non-null → paragraph item
+  final WordToken? image; // non-null → image item
 
-  const _ScrollItem.header(this.chapterTitle) : tokens = null;
-  const _ScrollItem.paragraph(this.tokens) : chapterTitle = null;
+  const _ScrollItem.header(this.chapterTitle)
+      : tokens = null,
+        image = null;
+  const _ScrollItem.paragraph(this.tokens)
+      : chapterTitle = null,
+        image = null;
+  const _ScrollItem.image(this.image)
+      : chapterTitle = null,
+        tokens = null;
 
   bool get isHeader => chapterTitle != null;
+  bool get isImage => image != null;
 }
 
 /// Shows the full book text across all chapters.
@@ -120,6 +133,25 @@ class _ContextScrollViewState extends ConsumerState<ContextScrollView> {
       int currentParaIdx = -1;
 
       for (final token in tokens) {
+        if (token.isImage) {
+          // Close the text paragraph first so the image gets its own
+          // scroll row. Reset paragraph state — the next text token starts
+          // a fresh paragraph.
+          if (currentParagraph != null && currentParagraph.isNotEmpty) {
+            items.add(_ScrollItem.paragraph(currentParagraph));
+          }
+          currentParagraph = null;
+          currentParaIdx = -1;
+          items.add(_ScrollItem.image(token));
+
+          final pos = allTokens.length;
+          paragraphBoundaries.add(pos);
+          sentenceBoundaries.add(pos);
+          tokenPositionMap[token.globalIndex] = pos;
+          allTokens.add(token);
+          continue;
+        }
+
         if (token.paragraphIndex != currentParaIdx) {
           if (currentParagraph != null) {
             items.add(_ScrollItem.paragraph(currentParagraph));
@@ -232,10 +264,25 @@ class _ContextScrollViewState extends ConsumerState<ContextScrollView> {
         .seekToWord(token.globalIndex);
   }
 
+  void _openImageFullscreen(WordToken image, DisplaySettings settings) {
+    // Move the engine cursor to the image we're inspecting so the reader
+    // resumes from the right spot after closing the viewer.
+    ref
+        .read(rsvpEngineProvider(widget.bookId).notifier)
+        .seekToWord(image.globalIndex);
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => FullscreenImageScreen(word: image, settings: settings),
+    ));
+  }
+
   /// Find the item index in _items that contains globalWordIndex.
   int _findItemIndex(int globalWordIndex) {
     for (int i = 0; i < _items.length; i++) {
       final item = _items[i];
+      if (item.isImage) {
+        if (item.image!.globalIndex == globalWordIndex) return i;
+        continue;
+      }
       if (!item.isHeader &&
           item.tokens != null &&
           item.tokens!.isNotEmpty &&
@@ -339,6 +386,14 @@ class _ContextScrollViewState extends ConsumerState<ContextScrollView> {
                   fontWeight: FontWeight.w700,
                 ),
               ),
+            );
+          }
+
+          if (item.isImage) {
+            return _InlineImageTile(
+              word: item.image!,
+              settings: settings,
+              onTap: () => _openImageFullscreen(item.image!, settings),
             );
           }
 
@@ -538,6 +593,92 @@ class _ContextScrollViewState extends ConsumerState<ContextScrollView> {
     }
   }
 
+}
+
+/// Inline image row rendered inside the scroll view at the position where
+/// the EPUB had an `<img>`. Tapping pushes the [FullscreenImageScreen] so
+/// the reader can pinch-zoom and pan to inspect.
+class _InlineImageTile extends StatelessWidget {
+  final WordToken word;
+  final DisplaySettings settings;
+  final VoidCallback onTap;
+
+  static const _storage = InlineImageStorage();
+  static const double _maxHeight = 360;
+
+  const _InlineImageTile({
+    required this.word,
+    required this.settings,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final rel = word.imageRelativePath;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Material(
+          color: settings.backgroundColor.withAlpha(0),
+          child: InkWell(
+            onTap: onTap,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(
+                maxHeight: _maxHeight,
+                minHeight: 80,
+              ),
+              child: rel == null
+                  ? _broken(l10n.imageMissing)
+                  : FutureBuilder<String>(
+                      future: _storage.resolveAbsolutePath(rel),
+                      builder: (context, snap) {
+                        if (!snap.hasData) {
+                          return Center(
+                            child: SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: settings.wordColor.withAlpha(140),
+                              ),
+                            ),
+                          );
+                        }
+                        return Image.file(
+                          File(snap.data!),
+                          fit: BoxFit.contain,
+                          errorBuilder: (_, _, _) =>
+                              _broken(l10n.imageMissing),
+                        );
+                      },
+                    ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _broken(String label) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.broken_image_outlined,
+              color: settings.wordColor.withAlpha(140), size: 36),
+          const SizedBox(height: 6),
+          Text(
+            label,
+            style: TextStyle(
+                color: settings.wordColor.withAlpha(160), fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 /// Floating pill in the bottom-right of the context view. Houses the lock

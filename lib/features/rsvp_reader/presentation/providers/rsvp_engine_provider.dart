@@ -155,6 +155,14 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
     final vsync = _vsync;
     if (vsync == null) return;
 
+    // Cursor sits on an inline image: don't run the ticker — the reader
+    // needs the screen to stay put so they can pan/zoom. Switching to rsvp
+    // mode is enough; the image-display widget takes the word slot.
+    if (state.currentWord?.isImage ?? false) {
+      state = state.copyWith(mode: ReaderMode.rsvp);
+      return;
+    }
+
     _ticker ??= vsync.createTicker(_onTick);
 
     _elapsed = Duration.zero;
@@ -183,6 +191,25 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
     } else {
       play();
     }
+  }
+
+  /// Advance past the image the reader has been inspecting and resume
+  /// playback from the next text word. No-op if the cursor isn't on an
+  /// image (defensive; the dismiss button is only wired in image state).
+  void dismissImage() {
+    if (!(state.currentWord?.isImage ?? false)) return;
+    final next = state.globalWordIndex + 1;
+    if (next >= state.totalWords) return;
+
+    final (chapterIdx, wordIdx) = _globalToLocal(next);
+    state = state.copyWith(
+      currentChapterIndex: chapterIdx,
+      currentWordIndex: wordIdx,
+      globalWordIndex: next,
+      currentWord: state.chapters[chapterIdx].tokens[wordIdx],
+    );
+    // Auto-resume — the reader just told us they're done with the figure.
+    play();
   }
 
   void enterEreaderMode() {
@@ -279,6 +306,23 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
       globalWordIndex: state.globalWordIndex + 1,
       currentWord: state.chapters[chapterIdx].tokens[wordIdx],
     );
+
+    // Inline image at the new cursor: stop and wait for the reader to
+    // dismiss it. We keep `mode: ReaderMode.rsvp` so the image widget can
+    // take the spot the RSVP word would have rendered in.
+    if (state.currentWord?.isImage ?? false) {
+      _autoPauseOnImage();
+    }
+  }
+
+  /// Halts playback and persists progress when [_advanceWord] lands on an
+  /// image token. Distinct from [pause] because we don't flip back to
+  /// scroll mode — the image is still the focus.
+  void _autoPauseOnImage() {
+    _ticker?.stop();
+    state = state.copyWith(isPlaying: false);
+    _flushSession();
+    _saveProgress();
   }
 
   /// Persists the current session if it meets minimum thresholds

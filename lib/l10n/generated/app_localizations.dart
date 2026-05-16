@@ -1063,6 +1063,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Finished {date}'**
   String completionFinishedOn(String date);
+
+  /// No description provided for @imageContinue.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue'**
+  String get imageContinue;
+
+  /// No description provided for @imageClose.
+  ///
+  /// In en, this message translates to:
+  /// **'Close'**
+  String get imageClose;
+
+  /// No description provided for @imageMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'Image unavailable'**
+  String get imageMissing;
 }
 
 class _AppLocalizationsDelegate

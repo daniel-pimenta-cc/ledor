@@ -15,6 +15,10 @@ _WordToken _$WordTokenFromJson(Map<String, dynamic> json) => _WordToken(
   paragraphIndex: (json['paragraphIndex'] as num).toInt(),
   isParagraphStart: json['isParagraphStart'] as bool? ?? false,
   isChapterStart: json['isChapterStart'] as bool? ?? false,
+  isImage: json['isImage'] as bool? ?? false,
+  imageRelativePath: json['imageRelativePath'] as String?,
+  imageWidth: (json['imageWidth'] as num?)?.toInt(),
+  imageHeight: (json['imageHeight'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$WordTokenToJson(_WordToken instance) =>
@@ -27,4 +31,8 @@ Map<String, dynamic> _$WordTokenToJson(_WordToken instance) =>
       'paragraphIndex': instance.paragraphIndex,
       'isParagraphStart': instance.isParagraphStart,
       'isChapterStart': instance.isChapterStart,
+      'isImage': instance.isImage,
+      'imageRelativePath': instance.imageRelativePath,
+      'imageWidth': instance.imageWidth,
+      'imageHeight': instance.imageHeight,
     };

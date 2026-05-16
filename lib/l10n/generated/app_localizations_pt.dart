@@ -578,4 +578,13 @@ class AppLocalizationsPt extends AppLocalizations {
   String completionFinishedOn(String date) {
     return 'Finalizado em $date';
   }
+
+  @override
+  String get imageContinue => 'Continuar';
+
+  @override
+  String get imageClose => 'Fechar';
+
+  @override
+  String get imageMissing => 'Imagem indisponível';
 }

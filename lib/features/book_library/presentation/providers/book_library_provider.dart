@@ -7,6 +7,7 @@ import '../../../../database/app_database.dart';
 import '../../../../database/daos/cached_tokens_dao.dart';
 import '../../../../database/tables/book_source.dart';
 import '../../../library_sync/presentation/providers/library_sync_provider.dart';
+import '../../data/services/inline_image_storage.dart';
 
 /// Stream of all books, sorted by last read date.
 final bookLibraryProvider = StreamProvider<List<BooksTableData>>((ref) {
@@ -144,6 +145,9 @@ final deleteBookProvider =
     await tokensDao.deleteTokensForBook(bookId);
     await progressDao.deleteProgressForBook(bookId);
     await booksDao.deleteBook(bookId);
+    // Inline image bytes live outside the DB — drop the whole folder so
+    // they don't outlive the book row.
+    await const InlineImageStorage().deleteForBook(bookId);
 
     // Propagate deletion to the sync folder as a tombstone.
     await ref.read(librarySyncProvider.notifier).pushDelete(bookId);

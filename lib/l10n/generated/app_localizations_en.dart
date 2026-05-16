@@ -579,4 +579,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String completionFinishedOn(String date) {
     return 'Finished $date';
   }
+
+  @override
+  String get imageContinue => 'Continue';
+
+  @override
+  String get imageClose => 'Close';
+
+  @override
+  String get imageMissing => 'Image unavailable';
 }

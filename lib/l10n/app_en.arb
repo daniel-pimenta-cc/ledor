@@ -285,5 +285,8 @@
     "placeholders": {
       "date": { "type": "String" }
     }
-  }
+  },
+  "imageContinue": "Continue",
+  "imageClose": "Close",
+  "imageMissing": "Image unavailable"
 }

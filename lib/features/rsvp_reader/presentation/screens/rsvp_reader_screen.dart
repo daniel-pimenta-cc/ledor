@@ -18,6 +18,7 @@ import '../widgets/context_scroll_view.dart';
 import '../widgets/reader_settings_sheet.dart';
 import '../widgets/reader_side_panel.dart';
 import '../widgets/rsvp_controls.dart';
+import '../widgets/rsvp_image_view.dart';
 import '../widgets/rsvp_word_display.dart';
 
 class RsvpReaderScreen extends ConsumerStatefulWidget {
@@ -188,6 +189,16 @@ class _RsvpReaderScreenState extends ConsumerState<RsvpReaderScreen>
   }
 
   Widget _buildRsvpArea(RsvpState state, RsvpEngineNotifier engine) {
+    final word = state.currentWord;
+    if (word != null && word.isImage) {
+      return RsvpImageView(
+        key: const ValueKey('rsvp-image'),
+        word: word,
+        settings: state.displaySettings,
+        onContinue: engine.dismissImage,
+      );
+    }
+
     return GestureDetector(
       key: const ValueKey('rsvp'),
       behavior: HitTestBehavior.opaque,

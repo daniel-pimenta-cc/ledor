@@ -32,7 +32,7 @@ class TextTokenizer {
         final word = raw.trim();
         if (word.isEmpty) continue;
 
-        for (final subWord in _splitHyphenated(word)) {
+        for (final subWord in splitHyphenated(word)) {
           final bool isParagraphStart = firstOfParagraph;
           final bool isChapterStart =
               (paragraphIndex == 0 && firstOfParagraph);
@@ -66,7 +66,10 @@ class TextTokenizer {
   /// with the left part so it stays visible as a reading cue
   /// (`guarda-chuva` -> `[guarda-, chuva]`). Falls back to the whole word
   /// when the split would produce nothing (e.g. a lone "-").
-  static Iterable<String> _splitHyphenated(String word) sync* {
+  ///
+  /// Public so the image-aware [ChapterParser] can share the same splitting
+  /// rules without duplicating the regex.
+  static Iterable<String> splitHyphenated(String word) sync* {
     if (!word.contains('-')) {
       yield word;
       return;

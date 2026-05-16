@@ -14,8 +14,9 @@ import '../../../../database/daos/reading_progress_dao.dart';
 import '../../../../database/daos/reading_session_dao.dart';
 import '../../../../database/daos/sync_import_failures_dao.dart';
 import '../../../../database/tables/book_source.dart';
+import '../../../book_library/data/services/book_persistence.dart';
+import '../../../book_library/data/services/inline_image_storage.dart';
 import '../../../epub_import/data/services/epub_extraction_service.dart';
-import '../../../epub_import/domain/entities/chapter.dart';
 import '../../../rsvp_reader/domain/entities/display_settings.dart';
 import '../../domain/entities/sync_config.dart';
 import '../../domain/entities/sync_library.dart';
@@ -581,6 +582,7 @@ class LibrarySyncService {
       }
     }
     await _booksDao.deleteBook(bookId);
+    await const InlineImageStorage().deleteForBook(bookId);
   }
 
   /// Returns the relative path in the sync folder where [book]'s EPUB lives.
@@ -654,20 +656,11 @@ class LibrarySyncService {
       syncFileName: Value(book.syncFileName),
     ));
 
-    for (int i = 0; i < parsed.chapters.length; i++) {
-      final Chapter ch = parsed.chapters[i];
-      final tokensJson = jsonEncode(ch.tokens.map((t) => t.toJson()).toList());
-      await _tokensDao.insertChapterTokens(CachedTokensTableCompanion.insert(
-        bookId: book.id,
-        chapterIndex: i,
-        chapterTitle: Value(ch.title),
-        tokensJson: tokensJson,
-        wordCount: ch.tokens.length,
-        paragraphCount: Value(
-          ch.tokens.isEmpty ? 0 : ch.tokens.last.paragraphIndex + 1,
-        ),
-      ));
-    }
+    await persistChaptersWithImages(
+      bookId: book.id,
+      chapters: parsed.chapters,
+      tokensDao: _tokensDao,
+    );
 
     if (book.progress != null) {
       await _progressDao.upsertProgress(ReadingProgressTableCompanion(
@@ -825,20 +818,11 @@ class LibrarySyncService {
       syncFileName: Value(fileName),
     ));
 
-    for (int i = 0; i < parsed.chapters.length; i++) {
-      final Chapter ch = parsed.chapters[i];
-      final tokensJson = jsonEncode(ch.tokens.map((t) => t.toJson()).toList());
-      await _tokensDao.insertChapterTokens(CachedTokensTableCompanion.insert(
-        bookId: bookId,
-        chapterIndex: i,
-        chapterTitle: Value(ch.title),
-        tokensJson: tokensJson,
-        wordCount: ch.tokens.length,
-        paragraphCount: Value(
-          ch.tokens.isEmpty ? 0 : ch.tokens.last.paragraphIndex + 1,
-        ),
-      ));
-    }
+    await persistChaptersWithImages(
+      bookId: bookId,
+      chapters: parsed.chapters,
+      tokensDao: _tokensDao,
+    );
   }
 
   /// True when two books shards describe the same book set, ignoring the

@@ -81,6 +81,46 @@ WordToken _token({
       isParagraphStart: isParagraphStart,
     );
 
+WordToken _imageToken({
+  required int globalIndex,
+  required int chapterIndex,
+  int paragraphIndex = 0,
+  String relativePath = 'book_images/test/0.png',
+}) =>
+    WordToken(
+      text: '',
+      orpIndex: 0,
+      timingMultiplier: 1.0,
+      globalIndex: globalIndex,
+      chapterIndex: chapterIndex,
+      paragraphIndex: paragraphIndex,
+      isImage: true,
+      imageRelativePath: relativePath,
+    );
+
+/// Builds a single chapter where the second token is an inline image,
+/// followed by two more text tokens. Used to exercise the engine's
+/// image-aware controls without spinning up the full import pipeline.
+List<CachedTokensTableData> _chapterWithImageRows() {
+  final tokens = [
+    _token(text: 'before', globalIndex: 0, chapterIndex: 0, isChapterStart: true),
+    _imageToken(globalIndex: 1, chapterIndex: 0, paragraphIndex: 1),
+    _token(text: 'after', globalIndex: 2, chapterIndex: 0, paragraphIndex: 2),
+    _token(text: 'end', globalIndex: 3, chapterIndex: 0, paragraphIndex: 2),
+  ];
+  return [
+    CachedTokensTableData(
+      id: 1,
+      bookId: 'book-1',
+      chapterIndex: 0,
+      chapterTitle: 'Chapter 0',
+      tokensJson: jsonEncode([for (final t in tokens) t.toJson()]),
+      wordCount: tokens.length,
+      paragraphCount: 3,
+    ),
+  ];
+}
+
 /// Builds two chapters with 3 words each — small enough to be cheap, large
 /// enough to exercise the chapter boundary advance path.
 List<CachedTokensTableData> _twoChapterRows() {
@@ -756,6 +796,100 @@ void main() {
                 ),
               ),
             )).called(greaterThanOrEqualTo(1));
+      });
+    });
+
+    group('inline images', () {
+      test('play() on an image token stays paused and switches to rsvp mode',
+          () async {
+        final mocks = _wireMocks(chapterRows: _chapterWithImageRows());
+        final container = _container(mocks);
+
+        final engine = await _bootEngine(container, _FakeTickerProvider());
+        engine.seekToWord(1); // land on the image token
+        expect(engine.state.currentWord?.isImage, isTrue);
+        expect(engine.state.mode, ReaderMode.scroll);
+
+        engine.play();
+
+        expect(engine.state.mode, ReaderMode.rsvp);
+        expect(engine.state.isPlaying, isFalse);
+        // The cursor stays parked on the image — we don't advance through
+        // it on play. The user has to dismiss it explicitly.
+        expect(engine.state.globalWordIndex, 1);
+        expect(engine.state.currentWord?.isImage, isTrue);
+      });
+
+      test('dismissImage advances past the figure and resumes playback',
+          () async {
+        final mocks = _wireMocks(chapterRows: _chapterWithImageRows());
+        final container = _container(mocks);
+
+        final engine = await _bootEngine(container, _FakeTickerProvider());
+        engine.seekToWord(1);
+        engine.play(); // primes mode=rsvp, isPlaying=false (image)
+
+        engine.dismissImage();
+
+        // Cursor moved one slot ahead and engine resumed playback.
+        expect(engine.state.globalWordIndex, 2);
+        expect(engine.state.currentWord?.isImage, isFalse);
+        expect(engine.state.currentWord?.text, 'after');
+        expect(engine.state.isPlaying, isTrue);
+        expect(engine.state.mode, ReaderMode.rsvp);
+      });
+
+      test('dismissImage is a no-op when not on an image', () async {
+        final mocks = _wireMocks(chapterRows: _chapterWithImageRows());
+        final container = _container(mocks);
+
+        final engine = await _bootEngine(container, _FakeTickerProvider());
+        // Cursor sits on the leading text token, not an image.
+        expect(engine.state.currentWord?.isImage, isFalse);
+        final before = engine.state.globalWordIndex;
+
+        engine.dismissImage();
+
+        expect(engine.state.globalWordIndex, before);
+        expect(engine.state.isPlaying, isFalse);
+      });
+
+      test('dismissImage on the last token does not advance off the end',
+          () async {
+        final mocks = _wireMocks(
+          chapterRows: [
+            CachedTokensTableData(
+              id: 1,
+              bookId: 'book-1',
+              chapterIndex: 0,
+              chapterTitle: 'Chapter 0',
+              tokensJson: jsonEncode([
+                _token(
+                  text: 'first',
+                  globalIndex: 0,
+                  chapterIndex: 0,
+                  isChapterStart: true,
+                ).toJson(),
+                _imageToken(globalIndex: 1, chapterIndex: 0, paragraphIndex: 1)
+                    .toJson(),
+              ]),
+              wordCount: 2,
+              paragraphCount: 2,
+            ),
+          ],
+        );
+        final container = _container(mocks);
+
+        final engine = await _bootEngine(container, _FakeTickerProvider());
+        engine.seekToWord(1);
+        expect(engine.state.currentWord?.isImage, isTrue);
+
+        engine.dismissImage();
+
+        // Image was the last token — cursor doesn't move, playback stays
+        // paused (no text word left to roll into).
+        expect(engine.state.globalWordIndex, 1);
+        expect(engine.state.isPlaying, isFalse);
       });
     });
 
