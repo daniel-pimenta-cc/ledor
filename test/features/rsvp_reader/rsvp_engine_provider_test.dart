@@ -292,6 +292,145 @@ void main() {
     });
   });
 
+  group('computeWordIntervalMultiplier', () {
+    WordToken word(
+      String text, {
+      double timing = 1.0,
+      bool isChapterStart = false,
+    }) =>
+        WordToken(
+          text: text,
+          orpIndex: 0,
+          timingMultiplier: timing,
+          globalIndex: 0,
+          chapterIndex: 0,
+          paragraphIndex: 0,
+          isChapterStart: isChapterStart,
+        );
+
+    test('returns the baked-in timingMultiplier when defaults are unchanged',
+        () {
+      final m = computeWordIntervalMultiplier(
+        currentWord: word('hello', timing: 1.4),
+        nextWord: word('world'),
+        settings: const DisplaySettings(),
+      );
+      expect(m, closeTo(1.4, 1e-9));
+    });
+
+    test('returns 1.0 when smartTiming is off and no pauses are configured',
+        () {
+      final m = computeWordIntervalMultiplier(
+        currentWord: word('hello', timing: 2.5),
+        nextWord: word('world'),
+        settings: const DisplaySettings(smartTiming: false),
+      );
+      expect(m, 1.0);
+    });
+
+    test('applies sentence pause when the current word ends a sentence', () {
+      for (final ender in const ['end.', 'wow!', 'why?', 'and so on...', 'wait…']) {
+        final m = computeWordIntervalMultiplier(
+          currentWord: word(ender, timing: 1.0),
+          nextWord: word('next'),
+          settings: const DisplaySettings(
+            smartTiming: false,
+            sentencePauseMultiplier: 2.0,
+          ),
+        );
+        expect(m, 2.0, reason: 'expected sentence pause for "$ender"');
+      }
+    });
+
+    test('does not apply sentence pause for non-sentence-ending punctuation',
+        () {
+      for (final word in const ['comma,', 'semi;', 'colon:', 'quote"']) {
+        final m = computeWordIntervalMultiplier(
+          currentWord: WordToken(
+            text: word,
+            orpIndex: 0,
+            timingMultiplier: 1.0,
+            globalIndex: 0,
+            chapterIndex: 0,
+            paragraphIndex: 0,
+          ),
+          nextWord: null,
+          settings: const DisplaySettings(
+            smartTiming: false,
+            sentencePauseMultiplier: 3.0,
+          ),
+        );
+        expect(m, 1.0,
+            reason: '"$word" should not trigger the sentence pause');
+      }
+    });
+
+    test('applies chapter pause when the next word starts a new chapter', () {
+      final m = computeWordIntervalMultiplier(
+        currentWord: word('last', timing: 1.0),
+        nextWord: word('Chapter', isChapterStart: true),
+        settings: const DisplaySettings(
+          smartTiming: false,
+          chapterPauseMultiplier: 2.5,
+        ),
+      );
+      expect(m, closeTo(2.5, 1e-9));
+    });
+
+    test('composes baked-in timing, sentence pause, and chapter pause', () {
+      final m = computeWordIntervalMultiplier(
+        currentWord: word('end.', timing: 2.0),
+        nextWord: word('Chapter', isChapterStart: true),
+        settings: const DisplaySettings(
+          sentencePauseMultiplier: 1.5,
+          chapterPauseMultiplier: 2.0,
+        ),
+      );
+      // 2.0 (baked) * 1.5 (sentence) * 2.0 (chapter) = 6.0
+      expect(m, closeTo(6.0, 1e-9));
+    });
+
+    test('clamps the combined product to 10.0', () {
+      final m = computeWordIntervalMultiplier(
+        currentWord: word('end.', timing: 5.0),
+        nextWord: word('Chapter', isChapterStart: true),
+        settings: const DisplaySettings(
+          sentencePauseMultiplier: 4.0,
+          chapterPauseMultiplier: 4.0,
+        ),
+      );
+      // 5 * 4 * 4 = 80, clamped to 10.
+      expect(m, 10.0);
+    });
+
+    test('custom pauses still apply when smartTiming is off', () {
+      final m = computeWordIntervalMultiplier(
+        currentWord: word('end.', timing: 5.0),
+        nextWord: word('Chapter', isChapterStart: true),
+        settings: const DisplaySettings(
+          smartTiming: false,
+          sentencePauseMultiplier: 2.0,
+          chapterPauseMultiplier: 2.0,
+        ),
+      );
+      // smartTiming off → baked timing is ignored (treated as 1.0).
+      // 1.0 * 2.0 * 2.0 = 4.0
+      expect(m, closeTo(4.0, 1e-9));
+    });
+
+    test('null currentWord and nextWord short-circuit to base 1.0', () {
+      final m = computeWordIntervalMultiplier(
+        currentWord: null,
+        nextWord: null,
+        settings: const DisplaySettings(
+          sentencePauseMultiplier: 3.0,
+          chapterPauseMultiplier: 3.0,
+        ),
+      );
+      expect(m, 1.0);
+    });
+  });
+
   group('RsvpEngineNotifier', () {
     group('initialization', () {
       test('starts at chapter 0 word 0 with no saved progress', () async {

@@ -112,11 +112,32 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
   void _scheduleNext() {
     final effectiveWpm = _effectiveWpm();
     final baseMs = 60000.0 / effectiveWpm;
-    final multiplier =
-        state.displaySettings.smartTiming
-            ? (state.currentWord?.timingMultiplier ?? 1.0)
-            : 1.0;
-    _nextWordAt = _elapsed + Duration(milliseconds: (baseMs * multiplier).round());
+    final multiplier = computeWordIntervalMultiplier(
+      currentWord: state.currentWord,
+      nextWord: _peekNextWord(),
+      settings: state.displaySettings,
+    );
+    _nextWordAt =
+        _elapsed + Duration(milliseconds: (baseMs * multiplier).round());
+  }
+
+  /// Returns the token that will replace the current word on the next tick,
+  /// or `null` when we're already on the last word of the last chapter.
+  /// Used to schedule a chapter-seam pause before the new chapter shows up.
+  WordToken? _peekNextWord() {
+    final chapters = state.chapters;
+    final chapterIdx = state.currentChapterIndex;
+    final wordIdx = state.currentWordIndex;
+    if (chapterIdx >= chapters.length) return null;
+    final chapter = chapters[chapterIdx];
+    if (wordIdx + 1 < chapter.tokens.length) {
+      return chapter.tokens[wordIdx + 1];
+    }
+    if (chapterIdx + 1 < chapters.length &&
+        chapters[chapterIdx + 1].tokens.isNotEmpty) {
+      return chapters[chapterIdx + 1].tokens[0];
+    }
+    return null;
   }
 
   /// Returns the current effective WPM accounting for ramp-up.
@@ -386,6 +407,47 @@ double computeEffectiveWpm({
   final eased = 1.0 - inv * inv * inv;
   final startWpm = target * AppConstants.rampUpStartFraction;
   return startWpm + (target - startWpm) * eased;
+}
+
+/// Returns the multiplier applied to the base ms-per-word interval.
+///
+/// Composes three sources, all multiplicative:
+/// 1. The import-time [WordToken.timingMultiplier] (the existing
+///    "smart timing" — short/long words, punctuation pauses, paragraph
+///    and chapter-first-word stretches). Suppressed when
+///    [DisplaySettings.smartTiming] is off so the raw 60000/WPM cadence
+///    can be requested independently of the structural beats below.
+/// 2. [DisplaySettings.sentencePauseMultiplier] when [currentWord] ends
+///    a sentence (`.` `!` `?` or `…`/`...`). The pause sits on the
+///    sentence-ender so the gap lands between sentences, not after the
+///    first word of the next one.
+/// 3. [DisplaySettings.chapterPauseMultiplier] when [nextWord] is the
+///    first word of a new chapter, so the gap sits at the seam and the
+///    chapter title is the first thing the reader sees after the pause.
+///
+/// The product is clamped to `[0.5, 10.0]` so a user maxing every dial
+/// can't accidentally freeze the reader on a single word.
+double computeWordIntervalMultiplier({
+  required WordToken? currentWord,
+  required WordToken? nextWord,
+  required DisplaySettings settings,
+}) {
+  double multiplier = settings.smartTiming
+      ? (currentWord?.timingMultiplier ?? 1.0)
+      : 1.0;
+
+  if (currentWord != null && _wordEndsSentence(currentWord.text)) {
+    multiplier *= settings.sentencePauseMultiplier;
+  }
+  if (nextWord != null && nextWord.isChapterStart) {
+    multiplier *= settings.chapterPauseMultiplier;
+  }
+  return multiplier.clamp(0.5, 10.0);
+}
+
+bool _wordEndsSentence(String text) {
+  if (text.endsWith('…') || text.endsWith('...')) return true;
+  return text.endsWith('.') || text.endsWith('!') || text.endsWith('?');
 }
 
 /// Returns the rounded avg WPM for a session with [durationMs] elapsed

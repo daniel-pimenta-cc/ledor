@@ -52,6 +52,16 @@ class DisplaySettings {
   final bool showProgressSlider;
   final TimeRemainingMode timeRemainingMode;
 
+  /// Extra pause applied at the end of a sentence (`.`, `!`, `?`, `…`).
+  /// Multiplied on top of [WordToken.timingMultiplier]. Default `1.0` keeps
+  /// the existing baked-in behaviour; values above add a structural beat.
+  final double sentencePauseMultiplier;
+
+  /// Extra pause applied to the word right before a new chapter starts so
+  /// the gap lands at the seam, not after the chapter title shows up.
+  /// Multiplied on top of [WordToken.timingMultiplier]. Default `1.0`.
+  final double chapterPauseMultiplier;
+
   const DisplaySettings({
     this.wpm = AppConstants.defaultWpm,
     this.fontSize = AppConstants.defaultFontSize,
@@ -71,6 +81,8 @@ class DisplaySettings {
     this.orpIndicator = OrpIndicatorStyle.notch,
     this.showProgressSlider = true,
     this.timeRemainingMode = TimeRemainingMode.total,
+    this.sentencePauseMultiplier = 1.0,
+    this.chapterPauseMultiplier = 1.0,
   });
 
   Color get wordColor => Color(wordColorValue);
@@ -97,6 +109,8 @@ class DisplaySettings {
     OrpIndicatorStyle? orpIndicator,
     bool? showProgressSlider,
     TimeRemainingMode? timeRemainingMode,
+    double? sentencePauseMultiplier,
+    double? chapterPauseMultiplier,
   }) {
     return DisplaySettings(
       wpm: wpm ?? this.wpm,
@@ -118,6 +132,10 @@ class DisplaySettings {
       orpIndicator: orpIndicator ?? this.orpIndicator,
       showProgressSlider: showProgressSlider ?? this.showProgressSlider,
       timeRemainingMode: timeRemainingMode ?? this.timeRemainingMode,
+      sentencePauseMultiplier:
+          sentencePauseMultiplier ?? this.sentencePauseMultiplier,
+      chapterPauseMultiplier:
+          chapterPauseMultiplier ?? this.chapterPauseMultiplier,
     );
   }
 }

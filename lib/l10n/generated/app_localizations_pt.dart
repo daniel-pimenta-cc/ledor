@@ -154,6 +154,24 @@ class AppLocalizationsPt extends AppLocalizations {
       'Acelerar gradualmente até a velocidade alvo ao iniciar a leitura';
 
   @override
+  String get settingsSentencePause => 'Pausa de frase';
+
+  @override
+  String get settingsSentencePauseDesc => 'Pausa extra ao fim de cada frase';
+
+  @override
+  String get settingsChapterPause => 'Pausa de capítulo';
+
+  @override
+  String get settingsChapterPauseDesc =>
+      'Pausa extra antes do início de cada capítulo';
+
+  @override
+  String multiplierValue(String value) {
+    return '${value}x';
+  }
+
+  @override
   String get settingsLanguage => 'Idioma';
 
   @override

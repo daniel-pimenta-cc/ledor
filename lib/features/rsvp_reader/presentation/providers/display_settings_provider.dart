@@ -46,6 +46,8 @@ class DisplaySettingsNotifier extends StateNotifier<DisplaySettings> {
       _prefs.getString('${_prefix}orpIndicator'),
       _prefs.getBool('${_prefix}showProgressSlider'),
       _prefs.getString('${_prefix}timeRemainingMode'),
+      _prefs.getDouble('${_prefix}sentencePause'),
+      _prefs.getDouble('${_prefix}chapterPause'),
     ]);
     state = DisplaySettings(
       wpm: results[0] as int? ?? AppConstants.defaultWpm,
@@ -70,6 +72,8 @@ class DisplaySettingsNotifier extends StateNotifier<DisplaySettings> {
       orpIndicator: _parseOrpIndicator(results[15] as String?),
       showProgressSlider: results[16] as bool? ?? true,
       timeRemainingMode: _parseTimeRemainingMode(results[17] as String?),
+      sentencePauseMultiplier: results[18] as double? ?? 1.0,
+      chapterPauseMultiplier: results[19] as double? ?? 1.0,
     );
   }
 
@@ -149,6 +153,10 @@ class DisplaySettingsNotifier extends StateNotifier<DisplaySettings> {
           '${_prefix}showProgressSlider', state.showProgressSlider),
       _prefs.setString(
           '${_prefix}timeRemainingMode', state.timeRemainingMode.name),
+      _prefs.setDouble(
+          '${_prefix}sentencePause', state.sentencePauseMultiplier),
+      _prefs.setDouble(
+          '${_prefix}chapterPause', state.chapterPauseMultiplier),
     ]);
   }
 }

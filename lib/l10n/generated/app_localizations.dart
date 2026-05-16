@@ -356,6 +356,36 @@ abstract class AppLocalizations {
   /// **'Gradually accelerate to target speed when starting playback'**
   String get settingsRampUpDesc;
 
+  /// No description provided for @settingsSentencePause.
+  ///
+  /// In en, this message translates to:
+  /// **'Sentence pause'**
+  String get settingsSentencePause;
+
+  /// No description provided for @settingsSentencePauseDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Extra pause at the end of each sentence'**
+  String get settingsSentencePauseDesc;
+
+  /// No description provided for @settingsChapterPause.
+  ///
+  /// In en, this message translates to:
+  /// **'Chapter pause'**
+  String get settingsChapterPause;
+
+  /// No description provided for @settingsChapterPauseDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Extra pause before each new chapter begins'**
+  String get settingsChapterPauseDesc;
+
+  /// No description provided for @multiplierValue.
+  ///
+  /// In en, this message translates to:
+  /// **'{value}x'**
+  String multiplierValue(String value);
+
   /// No description provided for @settingsLanguage.
   ///
   /// In en, this message translates to:

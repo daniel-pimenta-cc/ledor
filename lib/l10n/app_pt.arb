@@ -48,6 +48,16 @@
   "settingsOrpHighlightDesc": "Destacar o ponto de reconhecimento ótimo em cada palavra",
   "settingsRampUp": "Aceleração Gradual",
   "settingsRampUpDesc": "Acelerar gradualmente até a velocidade alvo ao iniciar a leitura",
+  "settingsSentencePause": "Pausa de frase",
+  "settingsSentencePauseDesc": "Pausa extra ao fim de cada frase",
+  "settingsChapterPause": "Pausa de capítulo",
+  "settingsChapterPauseDesc": "Pausa extra antes do início de cada capítulo",
+  "multiplierValue": "{value}x",
+  "@multiplierValue": {
+    "placeholders": {
+      "value": { "type": "String" }
+    }
+  },
   "settingsLanguage": "Idioma",
   "settingsAbout": "Sobre",
   "settingsAppearance": "Aparência",

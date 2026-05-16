@@ -74,6 +74,16 @@
   "settingsOrpHighlightDesc": "Highlight the optimal recognition point in each word",
   "settingsRampUp": "Speed Ramp-Up",
   "settingsRampUpDesc": "Gradually accelerate to target speed when starting playback",
+  "settingsSentencePause": "Sentence pause",
+  "settingsSentencePauseDesc": "Extra pause at the end of each sentence",
+  "settingsChapterPause": "Chapter pause",
+  "settingsChapterPauseDesc": "Extra pause before each new chapter begins",
+  "multiplierValue": "{value}x",
+  "@multiplierValue": {
+    "placeholders": {
+      "value": { "type": "String" }
+    }
+  },
   "settingsLanguage": "Language",
   "settingsAbout": "About",
   "settingsAppearance": "Appearance",

@@ -154,6 +154,25 @@ class AppLocalizationsEn extends AppLocalizations {
       'Gradually accelerate to target speed when starting playback';
 
   @override
+  String get settingsSentencePause => 'Sentence pause';
+
+  @override
+  String get settingsSentencePauseDesc =>
+      'Extra pause at the end of each sentence';
+
+  @override
+  String get settingsChapterPause => 'Chapter pause';
+
+  @override
+  String get settingsChapterPauseDesc =>
+      'Extra pause before each new chapter begins';
+
+  @override
+  String multiplierValue(String value) {
+    return '${value}x';
+  }
+
+  @override
   String get settingsLanguage => 'Language';
 
   @override

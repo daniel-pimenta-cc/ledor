@@ -92,6 +92,36 @@ class DisplaySettingsPanel extends ConsumerWidget {
           onChanged: (v) =>
               _update(ref, bookId, (s) => s.copyWith(rampUp: v)),
         ),
+        const SizedBox(height: 12),
+
+        _MultiplierSliderRow(
+          label: l10n.settingsSentencePause,
+          subtitle: l10n.settingsSentencePauseDesc,
+          labelColor: settings.wordColor,
+          orpColor: settings.orpColor,
+          value: settings.sentencePauseMultiplier,
+          min: 1.0,
+          max: 4.0,
+          divisions: 12,
+          labelFor: (v) => l10n.multiplierValue(_formatMultiplier(v)),
+          onChanged: (v) => _update(
+              ref, bookId, (s) => s.copyWith(sentencePauseMultiplier: v)),
+        ),
+        const SizedBox(height: 4),
+
+        _MultiplierSliderRow(
+          label: l10n.settingsChapterPause,
+          subtitle: l10n.settingsChapterPauseDesc,
+          labelColor: settings.wordColor,
+          orpColor: settings.orpColor,
+          value: settings.chapterPauseMultiplier,
+          min: 1.0,
+          max: 4.0,
+          divisions: 12,
+          labelFor: (v) => l10n.multiplierValue(_formatMultiplier(v)),
+          onChanged: (v) => _update(
+              ref, bookId, (s) => s.copyWith(chapterPauseMultiplier: v)),
+        ),
         const SizedBox(height: 8),
 
         _SwitchRow(

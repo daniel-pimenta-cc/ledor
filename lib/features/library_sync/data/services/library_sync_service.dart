@@ -55,6 +55,8 @@ Map<String, dynamic> displaySettingsToMap(DisplaySettings s) => {
       'orpIndicator': s.orpIndicator.name,
       'showProgressSlider': s.showProgressSlider,
       'timeRemainingMode': s.timeRemainingMode.name,
+      'sentencePauseMultiplier': s.sentencePauseMultiplier,
+      'chapterPauseMultiplier': s.chapterPauseMultiplier,
     };
 
 DisplaySettings displaySettingsFromMap(Map<String, dynamic> m) {
@@ -79,6 +81,9 @@ DisplaySettings displaySettingsFromMap(Map<String, dynamic> m) {
     showProgressSlider: m['showProgressSlider'] as bool?,
     timeRemainingMode:
         _timeRemainingModeFromName(m['timeRemainingMode'] as String?),
+    sentencePauseMultiplier:
+        (m['sentencePauseMultiplier'] as num?)?.toDouble(),
+    chapterPauseMultiplier: (m['chapterPauseMultiplier'] as num?)?.toDouble(),
   );
 }
 

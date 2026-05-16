@@ -13,6 +13,14 @@ const _fontOptions = <({String value, String googleFont, String label})>[
 
 const _fontPreviewSample = 'The quick brown fox jumps 0123';
 
+/// Formats a multiplier value for the slider readout. Shows one decimal for
+/// whole and half steps (`1.0`, `1.5`) and two for quarters (`1.25`) so the
+/// label never grows when the user nudges between divisions.
+String _formatMultiplier(double v) {
+  final s = v.toStringAsFixed(2);
+  return s.endsWith('0') ? s.substring(0, s.length - 1) : s;
+}
+
 class _SectionHeader extends StatelessWidget {
   final String label;
   final Color color;
@@ -232,6 +240,96 @@ class _ColorRow extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Continuous slider for one of the structural-pause multipliers (sentence
+/// or chapter). Shows the label, an optional subtitle, the current value
+/// formatted as "1.5x", and a discrete-step slider tinted with [orpColor].
+class _MultiplierSliderRow extends StatelessWidget {
+  final String label;
+  final String? subtitle;
+  final Color labelColor;
+  final Color orpColor;
+  final double value;
+  final double min;
+  final double max;
+  final int divisions;
+  final String Function(double) labelFor;
+  final ValueChanged<double> onChanged;
+
+  const _MultiplierSliderRow({
+    required this.label,
+    this.subtitle,
+    required this.labelColor,
+    required this.orpColor,
+    required this.value,
+    required this.min,
+    required this.max,
+    required this.divisions,
+    required this.labelFor,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: TextStyle(color: labelColor, fontSize: 14),
+                  ),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle!,
+                      style: TextStyle(
+                        color: labelColor.withAlpha(140),
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              labelFor(value),
+              style: TextStyle(
+                color: orpColor,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
+          ],
+        ),
+        SliderTheme(
+          data: SliderTheme.of(context).copyWith(
+            activeTrackColor: orpColor,
+            thumbColor: orpColor,
+            inactiveTrackColor: labelColor.withAlpha(40),
+            overlayColor: orpColor.withAlpha(40),
+            valueIndicatorColor: orpColor,
+          ),
+          child: Slider(
+            value: value,
+            min: min,
+            max: max,
+            divisions: divisions,
+            onChanged: onChanged,
+          ),
+        ),
+      ],
     );
   }
 }
