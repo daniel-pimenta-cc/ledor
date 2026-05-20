@@ -61,6 +61,11 @@ dependencies:
   google_fonts: ^6.2.1
   flex_color_picker: ^3.6.0
 
+  # Text-to-speech (mobile/desktop/web). Linux desktop is unsupported by
+  # this package; the reader falls back to a custom spd-say-based backend
+  # via SpeechDispatcherBackend.
+  flutter_tts: ^4.2.5
+
   # Scroll
   scrollable_positioned_list: ^0.3.8
 

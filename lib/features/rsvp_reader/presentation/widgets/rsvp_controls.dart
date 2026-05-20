@@ -6,6 +6,7 @@ import '../../../../core/theme/app_motion.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/responsive.dart';
 import '../../../../l10n/generated/app_localizations.dart';
+import '../../domain/entities/rsvp_state.dart';
 import '../providers/reader_side_panel_provider.dart';
 import '../providers/rsvp_engine_provider.dart';
 import 'chapter_list_sheet.dart';
@@ -14,6 +15,7 @@ import 'controls_progress_row.dart';
 import 'controls_shell.dart';
 import 'controls_transport_row.dart';
 import 'seek_slider.dart';
+import 'tts_rate_selector.dart';
 import 'wpm_selector.dart';
 
 /// Reader playback dock.
@@ -27,11 +29,11 @@ class RsvpControls extends ConsumerStatefulWidget {
 }
 
 class _RsvpControlsState extends ConsumerState<RsvpControls> {
-  bool _wpmPickerOpen = false;
+  bool _speedPickerOpen = false;
 
-  void _toggleWpmPicker() {
+  void _toggleSpeedPicker() {
     HapticFeedback.selectionClick();
-    setState(() => _wpmPickerOpen = !_wpmPickerOpen);
+    setState(() => _speedPickerOpen = !_speedPickerOpen);
   }
 
   @override
@@ -40,6 +42,61 @@ class _RsvpControlsState extends ConsumerState<RsvpControls> {
     final engine = ref.read(rsvpEngineProvider(widget.bookId).notifier);
     final l10n = AppLocalizations.of(context)!;
     final settings = state.displaySettings;
+    final isTts = state.mode == ReaderMode.tts;
+
+    final Widget speedControl = isTts
+        ? TtsRateCapsule(
+            settings: settings,
+            rate: settings.ttsRate,
+            isOpen: _speedPickerOpen,
+            onDown: () {
+              HapticFeedback.selectionClick();
+              engine.decreaseTtsRate();
+            },
+            onUp: () {
+              HapticFeedback.selectionClick();
+              engine.increaseTtsRate();
+            },
+            onLabelTap: _toggleSpeedPicker,
+          )
+        : WpmCapsule(
+            settings: settings,
+            label: l10n.wordsPerMinute(state.wpm),
+            isOpen: _speedPickerOpen,
+            onDown: () {
+              HapticFeedback.selectionClick();
+              engine.decreaseWpm();
+            },
+            onUp: () {
+              HapticFeedback.selectionClick();
+              engine.increaseWpm();
+            },
+            onLabelTap: _toggleSpeedPicker,
+          );
+
+    final Widget? presetRow = !_speedPickerOpen
+        ? null
+        : isTts
+            ? TtsRatePresetRow(
+                settings: settings,
+                currentRate: settings.ttsRate,
+                onSelect: (value) {
+                  HapticFeedback.selectionClick();
+                  engine.setTtsRate(value);
+                  setState(() => _speedPickerOpen = false);
+                },
+              )
+            : WpmPresetRow(
+                settings: settings,
+                currentWpm: state.wpm,
+                presets: buildWpmPresets(state.wpm),
+                formatLabel: l10n.wordsPerMinute,
+                onSelect: (value) {
+                  HapticFeedback.selectionClick();
+                  engine.setWpm(value);
+                  setState(() => _speedPickerOpen = false);
+                },
+              );
 
     return ControlsShell(
       backgroundColor: settings.backgroundColor,
@@ -68,7 +125,7 @@ class _RsvpControlsState extends ConsumerState<RsvpControls> {
             ControlsTransportRow(
               state: state,
               l10n: l10n,
-              wpmPickerOpen: _wpmPickerOpen,
+              speedControl: speedControl,
               onPlayPause: () {
                 HapticFeedback.mediumImpact();
                 engine.togglePlayPause();
@@ -81,30 +138,11 @@ class _RsvpControlsState extends ConsumerState<RsvpControls> {
                 HapticFeedback.lightImpact();
                 engine.skipForward();
               },
-              onWpmDown: () {
-                HapticFeedback.selectionClick();
-                engine.decreaseWpm();
-              },
-              onWpmUp: () {
-                HapticFeedback.selectionClick();
-                engine.increaseWpm();
-              },
-              onWpmLabelTap: _toggleWpmPicker,
             ),
-            if (_wpmPickerOpen)
+            if (presetRow != null)
               Padding(
                 padding: const EdgeInsets.only(top: AppSpacing.sm),
-                child: WpmPresetRow(
-                  settings: settings,
-                  currentWpm: state.wpm,
-                  presets: buildWpmPresets(state.wpm),
-                  formatLabel: l10n.wordsPerMinute,
-                  onSelect: (value) {
-                    HapticFeedback.selectionClick();
-                    engine.setWpm(value);
-                    setState(() => _wpmPickerOpen = false);
-                  },
-                ),
+                child: presetRow,
               ),
           ],
         ),

@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:drift/drift.dart' show Value;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -14,9 +15,11 @@ import 'package:rsvp_reader/database/daos/reading_progress_dao.dart';
 import 'package:rsvp_reader/database/daos/reading_session_dao.dart';
 import 'package:rsvp_reader/features/epub_import/domain/entities/word_token.dart';
 import 'package:rsvp_reader/features/library_sync/presentation/providers/library_sync_provider.dart';
+import 'package:rsvp_reader/features/rsvp_reader/data/services/tts_backend.dart';
 import 'package:rsvp_reader/features/rsvp_reader/domain/entities/display_settings.dart';
 import 'package:rsvp_reader/features/rsvp_reader/domain/entities/rsvp_state.dart';
 import 'package:rsvp_reader/features/rsvp_reader/presentation/providers/rsvp_engine_provider.dart';
+import 'package:rsvp_reader/features/rsvp_reader/presentation/providers/tts_backend_provider.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
@@ -906,5 +909,271 @@ void main() {
         expect(engine.state.displaySettings, same(expected));
       });
     });
+
+    group('TTS mode', () {
+      test('enterTtsMode transitions to tts and initialises the backend',
+          () async {
+        final tts = _StubTtsBackend();
+        final mocks = _wireMocks(chapterRows: _twoChapterRows());
+        final container = _ttsContainer(mocks, tts);
+        final engine = await _bootEngine(container, _FakeTickerProvider());
+
+        await engine.enterTtsMode();
+
+        expect(engine.state.mode, ReaderMode.tts);
+        expect(engine.state.isPlaying, isFalse);
+        expect(tts.initCalled, isTrue);
+        // Settings should have been applied up front.
+        expect(tts.language, 'en-US');
+      });
+
+      test('enterTtsMode while playing flushes the existing session',
+          () async {
+        final tts = _StubTtsBackend();
+        final mocks = _wireMocks(chapterRows: _twoChapterRows());
+        final container = _ttsContainer(mocks, tts);
+        final engine = await _bootEngine(container, _FakeTickerProvider());
+
+        engine.play(); // start RSVP
+        expect(engine.state.isPlaying, isTrue);
+
+        await engine.enterTtsMode();
+
+        expect(engine.state.mode, ReaderMode.tts);
+        expect(engine.state.isPlaying, isFalse);
+      });
+
+      test('pause in tts mode keeps mode == tts (does not flip to scroll)',
+          () async {
+        final tts = _StubTtsBackend();
+        final mocks = _wireMocks(chapterRows: _twoChapterRows());
+        final container = _ttsContainer(mocks, tts);
+        final engine = await _bootEngine(container, _FakeTickerProvider());
+
+        await engine.enterTtsMode();
+        engine.play();
+        expect(engine.state.mode, ReaderMode.tts);
+        expect(engine.state.isPlaying, isTrue);
+
+        engine.pause();
+        expect(engine.state.mode, ReaderMode.tts);
+        expect(engine.state.isPlaying, isFalse);
+        expect(tts.stopCalled, isTrue);
+      });
+
+      test(
+          'progress callback advances globalWordIndex while in tts + playing',
+          () async {
+        final tts = _StubTtsBackend();
+        final mocks = _wireMocks(chapterRows: _twoChapterRows());
+        final container = _ttsContainer(mocks, tts);
+        final engine = await _bootEngine(container, _FakeTickerProvider());
+
+        await engine.enterTtsMode();
+        engine.play();
+        // _startTtsSpeak awaits setRate before speak — let those microtasks
+        // settle so the speakCalls list is populated.
+        await _pumpMicrotasks();
+        expect(tts.speakCalls, isNotEmpty);
+
+        // The two-chapter fixture has no terminal punctuation, so the
+        // segment captures the entire first chapter in one chunk.
+        // Simulate a progress callback at the start of "beta" (globalIdx 1).
+        // tokenCharOffsets for ['alpha', 'beta', 'gamma'] joined with spaces:
+        //   alpha = 0, beta = 6, gamma = 11.
+        tts.emitProgress(6, 10, 'beta');
+
+        expect(engine.state.globalWordIndex, 1);
+      });
+
+      test('completion callback advances past the spoken segment', () async {
+        final tts = _StubTtsBackend();
+        final mocks = _wireMocks(chapterRows: _twoChapterRows());
+        final container = _ttsContainer(mocks, tts);
+        final engine = await _bootEngine(container, _FakeTickerProvider());
+
+        await engine.enterTtsMode();
+        engine.play();
+        await _pumpMicrotasks();
+        final initialSpeakCount = tts.speakCalls.length;
+
+        // First chapter has 3 tokens; completion should advance to index 3
+        // (start of chapter 1, segment cap at chapter seam).
+        tts.emitCompletion();
+        await _pumpMicrotasks();
+
+        expect(engine.state.globalWordIndex, 3);
+        // A new speak() should have been issued for the next segment.
+        expect(tts.speakCalls.length, greaterThan(initialSpeakCount));
+      });
+
+      test('completion at end-of-book bumps finishTicket exactly once',
+          () async {
+        final tts = _StubTtsBackend();
+        final mocks = _wireMocks(chapterRows: _twoChapterRows());
+        final container = _ttsContainer(mocks, tts);
+        final engine = await _bootEngine(container, _FakeTickerProvider());
+
+        await engine.enterTtsMode();
+        // Seek to the last word so the next sentence ends the book.
+        engine.seekToWord(5);
+        engine.play();
+        await _pumpMicrotasks();
+
+        final beforeTicket = engine.state.finishTicket;
+        tts.emitCompletion();
+
+        expect(engine.state.finishTicket, beforeTicket + 1);
+        expect(engine.state.isPlaying, isFalse);
+      });
+
+      test('exitTtsMode returns to scroll and clears playback', () async {
+        final tts = _StubTtsBackend();
+        final mocks = _wireMocks(chapterRows: _twoChapterRows());
+        final container = _ttsContainer(mocks, tts);
+        final engine = await _bootEngine(container, _FakeTickerProvider());
+
+        await engine.enterTtsMode();
+        engine.play();
+        await _pumpMicrotasks();
+
+        engine.exitTtsMode();
+
+        expect(engine.state.mode, ReaderMode.scroll);
+        expect(engine.state.isPlaying, isFalse);
+      });
+
+      test('seekToWord while tts playing restarts speak from the new index',
+          () async {
+        final tts = _StubTtsBackend();
+        final mocks = _wireMocks(chapterRows: _twoChapterRows());
+        final container = _ttsContainer(mocks, tts);
+        final engine = await _bootEngine(container, _FakeTickerProvider());
+
+        await engine.enterTtsMode();
+        engine.play();
+        await _pumpMicrotasks();
+        final firstSpeak = tts.speakCalls.length;
+        tts.stopCalled = false;
+
+        engine.seekToWord(4);
+        await _pumpMicrotasks();
+
+        expect(tts.stopCalled, isTrue);
+        // A new utterance was queued.
+        expect(tts.speakCalls.length, greaterThan(firstSpeak));
+        expect(engine.state.globalWordIndex, 4);
+      });
+    });
   });
+}
+
+/// Stub backend used by the TTS-mode group. Records every interaction and
+/// exposes hooks so individual tests can fire `_onProgress` /
+/// `_onCompletion` / `_onError` synchronously — none of these tests pump
+/// real audio.
+class _StubTtsBackend implements TtsBackend {
+  bool initCalled = false;
+  final List<String> speakCalls = [];
+  bool stopCalled = false;
+  String? language;
+  TtsVoice? voice;
+  double? rate;
+  double? pitch;
+
+  TtsProgressHandler? _onProgress;
+  VoidCallback? _onCompletion;
+  void Function(String)? _onError;
+  // _onStart is set by the engine but the stubbed backend never fires it;
+  // we accept the setter to keep the interface honest.
+
+  void emitProgress(int offset, int end, String word) =>
+      _onProgress?.call(offset, end, word);
+  void emitCompletion() => _onCompletion?.call();
+  void emitError(String e) => _onError?.call(e);
+
+  @override
+  Future<void> init() async {
+    initCalled = true;
+  }
+
+  @override
+  Future<List<TtsVoice>> getVoices() async => const [];
+
+  @override
+  Future<List<String>> getLanguages() async => const [];
+
+  @override
+  Future<void> setVoice(TtsVoice? v) async {
+    voice = v;
+  }
+
+  @override
+  Future<void> setLanguage(String iso) async {
+    language = iso;
+  }
+
+  @override
+  Future<void> setRate(double r) async {
+    rate = r;
+  }
+
+  @override
+  Future<void> setPitch(double p) async {
+    pitch = p;
+  }
+
+  @override
+  Future<void> speak(String text) async {
+    speakCalls.add(text);
+  }
+
+  @override
+  Future<void> stop() async {
+    stopCalled = true;
+  }
+
+  @override
+  Future<void> dispose() async {}
+
+  @override
+  set onProgress(TtsProgressHandler? cb) => _onProgress = cb;
+
+  @override
+  set onCompletion(VoidCallback? cb) => _onCompletion = cb;
+
+  @override
+  set onError(void Function(String error)? cb) => _onError = cb;
+
+  @override
+  set onStart(VoidCallback? cb) {
+    // Not used in these tests; the stub never fires the start hook.
+  }
+}
+
+/// Yields a few microtasks so awaits chained inside the engine (e.g.
+/// setRate before speak) get a chance to resolve before assertions run.
+Future<void> _pumpMicrotasks([int count = 5]) async {
+  for (var i = 0; i < count; i++) {
+    await Future<void>.value();
+  }
+}
+
+/// Like [_container] but with the TTS backend provider overridden to a stub.
+ProviderContainer _ttsContainer(_Mocks mocks, _StubTtsBackend backend) {
+  final container = ProviderContainer(
+    overrides: [
+      cachedTokensDaoProvider.overrideWithValue(mocks.tokens),
+      readingProgressDaoProvider.overrideWithValue(mocks.progress),
+      readingSessionDaoProvider.overrideWithValue(mocks.sessions),
+      booksDaoProvider.overrideWithValue(mocks.books),
+      librarySyncProvider.overrideWith((ref) => _StubLibrarySyncNotifier(ref)),
+      ttsBackendProvider.overrideWithValue(backend),
+    ],
+  );
+  addTearDown(container.dispose);
+  addTearDown(() async {
+    await Future<void>.delayed(const Duration(milliseconds: 350));
+  });
+  return container;
 }

@@ -49,5 +49,10 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+        <!-- flutter_tts package visibility on Android 11+ so it can discover
+             installed TTS engines (Google TTS, Samsung TTS, etc.). -->
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE"/>
+        </intent>
     </queries>
 </manifest>

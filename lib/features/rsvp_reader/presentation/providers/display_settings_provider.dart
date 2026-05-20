@@ -48,6 +48,10 @@ class DisplaySettingsNotifier extends StateNotifier<DisplaySettings> {
       _prefs.getString('${_prefix}timeRemainingMode'),
       _prefs.getDouble('${_prefix}sentencePause'),
       _prefs.getDouble('${_prefix}chapterPause'),
+      _prefs.getString('${_prefix}ttsLanguage'),
+      _prefs.getString('${_prefix}ttsVoiceName'),
+      _prefs.getDouble('${_prefix}ttsPitch'),
+      _prefs.getDouble('${_prefix}ttsRate'),
     ]);
     state = DisplaySettings(
       wpm: results[0] as int? ?? AppConstants.defaultWpm,
@@ -74,6 +78,10 @@ class DisplaySettingsNotifier extends StateNotifier<DisplaySettings> {
       timeRemainingMode: _parseTimeRemainingMode(results[17] as String?),
       sentencePauseMultiplier: results[18] as double? ?? 1.0,
       chapterPauseMultiplier: results[19] as double? ?? 1.0,
+      ttsLanguage: results[20] as String? ?? 'en-US',
+      ttsVoiceName: results[21] as String?,
+      ttsPitch: results[22] as double? ?? 1.0,
+      ttsRate: results[23] as double? ?? AppConstants.defaultTtsRate,
     );
   }
 
@@ -131,6 +139,7 @@ class DisplaySettingsNotifier extends StateNotifier<DisplaySettings> {
   }
 
   Future<void> _save() async {
+    final voice = state.ttsVoiceName;
     await Future.wait([
       _prefs.setInt('${_prefix}wpm', state.wpm),
       _prefs.setDouble('${_prefix}fontSize', state.fontSize),
@@ -157,6 +166,13 @@ class DisplaySettingsNotifier extends StateNotifier<DisplaySettings> {
           '${_prefix}sentencePause', state.sentencePauseMultiplier),
       _prefs.setDouble(
           '${_prefix}chapterPause', state.chapterPauseMultiplier),
+      _prefs.setString('${_prefix}ttsLanguage', state.ttsLanguage),
+      if (voice != null)
+        _prefs.setString('${_prefix}ttsVoiceName', voice)
+      else
+        _prefs.remove('${_prefix}ttsVoiceName'),
+      _prefs.setDouble('${_prefix}ttsPitch', state.ttsPitch),
+      _prefs.setDouble('${_prefix}ttsRate', state.ttsRate),
     ]);
   }
 }

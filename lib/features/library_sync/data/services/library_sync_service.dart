@@ -58,6 +58,13 @@ Map<String, dynamic> displaySettingsToMap(DisplaySettings s) => {
       'timeRemainingMode': s.timeRemainingMode.name,
       'sentencePauseMultiplier': s.sentencePauseMultiplier,
       'chapterPauseMultiplier': s.chapterPauseMultiplier,
+      'ttsLanguage': s.ttsLanguage,
+      // ttsVoiceName is intentionally written even when null so the remote
+      // shard reflects "clear voice". Engine falls back to first voice of
+      // the locale if the synced name doesn't exist on the local device.
+      'ttsVoiceName': s.ttsVoiceName,
+      'ttsPitch': s.ttsPitch,
+      'ttsRate': s.ttsRate,
     };
 
 DisplaySettings displaySettingsFromMap(Map<String, dynamic> m) {
@@ -85,6 +92,10 @@ DisplaySettings displaySettingsFromMap(Map<String, dynamic> m) {
     sentencePauseMultiplier:
         (m['sentencePauseMultiplier'] as num?)?.toDouble(),
     chapterPauseMultiplier: (m['chapterPauseMultiplier'] as num?)?.toDouble(),
+    ttsLanguage: m['ttsLanguage'] as String?,
+    ttsVoiceName: m.containsKey('ttsVoiceName') ? m['ttsVoiceName'] as String? : defaults.ttsVoiceName,
+    ttsPitch: (m['ttsPitch'] as num?)?.toDouble(),
+    ttsRate: (m['ttsRate'] as num?)?.toDouble(),
   );
 }
 

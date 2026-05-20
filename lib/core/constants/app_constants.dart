@@ -5,6 +5,19 @@ abstract final class AppConstants {
   static const int wpmStep = 25;
   static const int skipWordCount = 10;
 
+  // ---- TTS rate ----
+  /// Default speech rate when the user hasn't picked one yet. Audiobook-
+  /// style scale where 1.0x is conversational speech — the backends
+  /// translate this to their native engine units (see
+  /// `FlutterTtsBackend.setRate` for the Android scaling).
+  static const double defaultTtsRate = 1.0;
+  static const double minTtsRate = 0.5;
+  static const double maxTtsRate = 3.0;
+
+  /// Step for the rate capsule's +/- buttons. 0.25x matches typical
+  /// podcast/audiobook player conventions (0.75 / 1.0 / 1.25 / 1.5 …).
+  static const double ttsRateStep = 0.25;
+
   /// Ramp-up: number of words to reach target WPM after pressing play.
   static const int rampUpWords = 30;
 

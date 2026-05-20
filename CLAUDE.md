@@ -17,7 +17,7 @@ flutter run                                        # rodar no device/emulador
 
 Feature-based Clean Architecture com Riverpod. Ver [docs/architecture.md](docs/architecture.md).
 
-**Stack:** Flutter 3.x | Riverpod 2 (sem codegen) | Drift/SQLite | SharedPreferences | epub_pro | go_router | http | receive_sharing_intent (mobile-only) | google_sign_in (mobile) + googleapis_auth loopback (desktop) + googleapis (Drive v3) | flutter_secure_storage + url_launcher (desktop OAuth) | google_fonts (Lora + Inter) | fl_chart (stats) | share_plus (export PNG) | desktop_drop (Linux) | intl (DateFormat)
+**Stack:** Flutter 3.x | Riverpod 2 (sem codegen) | Drift/SQLite | SharedPreferences | epub_pro | go_router | http | receive_sharing_intent (mobile-only) | google_sign_in (mobile) + googleapis_auth loopback (desktop) + googleapis (Drive v3) | flutter_secure_storage + url_launcher (desktop OAuth) | google_fonts (Lora + Inter) | fl_chart (stats) | share_plus (export PNG) | desktop_drop (Linux) | intl (DateFormat) | flutter_tts (TTS mobile/desktop) + spd-say via Process (TTS Linux)
 
 ## Estrutura de pastas
 
@@ -105,11 +105,13 @@ lib/
   - `epub`: arquivo EPUB importado (file picker ou Drive sync).
   - `article`: artigo web importado por URL (dialog manual ou share sheet).
   - Ambos viram `ParsedBook` -> `persistParsedBook` -> `books` + `cached_tokens`. Leitura, progresso e engine RSVP sao identicos. Ver [docs/article-import.md](docs/article-import.md).
-- **Tres modos de leitura** (`ReaderMode`):
+- **Quatro modos de leitura** (`ReaderMode`):
   - `rsvp`: palavra unica com ORP — ativo durante play
   - `scroll`: texto completo com highlight da palavra atual — pausado, com controles
   - `ereader`: texto completo sem highlight, sem controles — leitura tradicional
-  - Toggle entre rsvp/scroll e ereader via icone no top bar; dentro de rsvp/scroll, play/pause alterna entre eles.
+  - `tts`: narracao em audio com highlight sincronizado pelo callback de word boundary do backend; reusa `ContextScrollView(showHighlight: true)`.
+  - Toggle via `ReaderModeMenu` (PopupMenuButton com radio-list dos 4 modos) no top bar; dentro de rsvp/scroll, play/pause alterna entre eles; em tts, play/pause aciona o backend mantendo `mode=tts`.
+- **TTS pipeline** (`docs/tts-mode.md`): `TtsBackend` abstrai `flutter_tts` (Android/iOS/macOS/Windows) e `SpeechDispatcherBackend` (Linux via `spd-say`). Seleção em `ttsBackendProvider`. Engine extrai sentenças via `extractSentenceFrom`, faz `_startTtsSpeak` por sentence; callback `_onTtsProgress` mapeia charOffset→tokenIndex via `tokenCharOffsets` precomputados. `_ttsSpeakGeneration` invalida callbacks tardios (pause/seek/exit). Rate independente do WPM: usuário controla `DisplaySettings.ttsRate` (range `[0.5, 3.0]`, step 0.25) via `TtsRateCapsule` no transport row quando em modo TTS; presets fixos 0.75/1.0/1.25/.../3.0 (estilo player de audiobook). Reading sessions logam normalmente.
 - **DisplaySettings**: todas as configs visuais e de leitura (cores, fontes, posicoes, toggles, focus line) persistidas via SharedPreferences. Painel unico (`DisplaySettingsPanel`) usado tanto no bottom sheet do leitor quanto na tela full-screen de Settings — fonte unica de verdade para adicionar opcoes.
 - **Tema light + dark**: paleta editorial com tons quentes ("ink on paper" / "paper"), accent laranja #E55324 preservado em ambos. Toggle em Settings via `SegmentedButton` (system/light/dark), persistido em `themeModeProvider`. Ao trocar de brightness, `ThemeModeNotifier` chama `DisplaySettingsNotifier.applyBrightness()` que inverte automaticamente wordColor e backgroundColor para a paleta correspondente — ORP e highlight ficam preservados.
 - **Tipografia editorial**: Lora (serif) em display/headline/title; Inter (sans) em body/label. Font families para RSVP incluem monos (Roboto Mono, JetBrains Mono, Fira Code, Source Code Pro) + serifs (Lora, Source Serif 4). Mapeamento centralizado em `lib/core/utils/font_mapper.dart`.
@@ -125,7 +127,9 @@ lib/
 - Todas as strings de UI devem usar i18n (ARB files em `lib/l10n/`). Nunca hardcodar texto PT ou EN.
 - **Cores no leitor e painel de DisplaySettings vem de `DisplaySettings`, nunca de `Theme.of(context)`** — para permitir preview "ao vivo". A unica excecao e a secao Appearance em `settings_screen.dart` (toggle de ThemeMode), que usa o theme global.
 - **Cores na biblioteca e chrome do app** (AppBar, cards, FAB, empty states, dialogs) vem de `Theme.of(context).colorScheme`, nunca de `AppColors.*` diretamente.
-- Para adicionar/remover uma opcao de display ou leitura: editar `display_settings_panel.dart` (afeta automaticamente o bottom sheet no leitor E a tela full-screen de settings). Adicionar tambem o campo em `DisplaySettings` + `copyWith` + load/save no `DisplaySettingsNotifier`.
+- Para adicionar/remover uma opcao de display ou leitura: editar `display_settings_panel.dart` (afeta automaticamente o bottom sheet no leitor E a tela full-screen de settings). Adicionar tambem o campo em `DisplaySettings` + `copyWith` + load/save no `DisplaySettingsNotifier`. Pra options TTS, ir na seção `_buildTtsSection` do mesmo painel.
+- **`wordEndsSentence`**: usar a utility de `lib/core/utils/sentence_boundary.dart` (compartilhada por `computeWordIntervalMultiplier`, `sentence_extractor`, e `context_scroll_view`). Não reimplementar detecção de fim de sentença.
+- **TTS engine novo ponto de saída**: qualquer caminho que cancele um speak em andamento deve bumpar `_ttsSpeakGeneration` ANTES do `_tts?.stop()` pra invalidar callbacks tardios; setar `_currentTtsSentence = null`; e chamar `_flushSession` + `_saveProgress` quando vinha de `isPlaying=true`.
 - Apos alterar tables do Drift ou classes com `@freezed`: rodar `build_runner`.
 - Apos alterar ARB files: rodar `flutter gen-l10n` (l10n.yaml ja configurado).
 - **Persistir livros/artigos**: sempre via `persistParsedBook` (em `lib/features/book_library/data/services/book_persistence.dart`). Nunca duplicar o fluxo insert-book + fan-out de tokens.
@@ -153,4 +157,5 @@ lib/
 - [docs/library-sync.md](docs/library-sync.md) — sync via Drive, manifest, merge rules, tombstones + compactacao, cache de fileId, invariantes de DateTime
 - [docs/share-extension-ios.md](docs/share-extension-ios.md) — setup do share extension iOS (Xcode)
 - [docs/linux-desktop.md](docs/linux-desktop.md) — build do Linux desktop, atalhos, drag-drop, limitações
+- [docs/tts-mode.md](docs/tts-mode.md) — modo TTS, backend cross-platform (`flutter_tts` + `spd-say`), integração com engine, sentence extraction, WPM→rate, sync de settings
 - [tasks.md](tasks.md) — bugs e features pendentes

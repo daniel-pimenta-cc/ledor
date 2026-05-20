@@ -2,7 +2,7 @@ import '../../../epub_import/domain/entities/chapter.dart';
 import '../../../epub_import/domain/entities/word_token.dart';
 import 'display_settings.dart';
 
-enum ReaderMode { rsvp, scroll, ereader }
+enum ReaderMode { rsvp, scroll, ereader, tts }
 
 class RsvpState {
   final String bookId;

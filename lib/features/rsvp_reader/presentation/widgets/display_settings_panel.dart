@@ -4,10 +4,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/utils/platform_capabilities.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../domain/entities/display_settings.dart';
 import '../providers/display_settings_provider.dart';
 import '../providers/rsvp_engine_provider.dart';
+import 'tts_voice_picker_sheet.dart';
 import 'wpm_selector.dart';
 
 part 'display_settings_widgets.dart';
@@ -32,7 +34,57 @@ class DisplaySettingsPanel extends ConsumerWidget {
       children: [
         _buildReadingSection(ref, l10n, settings),
         const SizedBox(height: 16),
+        if (PlatformCapabilities.supportsTts) ...[
+          _buildTtsSection(ref, l10n, settings),
+          const SizedBox(height: 16),
+        ],
         _buildDisplaySection(ref, l10n, settings),
+      ],
+    );
+  }
+
+  /// TTS section. Hidden on platforms without TTS support (web today, but
+  /// the guard is there to make the contract explicit).
+  Widget _buildTtsSection(
+    WidgetRef ref,
+    AppLocalizations l10n,
+    DisplaySettings settings,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _SectionHeader(label: l10n.settingsTtsSection, color: settings.wordColor),
+
+        _TtsVoiceRow(
+          label: l10n.settingsTtsVoice,
+          subtitle: l10n.settingsTtsVoiceDesc,
+          labelColor: settings.wordColor,
+          orpColor: settings.orpColor,
+          currentVoiceName: settings.ttsVoiceName,
+          currentLocale: settings.ttsLanguage,
+          onTap: () {
+            showModalBottomSheet(
+              context: ref.context,
+              isScrollControlled: true,
+              backgroundColor: Colors.transparent,
+              builder: (_) => const TtsVoicePickerSheet(),
+            );
+          },
+        ),
+        const SizedBox(height: 12),
+
+        _MultiplierSliderRow(
+          label: l10n.settingsTtsPitch,
+          subtitle: l10n.settingsTtsPitchDesc,
+          labelColor: settings.wordColor,
+          orpColor: settings.orpColor,
+          value: settings.ttsPitch,
+          min: 0.5,
+          max: 2.0,
+          divisions: 15,
+          labelFor: (v) => '${_formatMultiplier(v)}x',
+          onChanged: (v) => _update(ref, bookId, (s) => s.copyWith(ttsPitch: v)),
+        ),
       ],
     );
   }
@@ -327,6 +379,16 @@ class DisplaySettingsPanel extends ConsumerWidget {
 
   /// Updates persisted settings; if [bookId] is set, also pushes the new
   /// settings to the running engine so the change is visible immediately.
+  ///
+  /// We pass the same [updater] to both the provider and the engine so
+  /// the engine state only sees the field the user touched. An earlier
+  /// version snapshotted the provider state and replaced the engine's
+  /// `displaySettings` wholesale — that worked until a user adjusted
+  /// `ttsRate` (or `wpm`) from a capsule, because those handlers only
+  /// mutate the engine state. The next time the user moved a slider,
+  /// the snapshot from the provider (still at the old rate) wiped out
+  /// the engine's value and re-issued `setSpeechRate` to the backend
+  /// mid-utterance — which silently broke flutter_tts on Android.
   static void _update(
     WidgetRef ref,
     String? bookId,
@@ -334,10 +396,9 @@ class DisplaySettingsPanel extends ConsumerWidget {
   ) {
     ref.read(displaySettingsProvider.notifier).update(updater);
     if (bookId != null) {
-      final newSettings = ref.read(displaySettingsProvider);
       ref
           .read(rsvpEngineProvider(bookId).notifier)
-          .updateDisplaySettings((_) => newSettings);
+          .updateDisplaySettings(updater);
     }
   }
 }

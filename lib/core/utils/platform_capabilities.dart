@@ -36,4 +36,17 @@ class PlatformCapabilities {
     if (kIsWeb) return false;
     return Platform.isAndroid || Platform.isIOS;
   }
+
+  /// Text-to-speech reader mode. Android/iOS/macOS/Windows use the
+  /// `flutter_tts` package; Linux desktop uses a custom backend on top of
+  /// `spd-say` (speech-dispatcher). On platforms where neither is wired up
+  /// (currently just web) the mode is hidden from the reader.
+  static bool get supportsTts {
+    if (kIsWeb) return false;
+    return Platform.isAndroid ||
+        Platform.isIOS ||
+        Platform.isLinux ||
+        Platform.isMacOS ||
+        Platform.isWindows;
+  }
 }

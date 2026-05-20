@@ -36,7 +36,14 @@
 - [ ] Bug: returning to the app in context mode breaks the sync — while paused; not reproduced in the latest session
 - [x] Sync stats (`reading_session` + `books.rating`) across devices via Drive (together with the shard refactor — sessions append-only, rating with a dedicated timestamp)
 - [ ] Bookmarks (named save points inside a book/article)
-- [ ] TTS mode (text-to-speech) — alternative audio playback
+- [x] TTS mode (text-to-speech) — fourth reader mode alongside RSVP/scroll/ereader; `flutter_tts` on mobile + desktop (Android/iOS/macOS/Windows), custom `SpeechDispatcherBackend` on top of `spd-say` for Linux. Voice/rate/pitch in settings; sessions log to `reading_session` like every other mode. See [docs/tts-mode.md](docs/tts-mode.md).
+- [ ] TTS background playback (lockscreen MediaSession via `audio_service`, Android foreground service, iOS AVAudioSession) — follow-up to the TTS mode above
+- [ ] Reader: lembrar o último ReaderMode usado por livro e reabrir nele (hoje sempre cai em `scroll`)
+- [ ] Reader: o modo scroll do RSVP e o modo TTS usam configs de tamanho/tipografia diferentes — unificar ou deixar explícito o porquê
+- [ ] Reader: atalho rápido pra mudar voz TTS sem precisar entrar em settings (talvez chip no transport row em modo TTS, ou opção no `ReaderModeMenu`)
+- [ ] Settings: reformular o painel pra separar opções por modo (RSVP-specific, TTS-specific, comuns) — hoje sentence/chapter pause aparece pra todos os modos sem indicar que é RSVP-only
+- [ ] TTS: engine picker no Android (`flutter_tts.getEngines` + `setEngine`) — apps audiobook tipicamente expõem Google TTS / Samsung TTS / outras instaladas. Hoje usamos a engine padrão do sistema sem opção de troca
+- [ ] TTS: melhorar labels do voice picker — hoje mostra `en-gb-x-fis-local#female_1-local (en-GB)`; ideal seria "Inglês (Reino Unido) — Feminina" + identificador técnico como caption discreta
 - [x] Incremental sync (phase 1): sharded manifest in `library/books.json` + `settings.json` + `sessions.json`; push parallelises writes and skips unchanged shards. Phase 2 (per-record + index.json) is parked until it becomes a bottleneck.
 - [ ] Improve speed ramp-up (more natural curve? configurable duration/word count?)
 - [ ] Bug: investigate imports when the user drops an EPUB straight into the `RSVP Reader/books/` Drive folder (orphan import via `_autoImportOrphanFiles`) — something isn't behaving as expected
