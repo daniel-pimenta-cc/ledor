@@ -1,5 +1,19 @@
 import '../../features/rsvp_reader/data/services/tts_backend.dart';
 
+/// Splits BCP-47 / Android-style locale codes into language + region.
+/// Reused on every voice entry — keeping it top-level avoids the regex
+/// compilation cost in hot paths (200+ voices on Android Google TTS).
+final RegExp _localeSplitter = RegExp(r'[-_]');
+
+/// Strips parenthesised qualifiers like "Samantha (Enhanced)" to a bare
+/// core for the friendly-name heuristic in [_looksLikeFriendlyName].
+final RegExp _qualifierStripper = RegExp(r'\s*\([^)]*\)\s*');
+
+/// Detects any digit character — used by [_looksLikeFriendlyName] to
+/// reject technical ids ("voice_1") even when they otherwise look like
+/// proper nouns.
+final RegExp _hasDigit = RegExp(r'[0-9]');
+
 /// Friendly labels derived from a [TtsVoice] for the picker UI.
 ///
 /// `voice.name` from the platform engines is usually a technical id like
@@ -116,7 +130,7 @@ FormattedVoiceLabel formatVoice(
 String localeDisplayName(String locale, String uiLanguage) {
   if (locale.isEmpty) return locale;
   final lang = _normaliseUiLanguage(uiLanguage);
-  final parts = locale.split(RegExp(r'[-_]'));
+  final parts = locale.split(_localeSplitter);
   final primary = parts[0].toLowerCase();
   final region = parts.length > 1 ? parts[1].toUpperCase() : null;
 
@@ -155,17 +169,17 @@ bool _looksLikeFriendlyName(String name) {
   if (name.isEmpty) return false;
   if (name.length < 3) return false;
   // Strip parenthesised qualifiers ("Samantha (Enhanced)") before checking.
-  final core = name.replaceAll(RegExp(r'\s*\([^)]*\)\s*'), '').trim();
+  final core = name.replaceAll(_qualifierStripper, '').trim();
   if (core.isEmpty) return false;
   if (core.contains('-') || core.contains('_') || core.contains('#')) {
     return false;
   }
-  if (RegExp(r'[0-9]').hasMatch(core)) return false;
+  if (_hasDigit.hasMatch(core)) return false;
   return true;
 }
 
 String _normaliseUiLanguage(String code) {
-  final c = code.toLowerCase().split(RegExp(r'[-_]')).first;
+  final c = code.toLowerCase().split(_localeSplitter).first;
   return _languageNames.containsKey(c) ? c : 'en';
 }
 
@@ -247,7 +261,7 @@ List<EnrichedVoice> enrichVoices(List<TtsVoice> voices, String uiLanguage) {
       label = initialLabel;
     }
 
-    final primaryLang = v.locale.split(RegExp(r'[-_]')).first.toLowerCase();
+    final primaryLang = v.locale.split(_localeSplitter).first.toLowerCase();
     final haystack = [
       label.primary,
       label.secondary ?? '',

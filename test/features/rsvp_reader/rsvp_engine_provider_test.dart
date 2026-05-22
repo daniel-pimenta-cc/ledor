@@ -1265,6 +1265,9 @@ class _StubTtsBackend implements TtsBackend {
   double? pitch;
   String? engineId;
 
+  @override
+  bool get canPipeline => true;
+
   TtsProgressHandler? _onProgress;
   VoidCallback? _onCompletion;
   void Function(String)? _onError;

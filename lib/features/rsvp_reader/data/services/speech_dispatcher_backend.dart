@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
+import '_linux_tts_shared.dart';
 import 'tts_backend.dart';
 
 /// Linux desktop backend on top of `spd-say` (speech-dispatcher CLI).
@@ -20,6 +21,9 @@ import 'tts_backend.dart';
 /// - No real pause: a mid-sentence stop is unrecoverable, so the engine
 ///   re-speaks from the current globalWordIndex on resume.
 class SpeechDispatcherBackend implements TtsBackend {
+  @override
+  bool get canPipeline => false;
+
   Process? _current;
   Timer? _wordTimer;
   bool _initialised = false;
@@ -60,7 +64,15 @@ class SpeechDispatcherBackend implements TtsBackend {
   Future<List<TtsVoice>> getVoices() async {
     await init();
     try {
-      final r = await Process.run('spd-say', ['-L']);
+      // Force the C locale so header lines stay in the English we parse
+      // against ("Name", "Language", "There are…"). Without this, on a
+      // pt_BR system the parser silently drops every voice.
+      final r = await Process.run(
+        'spd-say',
+        ['-L'],
+        environment: const {'LANG': 'C', 'LC_ALL': 'C'},
+        includeParentEnvironment: true,
+      );
       if (r.exitCode != 0) return const [];
       return _parseVoiceList(r.stdout.toString());
     } catch (_) {
@@ -80,7 +92,12 @@ class SpeechDispatcherBackend implements TtsBackend {
   Future<List<TtsEngine>> getEngines() async {
     await init();
     try {
-      final r = await Process.run('spd-say', ['-O']);
+      final r = await Process.run(
+        'spd-say',
+        ['-O'],
+        environment: const {'LANG': 'C', 'LC_ALL': 'C'},
+        includeParentEnvironment: true,
+      );
       if (r.exitCode != 0) return const [];
       return _parseEngineList(r.stdout.toString());
     } catch (_) {
@@ -190,7 +207,7 @@ class SpeechDispatcherBackend implements TtsBackend {
     // Pre-compute the char offset of each whitespace-delimited word in the
     // utterance. These are the points the periodic timer will emit
     // progress for; cadence comes from the configured rate.
-    _currentWordCharOffsets = _wordCharOffsets(text);
+    _currentWordCharOffsets = wordCharOffsets(text);
     _currentWordCursor = 0;
     if (_currentWordCharOffsets.isEmpty) return;
 
@@ -269,7 +286,7 @@ class SpeechDispatcherBackend implements TtsBackend {
   /// [text]. Used by the periodic timer to emit progress callbacks.
   @visibleForTesting
   static List<int> wordCharOffsetsForTest(String text) =>
-      _wordCharOffsets(text);
+      wordCharOffsets(text);
 
   /// Parses the `spd-say -L` output. The output has a 2-line header
   /// followed by columns: `NAME LANGUAGE VARIANT`. Returns an empty list
@@ -282,22 +299,6 @@ class SpeechDispatcherBackend implements TtsBackend {
   @visibleForTesting
   static List<TtsEngine> parseEngineListForTest(String stdout) =>
       _parseEngineList(stdout);
-}
-
-List<int> _wordCharOffsets(String text) {
-  final offsets = <int>[];
-  bool inWord = false;
-  for (var i = 0; i < text.length; i++) {
-    final ch = text[i];
-    final isSpace = ch == ' ' || ch == '\n' || ch == '\t';
-    if (!isSpace && !inWord) {
-      offsets.add(i);
-      inWord = true;
-    } else if (isSpace) {
-      inWord = false;
-    }
-  }
-  return offsets;
 }
 
 /// Parses the `spd-say -O` output (list of output modules, one per line
@@ -317,27 +318,9 @@ List<TtsEngine> _parseEngineList(String stdout) {
     // Take the first token before whitespace as the id.
     final id = line.split(RegExp(r'\s+')).first;
     if (id.isEmpty) continue;
-    engines.add(TtsEngine(id: id, displayName: _humaniseModuleId(id)));
+    engines.add(speechdModuleAsEngine(id));
   }
   return engines;
-}
-
-String _humaniseModuleId(String id) {
-  switch (id.toLowerCase()) {
-    case 'espeak-ng':
-    case 'espeak':
-      return 'eSpeak NG';
-    case 'festival':
-      return 'Festival';
-    case 'flite':
-      return 'Flite';
-    case 'rhvoice':
-      return 'RHVoice';
-    case 'pico':
-      return 'Pico';
-    default:
-      return id;
-  }
 }
 
 List<TtsVoice> _parseVoiceList(String stdout) {

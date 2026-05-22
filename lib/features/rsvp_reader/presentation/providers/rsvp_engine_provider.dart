@@ -368,6 +368,12 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
       return;
     }
     if (!mounted) return;
+    // The user may have switched away from TTS while init was awaited
+    // (e.g. tapped Ereader in the menu before the player finished
+    // initialising). Bail without binding the audio handler — the new
+    // mode owns the screen now, and binding here would resurface a
+    // lockscreen notification for a session the user already abandoned.
+    if (state.mode != ReaderMode.tts) return;
 
     player.setContent(state.chapters, state.totalWords);
     _pushSettingsToPlayer();
@@ -534,6 +540,7 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
   }
 
   void _onPlayerWordAdvance(int newGlobalIndex, int wordsAdvanced) {
+    if (!mounted) return;
     if (newGlobalIndex < 0 || newGlobalIndex >= state.totalWords) return;
     final (cIdx, wIdx) = _globalToLocal(newGlobalIndex);
     state = state.copyWith(
@@ -548,6 +555,7 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
   }
 
   void _onPlayerBookFinished() {
+    if (!mounted) return;
     state = state.copyWith(
       isPlaying: false,
       finishTicket: state.finishTicket + 1,
@@ -558,6 +566,7 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
   }
 
   void _onPlayerError(String error) {
+    if (!mounted) return;
     if (state.isPlaying && state.mode == ReaderMode.tts) {
       state = state.copyWith(isPlaying: false);
       _flushSession();
@@ -575,12 +584,8 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
     final source = TtsAudioSource(
       play: play,
       pause: pause,
-      skipForward: (words) {
-        skipForward(words == 0 ? AppConstants.skipWordCount : words);
-      },
-      skipBackward: (words) {
-        skipBackward(words == 0 ? AppConstants.skipWordCount : words);
-      },
+      skipForward: () => skipForward(),
+      skipBackward: () => skipBackward(),
     );
     _audioSource = source;
     _audioHandler = handler;

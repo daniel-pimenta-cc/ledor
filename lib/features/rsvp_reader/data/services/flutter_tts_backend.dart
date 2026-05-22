@@ -15,6 +15,9 @@ class FlutterTtsBackend implements TtsBackend {
   bool _initialised = false;
   TtsQueueMode _activeQueueMode = TtsQueueMode.flush;
 
+  @override
+  bool get canPipeline => true;
+
   TtsProgressHandler? _onProgress;
   VoidCallback? _onCompletion;
   void Function(String)? _onError;
@@ -244,7 +247,9 @@ String _humaniseEngineId(String id) {
     'com.svox.pico': 'Pico',
     'com.huawei.hiai': 'Huawei',
     'com.microsoft.cortana': 'Microsoft',
-    'org.acra.tts': 'eSpeak',
+    'com.reecedunn.espeak': 'eSpeak',
+    'es.codefactory.vocalizertts': 'Vocalizer',
+    'com.acapelagroup.android.tts': 'Acapela',
   };
   final hit = known[id];
   if (hit != null) return '$hit TTS';

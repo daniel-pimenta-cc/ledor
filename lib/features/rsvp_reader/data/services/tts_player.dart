@@ -34,8 +34,9 @@ class TtsPlayerSettings {
 
 /// Pipelined wrapper around a [TtsBackend].
 ///
-/// Pre-extracts the next [_lookahead] segments and enqueues them on the
-/// backend with [TtsQueueMode.add] so the platform engine plays them
+/// Pre-extracts the next 1–2 segments (per [_effectiveLookahead]) and
+/// enqueues them on the backend with [TtsQueueMode.add] so the platform
+/// engine plays them
 /// back-to-back with no audible gap. Without this, every chunk boundary
 /// introduced a ~200–500ms IPC gap on Android (the time between the
 /// completion handler firing and the next `speak()` being processed).
@@ -54,7 +55,19 @@ class TtsPlayer {
   List<Chapter> _chapters = const [];
   int _totalWords = 0;
   TtsPlayerSettings _settings = const TtsPlayerSettings();
-  TtsPlayerSettings? _appliedSettings;
+
+  // Per-field snapshot of what the backend last accepted. Sentinel "_unset"
+  // strings would be neater but the platform APIs never return null and
+  // these getters are read on every settings push, so the extra
+  // wrapping isn't worth it. Each field advances independently inside
+  // [_applySettingsIfChanged] so a half-applied snapshot doesn't force
+  // every later call to re-push everything.
+  String? _appliedEngineId;
+  String? _appliedLanguage;
+  String? _appliedVoiceName;
+  double? _appliedPitch;
+  double? _appliedRate;
+  bool _hasAppliedAny = false;
 
   // ---- Callbacks the owner subscribes to ----
 
@@ -83,11 +96,29 @@ class TtsPlayer {
   /// progress callbacks compare against the live counter and bail.
   int _generation = 0;
 
-  /// One active segment + one queued lookahead. Adding more lookahead
-  /// doesn't help latency (the gap appears at every queue boundary, not at
-  /// the second one) but it does make `stop()` slower and the queue
-  /// harder to keep in sync with cancellation events.
-  static const int _lookahead = 2;
+  /// Lookahead depth for backends that pipeline (flutter_tts queueMode=1,
+  /// speech-dispatcher daemon socket). 2 = one segment playing + one
+  /// pre-queued; deeper would help nothing (the gap appears at every
+  /// queue boundary, not just the second) and would make `stop()` slower.
+  ///
+  /// Non-pipeline backends (spd-say CLI: each speak spawns a new process
+  /// and the existing one would be cancelled) drop to 1 — see
+  /// [_effectiveLookahead].
+  static const int _lookaheadPipelined = 2;
+  static const int _lookaheadSequential = 1;
+
+  int get _effectiveLookahead =>
+      _backend.canPipeline ? _lookaheadPipelined : _lookaheadSequential;
+
+  /// Wall-clock timestamp of the last progress callback we received from
+  /// the backend. Used by [restartIfStalled] to detect a backend that
+  /// went silent (e.g. Android killed the synth while the foreground
+  /// service was misconfigured). `null` until the first callback fires.
+  DateTime? _lastProgressAt;
+
+  /// Threshold for [restartIfStalled]: after this long without a progress
+  /// callback while `_isPlaying`, assume the backend is dead.
+  static const _stallThreshold = Duration(seconds: 10);
 
   TtsPlayer(this._backend);
 
@@ -141,7 +172,12 @@ class TtsPlayer {
       rate: rate,
       largeChunks: _settings.largeChunks,
     );
-    if (_initialised) await _backend.setRate(rate);
+    if (!_initialised) return;
+    // Dedup via _appliedRate so a slider that re-emits the same value
+    // (common with the capsule's stepper) doesn't burn IPC.
+    if (_appliedRate == rate) return;
+    await _backend.setRate(rate);
+    _appliedRate = rate;
   }
 
   /// Returns the global word index the player believes is currently being
@@ -152,8 +188,8 @@ class TtsPlayer {
 
   /// Starts playback from [fromGlobalIndex]. Applies the current settings
   /// to the backend before issuing the first `speak()`, then fills the
-  /// pipeline with [_lookahead] queued segments so the platform engine
-  /// stitches them together seamlessly.
+  /// pipeline with [_effectiveLookahead] queued segments so the platform
+  /// engine stitches them together seamlessly.
   ///
   /// `_isPlaying` is set to `true` **synchronously** before any `await`
   /// so a `pause()` issued in the same tick (typical when the user taps
@@ -180,7 +216,7 @@ class TtsPlayer {
     await _applySettingsIfChanged();
     if (myGen != _generation) return;
 
-    for (var i = 0; i < _lookahead; i++) {
+    for (var i = 0; i < _effectiveLookahead; i++) {
       final more = await _enqueueNext();
       if (myGen != _generation) return;
       if (!more) break;
@@ -193,6 +229,10 @@ class TtsPlayer {
     _isPlaying = false;
     _generation++;
     _queue.clear();
+    // Clear the heartbeat so a subsequent restartIfStalled doesn't fire
+    // because of a stale "no progress for 10s" reading from before the
+    // pause.
+    _lastProgressAt = null;
     if (_initialised) {
       try {
         await _backend.stop();
@@ -218,13 +258,26 @@ class TtsPlayer {
 
   /// Restarts playback from the current cursor when the backend has fallen
   /// silent unexpectedly (e.g. Android killed the synthesiser while the
-  /// app was backgrounded without a foreground service). Idempotent —
-  /// safe to call when the player is healthy.
+  /// app was backgrounded without a foreground service). Detects stalls
+  /// via lack of recent progress callbacks rather than queue depth — a
+  /// killed backend can leave the queue full but never fire completion.
+  /// Idempotent — safe to call when the player is healthy.
   Future<void> restartIfStalled() async {
     if (!_isPlaying) return;
-    if (_queue.isNotEmpty) return;
+    final last = _lastProgressAt;
+    // Restart only when we've actually heard progress before AND it's
+    // gone silent for too long. `last == null` means either the backend
+    // hasn't started speaking yet (give it more time) or pause() just
+    // cleared the heartbeat — neither warrants a restart.
+    if (last == null) return;
+    if (DateTime.now().difference(last) < _stallThreshold) return;
+
     final cursor = _currentGlobalIndex;
     _isPlaying = false; // play() refuses when already playing
+    _queue.clear();
+    try {
+      await _backend.stop();
+    } catch (_) {}
     await play(fromGlobalIndex: cursor);
   }
 
@@ -247,22 +300,33 @@ class TtsPlayer {
 
   // ---- Internals ----
 
+  /// Pushes every setting that differs from the per-field `_applied*`
+  /// snapshot to the backend, advancing each snapshot field after its
+  /// `await` succeeds. Each `await` checks the generation counter so a
+  /// concurrent [pause] / [seek] / [dispose] aborts cleanly.
+  ///
+  /// The per-field snapshot (vs a single struct) means a half-applied
+  /// state doesn't force every later call to re-push everything — only
+  /// the fields that genuinely differ get an IPC roundtrip.
   Future<void> _applySettingsIfChanged() async {
     final s = _settings;
-    final prev = _appliedSettings;
     final myGen = _generation;
-    if (prev == null || prev.engineId != s.engineId) {
+    final firstApply = !_hasAppliedAny;
+
+    if (firstApply || _appliedEngineId != s.engineId) {
       final eng = s.engineId;
       if (eng != null && eng.isNotEmpty) {
         await _backend.setEngine(eng);
         if (myGen != _generation) return;
       }
+      _appliedEngineId = s.engineId;
     }
-    if (prev == null || prev.language != s.language) {
+    if (firstApply || _appliedLanguage != s.language) {
       await _backend.setLanguage(s.language);
       if (myGen != _generation) return;
+      _appliedLanguage = s.language;
     }
-    if (prev == null || prev.voiceName != s.voiceName) {
+    if (firstApply || _appliedVoiceName != s.voiceName) {
       final name = s.voiceName;
       if (name == null || name.isEmpty) {
         await _backend.setVoice(null);
@@ -270,14 +334,19 @@ class TtsPlayer {
         await _backend.setVoice(TtsVoice(name: name, locale: s.language));
       }
       if (myGen != _generation) return;
+      _appliedVoiceName = s.voiceName;
     }
-    if (prev == null || prev.pitch != s.pitch) {
+    if (firstApply || _appliedPitch != s.pitch) {
       await _backend.setPitch(s.pitch);
       if (myGen != _generation) return;
+      _appliedPitch = s.pitch;
     }
-    await _backend.setRate(s.rate);
-    if (myGen != _generation) return;
-    _appliedSettings = s;
+    if (firstApply || _appliedRate != s.rate) {
+      await _backend.setRate(s.rate);
+      if (myGen != _generation) return;
+      _appliedRate = s.rate;
+    }
+    _hasAppliedAny = true;
   }
 
   /// Pulls the next speakable segment off the book and pushes it onto the
@@ -312,13 +381,10 @@ class TtsPlayer {
 
     _queue.add(_QueuedSegment(segment, myGen));
 
-    // Re-apply rate immediately before the speak so a recent setRate()
-    // change lands on this utterance. Other settings already applied in
-    // _applySettingsIfChanged.
-    await _backend.setRate(_settings.rate);
-    if (myGen != _generation) return false;
-
-    // First in the queue → flush; subsequent → add (pipelined).
+    // First in the queue → flush; subsequent → add (pipelined). Settings
+    // (rate included) were applied via _applySettingsIfChanged earlier in
+    // [play] and stay in sync via [setRate] when the user changes them
+    // mid-flight, so we don't re-push them per segment.
     final mode = _queue.length == 1 ? TtsQueueMode.flush : TtsQueueMode.add;
     await _backend.speak(segment.spokenText, mode: mode);
     return true;
@@ -333,6 +399,10 @@ class TtsPlayer {
 
   void _onProgress(int charOffset, int charEnd, String word) {
     if (!_isPlaying) return;
+    // Heartbeat for restartIfStalled — record even when the line below
+    // bails out, since a too-early or out-of-range callback still proves
+    // the backend is alive.
+    _lastProgressAt = DateTime.now();
     if (_queue.isEmpty) return;
     final active = _queue.first;
     if (active.generation != _generation) return;

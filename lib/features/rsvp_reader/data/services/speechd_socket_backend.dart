@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
+import '_linux_tts_shared.dart';
 import 'tts_backend.dart';
 
 /// Linux TTS backend speaking the SSIP protocol directly to the
@@ -21,6 +22,9 @@ import 'tts_backend.dart';
 /// ±200ms across a long sentence, indistinguishable from the spd-say
 /// backend.
 class SpeechdSocketBackend implements TtsBackend {
+  @override
+  bool get canPipeline => true;
+
   Socket? _socket;
   StreamSubscription<String>? _lineSub;
   bool _initialised = false;
@@ -191,7 +195,7 @@ class SpeechdSocketBackend implements TtsBackend {
     await _applyDirtySettings();
 
     // Pre-compute the word offsets for the timer-based progress callback.
-    _currentWordOffsets = _wordCharOffsets(text);
+    _currentWordOffsets = wordCharOffsets(text);
     _currentWordCursor = 0;
 
     // SSIP SPEAK takes the text as a "data block" terminated by a single "."
@@ -297,8 +301,17 @@ class SpeechdSocketBackend implements TtsBackend {
     final completer = Completer<_SsipResponse>();
     _pendingResponse = completer;
     socket.add(utf8.encode('$command\r\n'));
+    // SSIP commands on a healthy localhost daemon return in < 10ms.
+    // A 1s timeout still leaves a 100× safety margin while shrinking the
+    // window in which a stale response could arrive after timeout and
+    // race a newly-issued command. There IS a residual race: if cmd A
+    // times out while still emitting partial responses, those late
+    // lines can complete cmd B with the wrong payload (no way to tag
+    // lines on the wire — the SSIP protocol has no request id). Low
+    // probability on a working daemon; if it happens, the caller sees
+    // a malformed list parsing result and retries on the next sync.
     return completer.future.timeout(
-      const Duration(seconds: 5),
+      const Duration(seconds: 1),
       onTimeout: () {
         _pendingResponse = null;
         _responseLines.clear();
@@ -397,14 +410,29 @@ class SpeechdSocketBackend implements TtsBackend {
   }
 
   void _onSocketError(Object error) {
+    _failPendingResponse('socket error: $error');
     _onError?.call('speech-dispatcher socket error: $error');
   }
 
   void _onSocketClosed() {
+    _failPendingResponse('socket closed');
     _onError?.call('speech-dispatcher socket closed unexpectedly');
     _initialised = false;
     _socket = null;
     _lineSub = null;
+  }
+
+  /// Rejects any in-flight `_send` so its `await` returns immediately
+  /// instead of hanging on the 5s timeout, then clears the accumulated
+  /// response state. Idempotent.
+  void _failPendingResponse(String reason) {
+    final pending = _pendingResponse;
+    if (pending == null) return;
+    _pendingResponse = null;
+    _responseLines.clear();
+    if (!pending.isCompleted) {
+      pending.completeError(StateError(reason));
+    }
   }
 
   // ---------- Testing hooks ----------
@@ -422,7 +450,7 @@ class SpeechdSocketBackend implements TtsBackend {
 
   @visibleForTesting
   static List<int> wordCharOffsetsForTest(String text) =>
-      _wordCharOffsets(text);
+      wordCharOffsets(text);
 }
 
 class _SsipResponse {
@@ -468,41 +496,8 @@ List<TtsEngine> _parseEngineLines(List<String> lines) {
   for (final raw in lines) {
     final id = raw.trim();
     if (id.isEmpty) continue;
-    engines.add(TtsEngine(id: id, displayName: _humaniseModuleId(id)));
+    engines.add(speechdModuleAsEngine(id));
   }
   return engines;
 }
 
-String _humaniseModuleId(String id) {
-  switch (id.toLowerCase()) {
-    case 'espeak-ng':
-    case 'espeak':
-      return 'eSpeak NG';
-    case 'festival':
-      return 'Festival';
-    case 'flite':
-      return 'Flite';
-    case 'rhvoice':
-      return 'RHVoice';
-    case 'pico':
-      return 'Pico';
-    default:
-      return id;
-  }
-}
-
-List<int> _wordCharOffsets(String text) {
-  final offsets = <int>[];
-  bool inWord = false;
-  for (var i = 0; i < text.length; i++) {
-    final ch = text[i];
-    final isSpace = ch == ' ' || ch == '\n' || ch == '\t';
-    if (!isSpace && !inWord) {
-      offsets.add(i);
-      inWord = true;
-    } else if (isSpace) {
-      inWord = false;
-    }
-  }
-  return offsets;
-}

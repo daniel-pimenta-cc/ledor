@@ -8,11 +8,16 @@ import 'package:audio_service/audio_service.dart';
 /// taps to these closures so the platform media controls drive the active
 /// engine without the handler needing to know about Riverpod or the engine
 /// itself.
+///
+/// `skipForward` / `skipBackward` are arg-less — the engine decides how
+/// many words to jump (currently `AppConstants.skipWordCount`). Keeping
+/// the policy in one place avoids the handler having to know what a
+/// "skip" means for this app.
 class TtsAudioSource {
   final VoidCallback play;
   final VoidCallback pause;
-  final void Function(int words) skipForward;
-  final void Function(int words) skipBackward;
+  final VoidCallback skipForward;
+  final VoidCallback skipBackward;
 
   const TtsAudioSource({
     required this.play,
@@ -133,14 +138,12 @@ class TtsAudioHandler extends BaseAudioHandler {
 
   @override
   Future<void> fastForward() async {
-    // The engine has its own skipForward default (10 words); we forward
-    // 0 so the engine uses its constant.
-    _source?.skipForward(0);
+    _source?.skipForward();
   }
 
   @override
   Future<void> rewind() async {
-    _source?.skipBackward(0);
+    _source?.skipBackward();
   }
 
   @override

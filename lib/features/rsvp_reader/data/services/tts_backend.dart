@@ -81,6 +81,20 @@ typedef TtsProgressHandler = void Function(
 /// for the whole life of the engine notifier and disposed when the
 /// notifier disposes.
 abstract class TtsBackend {
+  /// Whether this backend can sequence consecutive `speak()` calls into
+  /// a gap-free stream — i.e. whether [TtsQueueMode.add] truly enqueues
+  /// instead of degrading to flush.
+  ///
+  /// - `flutter_tts` (mobile/desktop) → true (`setQueueMode(1)`).
+  /// - `speech-dispatcher` daemon socket → true (daemon queues).
+  /// - `spd-say` CLI fallback → false (each speak spawns its own
+  ///   process; a second concurrent speak would have to cancel the
+  ///   first).
+  ///
+  /// `TtsPlayer` uses this to decide whether to pre-queue a lookahead
+  /// segment or play strictly one at a time.
+  bool get canPipeline;
+
   /// Lazily wires up the underlying engine. Safe to call multiple times.
   /// Throws [TtsUnavailableException] when the platform stack isn't ready.
   Future<void> init();
@@ -126,7 +140,12 @@ abstract class TtsBackend {
   /// the native queue. Safe to call when idle.
   Future<void> stop();
 
-  /// Releases native resources. After this the backend is unusable.
+  /// Releases native resources and detaches every callback. Safe to call
+  /// after the backend is no longer needed; in practice today the
+  /// backend is a singleton owned by `ttsBackendProvider` and only
+  /// disposed when the app exits. Implementations may still allow a
+  /// subsequent `init()` to re-attach handlers (they just shouldn't
+  /// rely on it).
   Future<void> dispose();
 
   set onProgress(TtsProgressHandler? cb);

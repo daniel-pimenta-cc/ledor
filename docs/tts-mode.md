@@ -71,10 +71,19 @@ Key methods:
 
 ### TtsPlayer pipeline
 
-The player extracts up to `_lookahead = 2` segments and pushes them
-onto the backend with `TtsQueueMode.add`. While segment N plays,
-segment N+1 is already queued — the platform engine plays them back
-to back with no audible gap.
+The player extracts up to `_effectiveLookahead` segments (2 when the
+backend can pipeline, 1 otherwise) and pushes them onto the backend
+with `TtsQueueMode.add`. While segment N plays, segment N+1 is already
+queued — the platform engine plays them back to back with no audible
+gap.
+
+Backends declare their capability via `TtsBackend.canPipeline`:
+
+- `flutter_tts` → true (`setQueueMode(1)`).
+- `SpeechdSocketBackend` → true (daemon queues utterances).
+- `SpeechDispatcherBackend` (`spd-say` CLI fallback) → false (each
+  speak spawns its own process and a second concurrent call would
+  cancel the first).
 
 Race safety: a `_generation` counter is bumped on every action that
 should invalidate in-flight callbacks (`pause`, `seek`, `dispose`).
@@ -83,6 +92,21 @@ stale progress / completion callbacks compare against the live counter
 and bail. `_isPlaying` is set to `true` synchronously *before* any
 `await` so a `pause()` issued in the same tick (typical when the user
 taps pause right after play) actually stops the backend.
+
+Settings dedup: the player tracks `_appliedEngineId` / `_appliedLanguage`
+/ `_appliedVoiceName` / `_appliedPitch` / `_appliedRate` per-field, so
+a slider that re-emits the same value (or `applySettings()` called
+back-to-back during init + first speak) doesn't burn IPC re-pushing
+unchanged settings. Each field advances *after* its individual `await`
+succeeds, so a half-applied snapshot (when `pause` cancels mid-stream)
+still leaves the backend coherent on the next push.
+
+Stall detection: every `onProgress` callback updates `_lastProgressAt`.
+`restartIfStalled()` (called from the screen's
+`didChangeAppLifecycleState(resumed)`) fires a full restart only when
+the last heartbeat is older than `_stallThreshold` (10s). A null
+heartbeat (paused or never started) is treated as healthy — no
+spurious restarts when the user just opened the reader.
 
 ## Sentence extraction
 
