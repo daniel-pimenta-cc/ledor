@@ -37,12 +37,13 @@
 - [x] Sync stats (`reading_session` + `books.rating`) across devices via Drive (together with the shard refactor — sessions append-only, rating with a dedicated timestamp)
 - [ ] Bookmarks (named save points inside a book/article)
 - [x] TTS mode (text-to-speech) — fourth reader mode alongside RSVP/scroll/ereader; `flutter_tts` on mobile + desktop (Android/iOS/macOS/Windows), custom `SpeechDispatcherBackend` on top of `spd-say` for Linux. Voice/rate/pitch in settings; sessions log to `reading_session` like every other mode. See [docs/tts-mode.md](docs/tts-mode.md).
-- [ ] TTS background playback (lockscreen MediaSession via `audio_service`, Android foreground service, iOS AVAudioSession) — follow-up to the TTS mode above
+- [x] TTS pipeline refactor: extract `TtsPlayer` from the engine notifier. The player keeps a small queue and uses `TtsQueueMode.add` to enqueue lookahead segments — the platform engine plays them back to back with no audible gap (no more ~200–500ms IPC pause at chunk boundaries). On Linux the gap-free path needs the `speech-dispatcher` daemon socket (`SpeechdSocketBackend`); legacy `spd-say` is kept as a fallback when the socket is absent.
+- [x] TTS background playback (`audio_service`: Android foreground service with media notification, iOS AVAudioSession=playback + `audio` background mode, macOS/Windows lockscreen). `MainActivity` extends `AudioServiceActivity` for media-button intents. `TtsAudioHandler` bridges Riverpod-owned engine to the OS-facing facade.
 - [ ] Reader: lembrar o último ReaderMode usado por livro e reabrir nele (hoje sempre cai em `scroll`)
 - [ ] Reader: o modo scroll do RSVP e o modo TTS usam configs de tamanho/tipografia diferentes — unificar ou deixar explícito o porquê
 - [ ] Reader: atalho rápido pra mudar voz TTS sem precisar entrar em settings (talvez chip no transport row em modo TTS, ou opção no `ReaderModeMenu`)
 - [ ] Settings: reformular o painel pra separar opções por modo (RSVP-specific, TTS-specific, comuns) — hoje sentence/chapter pause aparece pra todos os modos sem indicar que é RSVP-only
-- [ ] TTS: engine picker no Android (`flutter_tts.getEngines` + `setEngine`) — apps audiobook tipicamente expõem Google TTS / Samsung TTS / outras instaladas. Hoje usamos a engine padrão do sistema sem opção de troca
+- [x] TTS: engine picker no Android (`flutter_tts.getEngines` + `setEngine`) + output module no Linux (via SSIP `LIST OUTPUT_MODULES` ou `spd-say -O`). UI em `TtsEnginePickerSheet`; campo `DisplaySettings.ttsEngineId` sincronizado via Drive. Row escondida quando o backend reporta ≤1 engine.
 - [ ] TTS: melhorar labels do voice picker — hoje mostra `en-gb-x-fis-local#female_1-local (en-GB)`; ideal seria "Inglês (Reino Unido) — Feminina" + identificador técnico como caption discreta
 - [x] Incremental sync (phase 1): sharded manifest in `library/books.json` + `settings.json` + `sessions.json`; push parallelises writes and skips unchanged shards. Phase 2 (per-record + index.json) is parked until it becomes a bottleneck.
 - [ ] Improve speed ramp-up (more natural curve? configurable duration/word count?)

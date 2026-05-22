@@ -11,59 +11,78 @@ tracks the spoken word so users see what they hear.
         │
         │  enterTtsMode() / play() / pause() / seekToWord()
         ▼
+  TtsPlayer                        ← lib/features/rsvp_reader/data/services/tts_player.dart
+        │   (queue, pipeline, segment lookahead)
+        ▼
   TtsBackend (abstract)            ← lib/features/rsvp_reader/data/services/tts_backend.dart
         │
         ├── FlutterTtsBackend       ← Android / iOS / macOS / Windows / Web
-        │    (flutter_tts package)
+        │    (flutter_tts package, setQueueMode(1) for pipelined chunks)
         │
-        └── SpeechDispatcherBackend ← Linux desktop
-             (Process.start('spd-say', …))
+        ├── SpeechdSocketBackend    ← Linux desktop (preferred)
+        │    (persistent Unix socket to speech-dispatcher; daemon queues)
+        │
+        └── SpeechDispatcherBackend ← Linux fallback
+             (Process.start('spd-say', …) — used when the socket is absent)
+
+  TtsAudioHandler                  ← lib/features/rsvp_reader/data/services/tts_audio_handler.dart
+        (audio_service bridge — foreground service + lockscreen controls)
 ```
 
 Backend selection happens in `ttsBackendProvider`
 (`lib/features/rsvp_reader/presentation/providers/tts_backend_provider.dart`):
-Linux falls through to `SpeechDispatcherBackend`; every other supported
-platform uses `FlutterTtsBackend`.
+- Linux with a running `speech-dispatcher` socket → `SpeechdSocketBackend`
+- Linux without the socket → `SpeechDispatcherBackend` (spd-say CLI)
+- Everywhere else → `FlutterTtsBackend`
+
+`TtsPlayer` is the new orchestration layer. It owns a small queue of
+pre-extracted `SentenceSegment`s and uses `TtsQueueMode.add` so the
+backend (which on Android/iOS forwards to `flutter_tts.setQueueMode(1)`,
+and on Linux forwards to a single open daemon connection) stitches
+chunks together with no audible gap. Without this, every chunk
+boundary cost ~200–500ms of IPC + engine start-up.
 
 ## Engine integration
 
 `RsvpEngineNotifier` keeps the RSVP path (Ticker-driven) and the TTS path
 in the same notifier so reading sessions, progress saves, and the
-end-of-book `finishTicket` semantics fire uniformly. Key methods:
+end-of-book `finishTicket` semantics fire uniformly. TTS-specific
+playback is delegated to `TtsPlayer`; the engine only manages state
+transitions, session bookkeeping, and audio-handler binding.
 
-- `enterTtsMode()` — flushes any in-flight RSVP session, lazy-initialises
-  the backend, applies persisted voice/pitch/language/rate. Doesn't play.
-- `play()` — branches on `state.mode`. In TTS mode it calls
-  `_startTtsSpeak()` instead of starting the ticker. The "already at the
-  last word" guard from the RSVP path is *not* applied — the last
-  sentence still needs to be spoken; the completion callback bumps
-  `finishTicket`.
-- `pause()` — in TTS mode it stops the backend, keeps `mode == tts`
+Key methods:
+
+- `enterTtsMode()` — flushes any in-flight RSVP session, lazy-constructs
+  the player, calls `player.init()`, pushes content + settings, fires
+  `player.applySettings()` so the backend is ready for previews. Doesn't
+  play. Also binds the engine to the lockscreen `TtsAudioHandler` so
+  background controls show up.
+- `play()` — branches on `state.mode`. In TTS mode it asks the player to
+  play from `state.globalWordIndex`. The "already at the last word"
+  guard from the RSVP path is *not* applied — the player's
+  `onBookFinished` callback handles end-of-book.
+- `pause()` — in TTS mode it calls `player.pause()`, keeps `mode == tts`
   (so the UI stays on the scroll-with-highlight view), and runs the
   same `_flushSession()` + `_saveProgress()` that the RSVP path uses.
-- `seekToWord()` — when called while TTS is playing, stops the current
-  utterance, bumps the generation counter, and re-starts speak from the
-  new index.
-- `_startTtsSpeak()` — extracts a `SentenceSegment`
-  (`sentence_extractor.dart`) starting at `globalWordIndex`, skipping
-  image tokens silently, and hands the spoken string to the backend.
-- `_onTtsProgress(charOffset, charEnd, word)` — translates the engine's
-  reported char position back to a global word index via the
-  `tokenCharOffsets` precomputed by the extractor. Only advances forward
-  (callbacks can arrive slightly out of order on some engines).
-- `_onTtsCompletion()` — either queues the next sentence or, when the
-  segment closed the book, bumps `finishTicket` once.
+- `seekToWord()` — forwards to `player.seek(globalIndex)`. The player
+  drains its queue and rebuilds the pipeline from the new position.
+- Player callbacks (`onWordAdvance`, `onBookFinished`, `onError`) drive
+  the engine state and session counters.
 
-### Race safety: `_ttsSpeakGeneration`
+### TtsPlayer pipeline
 
-Every action that should cancel an in-flight speak — `pause`, `stop`,
-`exitTtsMode`, `seekToWord`, `enterEreaderMode`, `dispose` — bumps
-`_ttsSpeakGeneration`. The `_startTtsSpeak` body captures the counter
-before any `await`; if the value changes while it was suspended, the
-caller bails before issuing further side effects.
+The player extracts up to `_lookahead = 2` segments and pushes them
+onto the backend with `TtsQueueMode.add`. While segment N plays,
+segment N+1 is already queued — the platform engine plays them back
+to back with no audible gap.
 
-Without this, an awaited `setRate` finishing after the user paused would
-race the engine's `_flushSession` cleanup.
+Race safety: a `_generation` counter is bumped on every action that
+should invalidate in-flight callbacks (`pause`, `seek`, `dispose`).
+Each queued segment stores the generation in which it was enqueued;
+stale progress / completion callbacks compare against the live counter
+and bail. `_isPlaying` is set to `true` synchronously *before* any
+`await` so a `pause()` issued in the same tick (typical when the user
+taps pause right after play) actually stops the backend.
 
 ## Sentence extraction
 
@@ -180,17 +199,73 @@ the same fields, and the threshold filters
 The stats dashboard, monthly recap, and book completion screens pick
 them up automatically.
 
+## Background playback
+
+`audio_service` hosts the TTS playback in a foreground service on
+Android and in an `AVAudioSession(category=playback)` on iOS so the OS
+doesn't kill the synthesiser when the user backgrounds the app. The
+notification + lockscreen controls (rewind / play-pause / fastForward)
+are driven by `TtsAudioHandler`:
+
+- `main.dart` calls `AudioService.init(builder: TtsAudioHandler.new, …)`
+  on platforms that report `PlatformCapabilities.supportsBackgroundAudio`
+  (everywhere except Linux + Web). The result is injected via the
+  Riverpod override `ttsAudioHandlerProvider`.
+- `RsvpEngineNotifier._bindAudioHandler` registers a callback bundle
+  (`TtsAudioSource`) on `enterTtsMode`, calls `setActiveBook` with the
+  book title / author for the notification, and pushes
+  `updatePlaybackState(playing: …)` on every play/pause/error/finish.
+- The handler forwards play/pause/skip from the OS controls back to
+  those same callbacks, so headphone clicks, bluetooth play/pause, and
+  the lockscreen UI all drive the actual engine.
+- `MainActivity` extends `AudioServiceActivity` (not plain
+  `FlutterActivity`) so `MEDIA_BUTTON` intents reach the plugin. The
+  manifest declares `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MEDIA_PLAYBACK`,
+  the `AudioService` service, and the `MediaButtonReceiver`.
+- iOS adds `UIBackgroundModes: audio` in `Info.plist`. The flutter_tts
+  backend also calls `setIosAudioCategory(playback, …, spokenAudio)`
+  during `init()` so the audio routes correctly through the shared
+  AVAudioSession.
+
+Linux and Web don't run the audio handler — the engine still works on
+those platforms but TTS pauses when the OS suspends the app.
+
+## TTS engine picker
+
+`TtsBackend.getEngines()` lists every alternative engine the backend
+knows about; `setEngine(id)` switches which one new utterances use:
+
+- **Android**: `flutter_tts.getEngines` enumerates installed
+  `TTS_SERVICE` providers (Google TTS, Samsung TTS, Pico, …).
+- **Linux**: `LIST OUTPUT_MODULES` via the SSIP socket (or `spd-say -O`
+  on the legacy backend) — these are speech-dispatcher's output modules
+  (`espeak-ng`, `festival`, `flite`, `rhvoice`).
+- **iOS / macOS / Windows / Web**: returns an empty list — the OS
+  bundles a single synthesiser.
+
+UI:
+- `TtsEnginePickerSheet` lists engines + a "System default" option.
+  Selecting commits to `DisplaySettings.ttsEngineId` and the engine
+  applies it on the next utterance.
+- The row is hidden when the backend reports ≤1 engine, so iOS users
+  don't see an empty picker.
+
+`ttsEngineId` syncs through Drive like the other TTS settings; the
+backend ignores an unknown id (falls back to the system default)
+without losing the stored value, so a round-trip to the original
+device restores it.
+
 ## Limitations and follow-ups
 
-- **Background playback** (lockscreen MediaSession, Android foreground
-  service, iOS `AVAudioSession`) is out of scope for this pass. Tracked
-  as a separate item in `tasks.md`.
 - **Sentence-level skip controls** are out of scope; the existing
   10-word skip buttons remain the only fast-skip primitive.
 - **Multi-byte text** (CJK, emoji) may drift on Android because
   `flutter_tts` reports `charOffset` in UTF-16 code units while iOS uses
   characters. For latin scripts the two coincide; if multi-byte support
-  becomes a need, normalise in `_onTtsProgress`.
+  becomes a need, normalise in `_onProgress`.
 - **Linux pause/resume** does not preserve mid-sentence position —
-  `spd-say` has no real pause. The engine re-speaks the current
-  sentence from `globalWordIndex` on resume.
+  speech-dispatcher's `CANCEL` drops the current utterance. The player
+  re-speaks the current sentence from `globalWordIndex` on resume.
+- **SSML index marks on Linux**: word-boundary callbacks are still
+  timer-emulated. Future work: insert `<mark name="wN"/>` between
+  tokens and listen for `703 INDEX_MARK` events for true accuracy.

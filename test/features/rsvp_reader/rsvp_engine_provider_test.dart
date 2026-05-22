@@ -181,6 +181,9 @@ _Mocks _wireMocks({
   when(() => progress.upsertProgress(any())).thenAnswer((_) async {});
   when(() => sessions.insertSession(any())).thenAnswer((_) async {});
   when(() => books.updateLastReadAt(any())).thenAnswer((_) async {});
+  // Engine reads the book row for the audio-handler media item; tests
+  // don't exercise that surface so a null row is fine.
+  when(() => books.getBookById(any())).thenAnswer((_) async => null);
 
   return (tokens: tokens, progress: progress, sessions: sessions, books: books);
 }
@@ -919,6 +922,9 @@ void main() {
         final engine = await _bootEngine(container, _FakeTickerProvider());
 
         await engine.enterTtsMode();
+        // applySettings is fired without await; pump microtasks so the
+        // language assignment lands before we check.
+        await _pumpMicrotasks();
 
         expect(engine.state.mode, ReaderMode.tts);
         expect(engine.state.isPlaying, isFalse);
@@ -971,22 +977,22 @@ void main() {
 
         await engine.enterTtsMode();
         engine.play();
-        // _startTtsSpeak awaits setRate before speak — let those microtasks
-        // settle so the speakCalls list is populated.
+        // The player applies settings then enqueues the lookahead pipeline;
+        // pump microtasks until both speaks have been issued.
         await _pumpMicrotasks();
         expect(tts.speakCalls, isNotEmpty);
 
-        // The two-chapter fixture has no terminal punctuation, so the
-        // segment captures the entire first chapter in one chunk.
-        // Simulate a progress callback at the start of "beta" (globalIdx 1).
-        // tokenCharOffsets for ['alpha', 'beta', 'gamma'] joined with spaces:
-        //   alpha = 0, beta = 6, gamma = 11.
+        // The two-chapter fixture has no terminal punctuation, so segment 0
+        // captures all 3 tokens of chapter 0 in one chunk. tokenCharOffsets
+        // for ['alpha', 'beta', 'gamma'] joined with spaces: alpha=0,
+        // beta=6, gamma=11. Simulate a progress callback at the start of
+        // "beta" (global index 1).
         tts.emitProgress(6, 10, 'beta');
 
         expect(engine.state.globalWordIndex, 1);
       });
 
-      test('completion callback advances past the spoken segment', () async {
+      test('play() pre-queues a lookahead segment in add-mode', () async {
         final tts = _StubTtsBackend();
         final mocks = _wireMocks(chapterRows: _twoChapterRows());
         final container = _ttsContainer(mocks, tts);
@@ -995,16 +1001,29 @@ void main() {
         await engine.enterTtsMode();
         engine.play();
         await _pumpMicrotasks();
-        final initialSpeakCount = tts.speakCalls.length;
 
-        // First chapter has 3 tokens; completion should advance to index 3
-        // (start of chapter 1, segment cap at chapter seam).
+        // Two segments queued: chapter 0 (flush) + chapter 1 (add).
+        expect(tts.speakCalls.length, 2);
+        expect(tts.speakModes, [TtsQueueMode.flush, TtsQueueMode.add]);
+      });
+
+      test('completion advances past the spoken segment', () async {
+        final tts = _StubTtsBackend();
+        final mocks = _wireMocks(chapterRows: _twoChapterRows());
+        final container = _ttsContainer(mocks, tts);
+        final engine = await _bootEngine(container, _FakeTickerProvider());
+
+        await engine.enterTtsMode();
+        engine.play();
+        await _pumpMicrotasks();
+
+        // First chapter has 3 tokens; completion of segment 0 advances the
+        // cursor to index 3 (the start of chapter 1, the segment cap).
+        // No new speak fires because segment 1 was already pre-queued.
         tts.emitCompletion();
         await _pumpMicrotasks();
 
         expect(engine.state.globalWordIndex, 3);
-        // A new speak() should have been issued for the next segment.
-        expect(tts.speakCalls.length, greaterThan(initialSpeakCount));
       });
 
       test('completion at end-of-book bumps finishTicket exactly once',
@@ -1015,13 +1034,14 @@ void main() {
         final engine = await _bootEngine(container, _FakeTickerProvider());
 
         await engine.enterTtsMode();
-        // Seek to the last word so the next sentence ends the book.
+        // Seek to the last word so the next segment ends the book.
         engine.seekToWord(5);
         engine.play();
         await _pumpMicrotasks();
 
         final beforeTicket = engine.state.finishTicket;
         tts.emitCompletion();
+        await _pumpMicrotasks();
 
         expect(engine.state.finishTicket, beforeTicket + 1);
         expect(engine.state.isPlaying, isFalse);
@@ -1060,9 +1080,11 @@ void main() {
         await _pumpMicrotasks();
 
         expect(tts.stopCalled, isTrue);
-        // A new utterance was queued.
+        // The player flushes its queue then re-fills from the new index;
+        // at least one new speak was issued (in flush mode this time).
         expect(tts.speakCalls.length, greaterThan(firstSpeak));
         expect(engine.state.globalWordIndex, 4);
+        expect(tts.speakModes.last, TtsQueueMode.flush);
       });
     });
   });
@@ -1075,11 +1097,13 @@ void main() {
 class _StubTtsBackend implements TtsBackend {
   bool initCalled = false;
   final List<String> speakCalls = [];
+  final List<TtsQueueMode> speakModes = [];
   bool stopCalled = false;
   String? language;
   TtsVoice? voice;
   double? rate;
   double? pitch;
+  String? engineId;
 
   TtsProgressHandler? _onProgress;
   VoidCallback? _onCompletion;
@@ -1104,6 +1128,14 @@ class _StubTtsBackend implements TtsBackend {
   Future<List<String>> getLanguages() async => const [];
 
   @override
+  Future<List<TtsEngine>> getEngines() async => const [];
+
+  @override
+  Future<void> setEngine(String id) async {
+    engineId = id;
+  }
+
+  @override
   Future<void> setVoice(TtsVoice? v) async {
     voice = v;
   }
@@ -1124,8 +1156,12 @@ class _StubTtsBackend implements TtsBackend {
   }
 
   @override
-  Future<void> speak(String text) async {
+  Future<void> speak(
+    String text, {
+    TtsQueueMode mode = TtsQueueMode.flush,
+  }) async {
     speakCalls.add(text);
+    speakModes.add(mode);
   }
 
   @override
@@ -1151,9 +1187,10 @@ class _StubTtsBackend implements TtsBackend {
   }
 }
 
-/// Yields a few microtasks so awaits chained inside the engine (e.g.
-/// setRate before speak) get a chance to resolve before assertions run.
-Future<void> _pumpMicrotasks([int count = 5]) async {
+/// Yields enough microtasks so chained awaits inside the engine + player
+/// (apply-settings, enqueue, speak, …) have time to resolve before
+/// assertions run. 30 is comfortably above the deepest chain we have.
+Future<void> _pumpMicrotasks([int count = 30]) async {
   for (var i = 0; i < count; i++) {
     await Future<void>.value();
   }

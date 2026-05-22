@@ -1189,6 +1189,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Default for {locale}'**
   String ttsVoiceFallbackLabel(String locale);
+
+  /// No description provided for @settingsTtsEngine.
+  ///
+  /// In en, this message translates to:
+  /// **'Engine'**
+  String get settingsTtsEngine;
+
+  /// No description provided for @settingsTtsEngineDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'TTS engine used to synthesise speech'**
+  String get settingsTtsEngineDesc;
+
+  /// No description provided for @ttsEnginePickerTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose an engine'**
+  String get ttsEnginePickerTitle;
+
+  /// No description provided for @ttsEnginePickerSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Different engines produce different voices and sound quality'**
+  String get ttsEnginePickerSubtitle;
+
+  /// No description provided for @ttsEnginePickerEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No alternative engines installed'**
+  String get ttsEnginePickerEmpty;
+
+  /// No description provided for @ttsEnginePickerSystemDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'System default'**
+  String get ttsEnginePickerSystemDefault;
 }
 
 class _AppLocalizationsDelegate

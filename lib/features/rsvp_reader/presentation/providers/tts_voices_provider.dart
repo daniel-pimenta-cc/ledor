@@ -24,3 +24,25 @@ final ttsVoicesProvider = FutureProvider<List<TtsVoice>>((ref) async {
   });
   return voices;
 });
+
+/// Loads the list of TTS engines the platform backend can switch between.
+///
+/// Returns an empty list on platforms without engine selection (iOS,
+/// macOS, Windows — all bundle a single synthesiser). On Android this
+/// surfaces every installed `TTS_SERVICE` (Google TTS, Samsung TTS, Pico,
+/// …); on Linux it surfaces the `speech-dispatcher` output modules
+/// (`espeak-ng`, `festival`, …).
+///
+/// The UI hides the engine picker when this list has 0–1 entries since
+/// there'd be nothing to pick between.
+final ttsEnginesProvider = FutureProvider<List<TtsEngine>>((ref) async {
+  final backend = ref.watch(ttsBackendProvider);
+  try {
+    await backend.init();
+  } catch (_) {
+    return const [];
+  }
+  final engines = await backend.getEngines();
+  engines.sort((a, b) => a.displayName.compareTo(b.displayName));
+  return engines;
+});

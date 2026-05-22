@@ -1,21 +1,24 @@
 import '../../../epub_import/domain/entities/chapter.dart';
 import '../entities/sentence_segment.dart';
 
-/// Greatest sensible chunk we'll hand to the TTS engine in one go.
+/// Default chunk cap handed to the TTS engine in one go.
 ///
-/// We hand the backend big chunks (chapter-bounded, not paragraph-bounded)
-/// because the inter-`speak()` IPC latency on Android is ~200-500ms — and
-/// many EPUBs in the wild use `<p>` per *line* rather than per logical
-/// paragraph (especially EPUBs converted from PDFs/scans), so a
-/// paragraph-bounded chunker would still fire `speak()` per sentence and
-/// the pause would be perceptible.
+/// `TtsPlayer` pipelines two of these via the backend's queue, so the
+/// platform engine stitches them together with no audible gap. We still
+/// cap the individual chunk so a single `stop()` (pause/seek) is fast and
+/// the queue stays manageable on slow devices.
 ///
-/// The trade-off: a bigger chunk means a longer audio queue that has to
-/// be cancelled on pause/seek, but `tts.stop()` resolves in <50ms on
-/// every platform we target, so the user-visible cost is negligible.
 /// 200 tokens at ~6 chars/token ≈ 1200 chars per `speak()`, well below
 /// the platform limits (Android: 4000, iOS: no hard limit).
 const int kSentenceMaxTokens = 200;
+
+/// Larger cap used by backends that **can't pipeline** (today: Linux's
+/// `spd-say`, where each speak spawns a fresh process and the queue
+/// mode of the abstraction collapses to flush-each-time). Bigger chunks
+/// mean fewer process spawns, so the perceptible gap appears every
+/// ~4 minutes of speech instead of every ~80 seconds. Still under the
+/// Android 4000-char limit so the abstraction stays uniform.
+const int kSentenceMaxTokensLargeChunk = 600;
 
 /// Extracts the next chunk of speakable tokens starting at [startGlobalIndex].
 ///

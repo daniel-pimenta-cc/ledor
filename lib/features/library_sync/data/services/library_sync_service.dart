@@ -59,12 +59,14 @@ Map<String, dynamic> displaySettingsToMap(DisplaySettings s) => {
       'sentencePauseMultiplier': s.sentencePauseMultiplier,
       'chapterPauseMultiplier': s.chapterPauseMultiplier,
       'ttsLanguage': s.ttsLanguage,
-      // ttsVoiceName is intentionally written even when null so the remote
-      // shard reflects "clear voice". Engine falls back to first voice of
-      // the locale if the synced name doesn't exist on the local device.
+      // ttsVoiceName / ttsEngineId are intentionally written even when null
+      // so the remote shard reflects "clear voice / use default engine".
+      // The local backend falls back gracefully when the synced value
+      // doesn't exist on this device (different Android engine list, etc.).
       'ttsVoiceName': s.ttsVoiceName,
       'ttsPitch': s.ttsPitch,
       'ttsRate': s.ttsRate,
+      'ttsEngineId': s.ttsEngineId,
     };
 
 DisplaySettings displaySettingsFromMap(Map<String, dynamic> m) {
@@ -96,6 +98,9 @@ DisplaySettings displaySettingsFromMap(Map<String, dynamic> m) {
     ttsVoiceName: m.containsKey('ttsVoiceName') ? m['ttsVoiceName'] as String? : defaults.ttsVoiceName,
     ttsPitch: (m['ttsPitch'] as num?)?.toDouble(),
     ttsRate: (m['ttsRate'] as num?)?.toDouble(),
+    ttsEngineId: m.containsKey('ttsEngineId')
+        ? m['ttsEngineId'] as String?
+        : defaults.ttsEngineId,
   );
 }
 

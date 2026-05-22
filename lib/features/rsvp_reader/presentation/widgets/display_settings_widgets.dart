@@ -705,6 +705,76 @@ class _TtsVoiceRow extends StatelessWidget {
   }
 }
 
+/// Tap-target row that surfaces the currently selected TTS engine and
+/// opens the engine picker sheet. Same shape as [_TtsVoiceRow] so the
+/// section reads as a coherent group.
+class _TtsEngineRow extends StatelessWidget {
+  final String label;
+  final String subtitle;
+  final Color labelColor;
+  final Color orpColor;
+  final String currentLabel;
+  final VoidCallback onTap;
+
+  const _TtsEngineRow({
+    required this.label,
+    required this.subtitle,
+    required this.labelColor,
+    required this.orpColor,
+    required this.currentLabel,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label, style: TextStyle(color: labelColor, fontSize: 14)),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      color: labelColor.withAlpha(140),
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 180),
+              child: Text(
+                currentLabel,
+                textAlign: TextAlign.right,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: orpColor,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.1,
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
+            Icon(Icons.chevron_right, color: labelColor.withAlpha(140), size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// Font picker that renders each option in its own typeface and shows
 /// a sample line below using the currently selected font.
 class _FontSelector extends StatelessWidget {

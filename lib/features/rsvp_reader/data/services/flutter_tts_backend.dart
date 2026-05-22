@@ -7,11 +7,13 @@ import 'tts_backend.dart';
 
 /// Backend on top of the `flutter_tts` package. Used on every platform the
 /// package supports (Android, iOS, macOS, Windows, Web). Linux is
-/// **unsupported** by `flutter_tts` and is handled by [SpeechDispatcherBackend]
-/// instead — `TtsBackendProvider` makes the switch.
+/// **unsupported** by `flutter_tts` and is handled by `SpeechdSocketBackend`
+/// (or the legacy `SpeechDispatcherBackend`) instead — `ttsBackendProvider`
+/// makes the switch.
 class FlutterTtsBackend implements TtsBackend {
   final FlutterTts _tts = FlutterTts();
   bool _initialised = false;
+  TtsQueueMode _activeQueueMode = TtsQueueMode.flush;
 
   TtsProgressHandler? _onProgress;
   VoidCallback? _onCompletion;
@@ -32,20 +34,32 @@ class FlutterTtsBackend implements TtsBackend {
       _onCompletion?.call();
     });
     _tts.setCancelHandler(() {
-      // Cancellation is initiated by us (stop / re-speak); we don't surface
-      // it as completion. Caller already knows it stopped because they're
-      // the one who called stop().
+      // Cancellation is initiated by us (stop / re-speak / pause); we don't
+      // surface it as completion. The caller already knows it stopped because
+      // they're the one who called stop().
     });
     _tts.setErrorHandler((dynamic msg) {
       _onError?.call(msg?.toString() ?? 'Unknown TTS error');
     });
 
-    // iOS only: shared AVAudioSession so audio routes through the same
-    // session as music apps (ducks correctly with phone calls etc.). Wrap
-    // in try/catch because the method-channel call is iOS-specific and
-    // other platforms throw MissingPluginException.
+    // iOS / macOS: shared AVAudioSession with playback category so the audio
+    // continues when the device is locked or the app is backgrounded. Without
+    // playback + spokenAudio, the OS suspends the synthesiser as soon as the
+    // screen turns off. Wrap in try/catch because the method-channel calls
+    // are platform-specific and throw MissingPluginException elsewhere.
     try {
       await _tts.setSharedInstance(true);
+    } catch (_) {}
+    try {
+      await _tts.setIosAudioCategory(
+        IosTextToSpeechAudioCategory.playback,
+        [
+          IosTextToSpeechAudioCategoryOptions.allowBluetooth,
+          IosTextToSpeechAudioCategoryOptions.allowBluetoothA2DP,
+          IosTextToSpeechAudioCategoryOptions.mixWithOthers,
+        ],
+        IosTextToSpeechAudioMode.spokenAudio,
+      );
     } catch (_) {}
 
     // Default volume to 1.0 — some Android devices ship with the TTS
@@ -57,11 +71,10 @@ class FlutterTtsBackend implements TtsBackend {
 
     // Don't call awaitSpeakCompletion(true). It makes `speak()` block
     // until the completion handler fires, which interacts badly with the
-    // recursive `_onTtsCompletion → _startTtsSpeak` chain on Android:
-    // the next `speak()` would be issued while the old call hasn't
-    // returned, and flutter_tts ends up with a confused internal state.
-    // We treat `speak()` as fire-and-forget and rely on the completion
-    // handler for sequencing.
+    // pipelined queue: the next `speak()` would be issued while the
+    // previous call hasn't returned, and flutter_tts ends up with a
+    // confused internal state. We treat `speak()` as fire-and-forget and
+    // rely on the completion handler for sequencing.
 
     _initialised = true;
   }
@@ -95,6 +108,38 @@ class FlutterTtsBackend implements TtsBackend {
   }
 
   @override
+  Future<List<TtsEngine>> getEngines() async {
+    await init();
+    // `getEngines` is Android-only on flutter_tts. Other platforms throw
+    // MissingPluginException or return null; we treat both as "no engine
+    // selection available".
+    try {
+      final raw = await _tts.getEngines;
+      if (raw is! List) return const [];
+      return [
+        for (final entry in raw)
+          if (entry is String && entry.isNotEmpty)
+            TtsEngine(id: entry, displayName: _humaniseEngineId(entry)),
+      ];
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  @override
+  Future<void> setEngine(String engineId) async {
+    await init();
+    if (engineId.isEmpty) return;
+    try {
+      await _tts.setEngine(engineId);
+    } catch (_) {
+      // Older Android versions or non-Android platforms may not implement
+      // setEngine; swallow so a synced value from another device doesn't
+      // crash the reader.
+    }
+  }
+
+  @override
   Future<void> setVoice(TtsVoice? voice) async {
     await init();
     if (voice == null) return;
@@ -125,7 +170,10 @@ class FlutterTtsBackend implements TtsBackend {
   }
 
   @override
-  Future<void> speak(String text) async {
+  Future<void> speak(
+    String text, {
+    TtsQueueMode mode = TtsQueueMode.flush,
+  }) async {
     await init();
     if (text.isEmpty) {
       // Nothing to say. Fire completion synthetically so callers don't
@@ -133,6 +181,18 @@ class FlutterTtsBackend implements TtsBackend {
       _onCompletion?.call();
       return;
     }
+
+    if (mode != _activeQueueMode) {
+      try {
+        await _tts.setQueueMode(mode == TtsQueueMode.add ? 1 : 0);
+        _activeQueueMode = mode;
+      } catch (_) {
+        // setQueueMode isn't available on every flutter_tts platform; if it
+        // throws we still speak — worst case the platform falls back to
+        // flush semantics and the user hears a tiny gap.
+      }
+    }
+
     // Fire-and-forget: the engine sequences subsequent speaks through the
     // completion handler, so we don't need (or want) the inner Future to
     // suspend `speak()` until audio finishes. Awaiting here without
@@ -171,4 +231,26 @@ class FlutterTtsBackend implements TtsBackend {
 
   @override
   set onStart(VoidCallback? cb) => _onStart = cb;
+}
+
+/// Best-effort prettifier for Android engine package names. Turns
+/// `com.google.android.tts` into `Google TTS`, `com.samsung.SMT` into
+/// `Samsung TTS`, and falls through to the raw id when the prefix isn't
+/// recognised so the user can still tell engines apart.
+String _humaniseEngineId(String id) {
+  const known = <String, String>{
+    'com.google.android.tts': 'Google',
+    'com.samsung.SMT': 'Samsung',
+    'com.svox.pico': 'Pico',
+    'com.huawei.hiai': 'Huawei',
+    'com.microsoft.cortana': 'Microsoft',
+    'org.acra.tts': 'eSpeak',
+  };
+  final hit = known[id];
+  if (hit != null) return '$hit TTS';
+  // Take the last dotted component and Title-Case it.
+  final tail = id.split('.').last;
+  if (tail.isEmpty) return id;
+  final cleaned = tail.replaceAll('_', ' ');
+  return cleaned[0].toUpperCase() + cleaned.substring(1);
 }

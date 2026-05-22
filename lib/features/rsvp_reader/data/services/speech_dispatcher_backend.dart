@@ -30,6 +30,7 @@ class SpeechDispatcherBackend implements TtsBackend {
   double _pitch = 1.0;
   String _language = 'en-US';
   TtsVoice? _voice;
+  String? _engineId;
 
   // Filled by speak() so the periodic timer can stride through the words
   // of the current utterance, computing approximate progress charOffsets.
@@ -76,6 +77,23 @@ class SpeechDispatcherBackend implements TtsBackend {
   }
 
   @override
+  Future<List<TtsEngine>> getEngines() async {
+    await init();
+    try {
+      final r = await Process.run('spd-say', ['-O']);
+      if (r.exitCode != 0) return const [];
+      return _parseEngineList(r.stdout.toString());
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  @override
+  Future<void> setEngine(String engineId) async {
+    _engineId = engineId.isEmpty ? null : engineId;
+  }
+
+  @override
   Future<void> setVoice(TtsVoice? voice) async {
     _voice = voice;
   }
@@ -96,7 +114,15 @@ class SpeechDispatcherBackend implements TtsBackend {
   }
 
   @override
-  Future<void> speak(String text) async {
+  Future<void> speak(
+    String text, {
+    TtsQueueMode mode = TtsQueueMode.flush,
+  }) async {
+    // spd-say spawns a fresh process per call; queue mode is not honoured
+    // (each invocation is independent). Caller is expected to wait for
+    // completion before issuing the next speak. TtsPlayer respects this by
+    // checking _lookahead == 2 but pipelining naturally degrades to flush
+    // here since the second speak just waits on stop()+spawn.
     await init();
     await stop();
 
@@ -122,6 +148,12 @@ class SpeechDispatcherBackend implements TtsBackend {
       args
         ..add('-y')
         ..add(voice.name);
+    }
+    final engine = _engineId;
+    if (engine != null && engine.isNotEmpty) {
+      args
+        ..add('-o')
+        ..add(engine);
     }
     args.add(text);
 
@@ -245,6 +277,11 @@ class SpeechDispatcherBackend implements TtsBackend {
   @visibleForTesting
   static List<TtsVoice> parseVoiceListForTest(String stdout) =>
       _parseVoiceList(stdout);
+
+  /// Exposes [_parseEngineList] for testing the output-module parser.
+  @visibleForTesting
+  static List<TtsEngine> parseEngineListForTest(String stdout) =>
+      _parseEngineList(stdout);
 }
 
 List<int> _wordCharOffsets(String text) {
@@ -261,6 +298,46 @@ List<int> _wordCharOffsets(String text) {
     }
   }
   return offsets;
+}
+
+/// Parses the `spd-say -O` output (list of output modules, one per line
+/// with a "modules:" header). The daemon may report either bare names or
+/// `name (version)` style; we accept both.
+List<TtsEngine> _parseEngineList(String stdout) {
+  final engines = <TtsEngine>[];
+  for (final raw in stdout.split('\n')) {
+    final line = raw.trim();
+    if (line.isEmpty) continue;
+    final lower = line.toLowerCase();
+    if (lower.startsWith('output module') ||
+        lower.startsWith('there are') ||
+        lower.startsWith('modules')) {
+      continue;
+    }
+    // Take the first token before whitespace as the id.
+    final id = line.split(RegExp(r'\s+')).first;
+    if (id.isEmpty) continue;
+    engines.add(TtsEngine(id: id, displayName: _humaniseModuleId(id)));
+  }
+  return engines;
+}
+
+String _humaniseModuleId(String id) {
+  switch (id.toLowerCase()) {
+    case 'espeak-ng':
+    case 'espeak':
+      return 'eSpeak NG';
+    case 'festival':
+      return 'Festival';
+    case 'flite':
+      return 'Flite';
+    case 'rhvoice':
+      return 'RHVoice';
+    case 'pico':
+      return 'Pico';
+    default:
+      return id;
+  }
 }
 
 List<TtsVoice> _parseVoiceList(String stdout) {

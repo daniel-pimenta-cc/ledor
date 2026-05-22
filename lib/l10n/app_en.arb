@@ -316,5 +316,11 @@
     "placeholders": {
       "locale": { "type": "String" }
     }
-  }
+  },
+  "settingsTtsEngine": "Engine",
+  "settingsTtsEngineDesc": "TTS engine used to synthesise speech",
+  "ttsEnginePickerTitle": "Choose an engine",
+  "ttsEnginePickerSubtitle": "Different engines produce different voices and sound quality",
+  "ttsEnginePickerEmpty": "No alternative engines installed",
+  "ttsEnginePickerSystemDefault": "System default"
 }

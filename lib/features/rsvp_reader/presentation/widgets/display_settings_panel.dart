@@ -6,9 +6,12 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/utils/platform_capabilities.dart';
 import '../../../../l10n/generated/app_localizations.dart';
+import '../../data/services/tts_backend.dart';
 import '../../domain/entities/display_settings.dart';
 import '../providers/display_settings_provider.dart';
 import '../providers/rsvp_engine_provider.dart';
+import '../providers/tts_voices_provider.dart';
+import 'tts_engine_picker_sheet.dart';
 import 'tts_voice_picker_sheet.dart';
 import 'wpm_selector.dart';
 
@@ -50,10 +53,44 @@ class DisplaySettingsPanel extends ConsumerWidget {
     AppLocalizations l10n,
     DisplaySettings settings,
   ) {
+    // Engine picker is only meaningful when the backend exposes >1 engines.
+    // Watch the engines provider so the row appears / disappears as the
+    // platform reports availability.
+    final enginesAsync = ref.watch(ttsEnginesProvider);
+    final engines = enginesAsync.maybeWhen(
+      data: (list) => list,
+      orElse: () => const <TtsEngine>[],
+    );
+    final showEnginePicker = engines.length >= 2;
+    final currentEngineLabel = _engineLabel(
+      engines: engines,
+      currentId: settings.ttsEngineId,
+      systemDefault: l10n.ttsEnginePickerSystemDefault,
+    );
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _SectionHeader(label: l10n.settingsTtsSection, color: settings.wordColor),
+
+        if (showEnginePicker) ...[
+          _TtsEngineRow(
+            label: l10n.settingsTtsEngine,
+            subtitle: l10n.settingsTtsEngineDesc,
+            labelColor: settings.wordColor,
+            orpColor: settings.orpColor,
+            currentLabel: currentEngineLabel,
+            onTap: () {
+              showModalBottomSheet(
+                context: ref.context,
+                isScrollControlled: true,
+                backgroundColor: Colors.transparent,
+                builder: (_) => const TtsEnginePickerSheet(),
+              );
+            },
+          ),
+          const SizedBox(height: 12),
+        ],
 
         _TtsVoiceRow(
           label: l10n.settingsTtsVoice,
@@ -87,6 +124,20 @@ class DisplaySettingsPanel extends ConsumerWidget {
         ),
       ],
     );
+  }
+
+  String _engineLabel({
+    required List<TtsEngine> engines,
+    required String? currentId,
+    required String systemDefault,
+  }) {
+    if (currentId == null) return systemDefault;
+    for (final e in engines) {
+      if (e.id == currentId) return e.displayName;
+    }
+    // Synced from a device with a different engine list — show the raw
+    // id so the user knows what the field holds.
+    return currentId;
   }
 
   /// Reading-behavior section: speed, ORP highlight, smart timing, ramp-up,

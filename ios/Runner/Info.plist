@@ -47,5 +47,13 @@
 		<true/>
 		<key>UIStatusBarHidden</key>
 		<false/>
+		<!-- audio_service: keeps the TTS engine running while the app is
+		     backgrounded or the device locked. Pair with
+		     `setIosAudioCategory(playback, …, spokenAudio)` on the
+		     flutter_tts backend so the OS routes the audio correctly. -->
+		<key>UIBackgroundModes</key>
+		<array>
+			<string>audio</string>
+		</array>
 	</dict>
 </plist>

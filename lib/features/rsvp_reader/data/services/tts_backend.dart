@@ -21,6 +21,37 @@ class TtsVoice {
   });
 }
 
+/// Engine-facing descriptor for a TTS engine the user can switch between.
+///
+/// On Android this maps 1:1 to the installed TTS engines listed in system
+/// settings (Google TTS, Samsung TTS, Pico, etc.). On Linux it maps to the
+/// `speech-dispatcher` output modules (`espeak-ng`, `festival`, `flite`,
+/// `rhvoice`, …). iOS / macOS / Windows have a single bundled synthesiser
+/// and report an empty list.
+class TtsEngine {
+  /// Stable identifier used by the backend's `setEngine` call.
+  final String id;
+
+  /// Display name shown in the picker. Falls back to [id] when the
+  /// backend can't provide a friendlier label.
+  final String displayName;
+
+  const TtsEngine({required this.id, required this.displayName});
+}
+
+/// Determines how a new `speak()` call interacts with utterances the
+/// backend is already speaking or has queued.
+enum TtsQueueMode {
+  /// Cancel any in-flight utterance and play this one immediately.
+  /// Default; matches the historical behaviour of `flutter_tts.speak`.
+  flush,
+
+  /// Append this utterance after the in-flight one. The native engine
+  /// stitches them together, eliminating the IPC gap between segments.
+  /// Used by [TtsPlayer] to pipeline lookahead segments.
+  add,
+}
+
 /// Thrown by `TtsBackend.init` when the platform's TTS stack is missing or
 /// not configured (e.g. `spd-say` not on PATH on Linux). The reader UI
 /// catches this to show a user-actionable message rather than crashing.
@@ -61,6 +92,14 @@ abstract class TtsBackend {
   /// Returns the locales the engine claims to support. May be empty.
   Future<List<String>> getLanguages();
 
+  /// Returns the TTS engines the user can switch between. Empty when the
+  /// platform has only one engine (iOS / macOS / Windows).
+  Future<List<TtsEngine>> getEngines();
+
+  /// Switches the active engine. Caller passes the [TtsEngine.id]. No-op
+  /// when the backend doesn't support engine selection.
+  Future<void> setEngine(String engineId);
+
   /// Selects the voice for subsequent [speak] calls. Pass `null` to clear
   /// (fall back to default for the current language).
   Future<void> setVoice(TtsVoice? voice);
@@ -76,12 +115,15 @@ abstract class TtsBackend {
   /// Voice pitch. Caller passes `[0.5, 2.0]`.
   Future<void> setPitch(double pitch);
 
-  /// Speaks [text]. Returns once the request has been accepted; emission of
-  /// the audio happens asynchronously and is observable through
-  /// [onCompletion] / [onError] / [onProgress].
-  Future<void> speak(String text);
+  /// Speaks [text] with the requested queue [mode].
+  ///
+  /// Returns once the request has been accepted; emission of the audio
+  /// happens asynchronously and is observable through [onCompletion] /
+  /// [onError] / [onProgress] / [onStart].
+  Future<void> speak(String text, {TtsQueueMode mode = TtsQueueMode.flush});
 
-  /// Cancels any in-flight speech. Safe to call when idle.
+  /// Cancels any in-flight speech AND drops every queued utterance from
+  /// the native queue. Safe to call when idle.
   Future<void> stop();
 
   /// Releases native resources. After this the backend is unusable.

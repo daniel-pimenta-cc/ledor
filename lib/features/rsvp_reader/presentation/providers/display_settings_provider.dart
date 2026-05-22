@@ -52,6 +52,7 @@ class DisplaySettingsNotifier extends StateNotifier<DisplaySettings> {
       _prefs.getString('${_prefix}ttsVoiceName'),
       _prefs.getDouble('${_prefix}ttsPitch'),
       _prefs.getDouble('${_prefix}ttsRate'),
+      _prefs.getString('${_prefix}ttsEngineId'),
     ]);
     state = DisplaySettings(
       wpm: results[0] as int? ?? AppConstants.defaultWpm,
@@ -82,6 +83,7 @@ class DisplaySettingsNotifier extends StateNotifier<DisplaySettings> {
       ttsVoiceName: results[21] as String?,
       ttsPitch: results[22] as double? ?? 1.0,
       ttsRate: results[23] as double? ?? AppConstants.defaultTtsRate,
+      ttsEngineId: results[24] as String?,
     );
   }
 
@@ -140,6 +142,7 @@ class DisplaySettingsNotifier extends StateNotifier<DisplaySettings> {
 
   Future<void> _save() async {
     final voice = state.ttsVoiceName;
+    final engine = state.ttsEngineId;
     await Future.wait([
       _prefs.setInt('${_prefix}wpm', state.wpm),
       _prefs.setDouble('${_prefix}fontSize', state.fontSize),
@@ -173,6 +176,10 @@ class DisplaySettingsNotifier extends StateNotifier<DisplaySettings> {
         _prefs.remove('${_prefix}ttsVoiceName'),
       _prefs.setDouble('${_prefix}ttsPitch', state.ttsPitch),
       _prefs.setDouble('${_prefix}ttsRate', state.ttsRate),
+      if (engine != null)
+        _prefs.setString('${_prefix}ttsEngineId', engine)
+      else
+        _prefs.remove('${_prefix}ttsEngineId'),
     ]);
   }
 }

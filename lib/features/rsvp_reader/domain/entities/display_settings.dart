@@ -90,6 +90,20 @@ class DisplaySettings {
   /// Range `[0.5, 3.0]`, default `1.0`.
   final double ttsRate;
 
+  /// Identifier of the active TTS engine the backend should use.
+  ///
+  /// On Android this is a package name (`com.google.android.tts`,
+  /// `com.samsung.SMT`, …) the user picked from the engines installed on
+  /// their device. On Linux it's the `speech-dispatcher` output module
+  /// name (`espeak-ng`, `festival`, `rhvoice`, …). `null` means "use the
+  /// platform default"; iOS / macOS / Windows always treat it as null
+  /// since they bundle a single synthesiser.</br>
+  ///
+  /// Carries through Drive sync. When a synced value doesn't exist on
+  /// the local device, the backend falls back silently but the field is
+  /// preserved so a round-trip to the original device restores it.
+  final String? ttsEngineId;
+
   const DisplaySettings({
     this.wpm = AppConstants.defaultWpm,
     this.fontSize = AppConstants.defaultFontSize,
@@ -115,6 +129,7 @@ class DisplaySettings {
     this.ttsVoiceName,
     this.ttsPitch = 1.0,
     this.ttsRate = AppConstants.defaultTtsRate,
+    this.ttsEngineId,
   });
 
   Color get wordColor => Color(wordColorValue);
@@ -147,6 +162,7 @@ class DisplaySettings {
     Object? ttsVoiceName = _unset,
     double? ttsPitch,
     double? ttsRate,
+    Object? ttsEngineId = _unset,
   }) {
     return DisplaySettings(
       wpm: wpm ?? this.wpm,
@@ -178,6 +194,9 @@ class DisplaySettings {
           : ttsVoiceName as String?,
       ttsPitch: ttsPitch ?? this.ttsPitch,
       ttsRate: ttsRate ?? this.ttsRate,
+      ttsEngineId: identical(ttsEngineId, _unset)
+          ? this.ttsEngineId
+          : ttsEngineId as String?,
     );
   }
 }

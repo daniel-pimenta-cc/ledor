@@ -650,4 +650,23 @@ class AppLocalizationsEn extends AppLocalizations {
   String ttsVoiceFallbackLabel(String locale) {
     return 'Default for $locale';
   }
+
+  @override
+  String get settingsTtsEngine => 'Engine';
+
+  @override
+  String get settingsTtsEngineDesc => 'TTS engine used to synthesise speech';
+
+  @override
+  String get ttsEnginePickerTitle => 'Choose an engine';
+
+  @override
+  String get ttsEnginePickerSubtitle =>
+      'Different engines produce different voices and sound quality';
+
+  @override
+  String get ttsEnginePickerEmpty => 'No alternative engines installed';
+
+  @override
+  String get ttsEnginePickerSystemDefault => 'System default';
 }
