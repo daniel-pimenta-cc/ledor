@@ -41,6 +41,13 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
   Timer? _saveDebounce;
   int _lastSavedWordIndex = -1;
 
+  /// String form of the reader mode last persisted to the progress row.
+  /// We compare against this before writing so the auto-restore in
+  /// [_loadBook] doesn't trigger a wasted write — only genuine user
+  /// changes via [enterTtsMode] / [exitTtsMode] / [enterEreaderMode] /
+  /// [exitEreaderMode] cause a DB+sync round-trip.
+  String? _lastSavedReaderMode;
+
   DateTime? _sessionStartedAt;
   int? _sessionStartWordIndex;
   static const _uuid = Uuid();
@@ -115,6 +122,7 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
     final chapterIdx = progress?.chapterIndex ?? 0;
     final wordIdx = progress?.wordIndex ?? 0;
     final wpm = progress?.wpm ?? _ref.read(displaySettingsProvider).wpm;
+    final persistedMode = parsePersistedReaderMode(progress?.readerMode);
 
     final totalWords = chapters.fold<int>(0, (sum, ch) => sum + ch.wordCount);
     final globalIdx = _calculateGlobalIndex(chapters, chapterIdx, wordIdx);
@@ -123,6 +131,15 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
         _ref.read(displaySettingsProvider).copyWith(wpm: wpm);
 
     _lastSavedWordIndex = globalIdx;
+    _lastSavedReaderMode = progress?.readerMode;
+
+    // TTS restoration is async (player init); keep `isLoading=true` so the
+    // user can't tap play before the player is bound. Ereader / RSVP are
+    // synchronous — flip loading off in the same state copy.
+    final restoringTts = persistedMode == ReaderMode.tts;
+    final initialMode = persistedMode == ReaderMode.ereader
+        ? ReaderMode.ereader
+        : ReaderMode.scroll;
 
     state = state.copyWith(
       chapters: chapters,
@@ -132,9 +149,16 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
       totalWords: totalWords,
       currentWord: chapters[chapterIdx].tokens[wordIdx],
       wpm: wpm,
-      isLoading: false,
+      mode: initialMode,
+      isLoading: restoringTts,
       displaySettings: displaySettings,
     );
+
+    if (restoringTts) {
+      await enterTtsMode();
+      if (!mounted) return;
+      state = state.copyWith(isLoading: false);
+    }
   }
 
   void _onTick(Duration elapsed) {
@@ -290,14 +314,15 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
         _ticker?.stop();
       }
       _flushSession();
-      _saveProgress();
     }
     state = state.copyWith(isPlaying: false, mode: ReaderMode.ereader);
+    unawaited(_saveProgress());
   }
 
   void exitEreaderMode() {
     if (state.mode != ReaderMode.ereader) return;
     state = state.copyWith(mode: ReaderMode.scroll);
+    unawaited(_saveProgress());
   }
 
   void toggleEreaderMode() {
@@ -322,7 +347,6 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
     if (state.isPlaying) {
       _ticker?.stop();
       _flushSession();
-      unawaited(_saveProgress());
     }
 
     // Flip the UI to TTS up front so the mode menu reflects the choice
@@ -338,6 +362,9 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
       if (!mounted) return;
       _ref.read(ttsErrorProvider.notifier).state = e.toString();
       state = state.copyWith(mode: ReaderMode.scroll);
+      // Surface the rollback to the persistence layer too so a failed
+      // restoration doesn't leave 'tts' stale in the progress row.
+      unawaited(_saveProgress());
       return;
     }
     if (!mounted) return;
@@ -349,6 +376,9 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
     // for the speak() call to apply them.
     unawaited(player.applySettings());
     _bindAudioHandler();
+    // Save the mode (skipped when called from _loadBook auto-restore — the
+    // _lastSavedReaderMode there already equals 'tts').
+    unawaited(_saveProgress());
   }
 
   /// Exits TTS mode back to scroll. Stops any in-flight speech, flushes
@@ -358,10 +388,10 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
     if (state.isPlaying) {
       unawaited(_ttsPlayer?.pause());
       _flushSession();
-      _saveProgress();
     }
     state = state.copyWith(isPlaying: false, mode: ReaderMode.scroll);
     _unbindAudioHandler();
+    unawaited(_saveProgress());
   }
 
   /// Called by the screen's lifecycle observer when the app resumes. If
@@ -670,8 +700,12 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
   Future<void> _saveProgress() async {
     _saveDebounce?.cancel();
     _saveDebounce = null;
-    if (state.globalWordIndex == _lastSavedWordIndex) return;
+    final currentMode = persistedReaderMode(state.mode);
+    final wordChanged = state.globalWordIndex != _lastSavedWordIndex;
+    final modeChanged = currentMode != _lastSavedReaderMode;
+    if (!wordChanged && !modeChanged) return;
     _lastSavedWordIndex = state.globalWordIndex;
+    _lastSavedReaderMode = currentMode;
 
     final progressDao = _ref.read(readingProgressDaoProvider);
     await progressDao.upsertProgress(ReadingProgressTableCompanion(
@@ -680,6 +714,7 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
       wordIndex: Value(state.currentWordIndex),
       wpm: Value(state.wpm),
       updatedAt: Value(DateTime.now()),
+      readerMode: Value(currentMode),
     ));
 
     final booksDao = _ref.read(booksDaoProvider);

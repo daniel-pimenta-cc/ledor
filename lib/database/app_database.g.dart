@@ -956,6 +956,17 @@ class $ReadingProgressTableTable extends ReadingProgressTable
     type: DriftSqlType.dateTime,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _readerModeMeta = const VerificationMeta(
+    'readerMode',
+  );
+  @override
+  late final GeneratedColumn<String> readerMode = GeneratedColumn<String>(
+    'reader_mode',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     bookId,
@@ -963,6 +974,7 @@ class $ReadingProgressTableTable extends ReadingProgressTable
     wordIndex,
     wpm,
     updatedAt,
+    readerMode,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1017,6 +1029,12 @@ class $ReadingProgressTableTable extends ReadingProgressTable
     } else if (isInserting) {
       context.missing(_updatedAtMeta);
     }
+    if (data.containsKey('reader_mode')) {
+      context.handle(
+        _readerModeMeta,
+        readerMode.isAcceptableOrUnknown(data['reader_mode']!, _readerModeMeta),
+      );
+    }
     return context;
   }
 
@@ -1049,6 +1067,10 @@ class $ReadingProgressTableTable extends ReadingProgressTable
         DriftSqlType.dateTime,
         data['${effectivePrefix}updated_at'],
       )!,
+      readerMode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}reader_mode'],
+      ),
     );
   }
 
@@ -1065,12 +1087,22 @@ class ReadingProgressTableData extends DataClass
   final int wordIndex;
   final int wpm;
   final DateTime updatedAt;
+
+  /// Last reader mode (`'rsvp'`, `'ereader'`, or `'tts'`) the user
+  /// explicitly chose for this book. `scroll` collapses into `rsvp` here
+  /// since the two share a single user-facing identity — `scroll` is just
+  /// the paused half of the RSVP experience.
+  ///
+  /// `null` means "never chosen" (default behaviour: open in scroll/RSVP).
+  /// Added in schema v8.
+  final String? readerMode;
   const ReadingProgressTableData({
     required this.bookId,
     required this.chapterIndex,
     required this.wordIndex,
     required this.wpm,
     required this.updatedAt,
+    this.readerMode,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -1080,6 +1112,9 @@ class ReadingProgressTableData extends DataClass
     map['word_index'] = Variable<int>(wordIndex);
     map['wpm'] = Variable<int>(wpm);
     map['updated_at'] = Variable<DateTime>(updatedAt);
+    if (!nullToAbsent || readerMode != null) {
+      map['reader_mode'] = Variable<String>(readerMode);
+    }
     return map;
   }
 
@@ -1090,6 +1125,9 @@ class ReadingProgressTableData extends DataClass
       wordIndex: Value(wordIndex),
       wpm: Value(wpm),
       updatedAt: Value(updatedAt),
+      readerMode: readerMode == null && nullToAbsent
+          ? const Value.absent()
+          : Value(readerMode),
     );
   }
 
@@ -1104,6 +1142,7 @@ class ReadingProgressTableData extends DataClass
       wordIndex: serializer.fromJson<int>(json['wordIndex']),
       wpm: serializer.fromJson<int>(json['wpm']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      readerMode: serializer.fromJson<String?>(json['readerMode']),
     );
   }
   @override
@@ -1115,6 +1154,7 @@ class ReadingProgressTableData extends DataClass
       'wordIndex': serializer.toJson<int>(wordIndex),
       'wpm': serializer.toJson<int>(wpm),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'readerMode': serializer.toJson<String?>(readerMode),
     };
   }
 
@@ -1124,12 +1164,14 @@ class ReadingProgressTableData extends DataClass
     int? wordIndex,
     int? wpm,
     DateTime? updatedAt,
+    Value<String?> readerMode = const Value.absent(),
   }) => ReadingProgressTableData(
     bookId: bookId ?? this.bookId,
     chapterIndex: chapterIndex ?? this.chapterIndex,
     wordIndex: wordIndex ?? this.wordIndex,
     wpm: wpm ?? this.wpm,
     updatedAt: updatedAt ?? this.updatedAt,
+    readerMode: readerMode.present ? readerMode.value : this.readerMode,
   );
   ReadingProgressTableData copyWithCompanion(
     ReadingProgressTableCompanion data,
@@ -1142,6 +1184,9 @@ class ReadingProgressTableData extends DataClass
       wordIndex: data.wordIndex.present ? data.wordIndex.value : this.wordIndex,
       wpm: data.wpm.present ? data.wpm.value : this.wpm,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      readerMode: data.readerMode.present
+          ? data.readerMode.value
+          : this.readerMode,
     );
   }
 
@@ -1152,14 +1197,15 @@ class ReadingProgressTableData extends DataClass
           ..write('chapterIndex: $chapterIndex, ')
           ..write('wordIndex: $wordIndex, ')
           ..write('wpm: $wpm, ')
-          ..write('updatedAt: $updatedAt')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('readerMode: $readerMode')
           ..write(')'))
         .toString();
   }
 
   @override
   int get hashCode =>
-      Object.hash(bookId, chapterIndex, wordIndex, wpm, updatedAt);
+      Object.hash(bookId, chapterIndex, wordIndex, wpm, updatedAt, readerMode);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -1168,7 +1214,8 @@ class ReadingProgressTableData extends DataClass
           other.chapterIndex == this.chapterIndex &&
           other.wordIndex == this.wordIndex &&
           other.wpm == this.wpm &&
-          other.updatedAt == this.updatedAt);
+          other.updatedAt == this.updatedAt &&
+          other.readerMode == this.readerMode);
 }
 
 class ReadingProgressTableCompanion
@@ -1178,6 +1225,7 @@ class ReadingProgressTableCompanion
   final Value<int> wordIndex;
   final Value<int> wpm;
   final Value<DateTime> updatedAt;
+  final Value<String?> readerMode;
   final Value<int> rowid;
   const ReadingProgressTableCompanion({
     this.bookId = const Value.absent(),
@@ -1185,6 +1233,7 @@ class ReadingProgressTableCompanion
     this.wordIndex = const Value.absent(),
     this.wpm = const Value.absent(),
     this.updatedAt = const Value.absent(),
+    this.readerMode = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   ReadingProgressTableCompanion.insert({
@@ -1193,6 +1242,7 @@ class ReadingProgressTableCompanion
     required int wordIndex,
     this.wpm = const Value.absent(),
     required DateTime updatedAt,
+    this.readerMode = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : bookId = Value(bookId),
        chapterIndex = Value(chapterIndex),
@@ -1204,6 +1254,7 @@ class ReadingProgressTableCompanion
     Expression<int>? wordIndex,
     Expression<int>? wpm,
     Expression<DateTime>? updatedAt,
+    Expression<String>? readerMode,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -1212,6 +1263,7 @@ class ReadingProgressTableCompanion
       if (wordIndex != null) 'word_index': wordIndex,
       if (wpm != null) 'wpm': wpm,
       if (updatedAt != null) 'updated_at': updatedAt,
+      if (readerMode != null) 'reader_mode': readerMode,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -1222,6 +1274,7 @@ class ReadingProgressTableCompanion
     Value<int>? wordIndex,
     Value<int>? wpm,
     Value<DateTime>? updatedAt,
+    Value<String?>? readerMode,
     Value<int>? rowid,
   }) {
     return ReadingProgressTableCompanion(
@@ -1230,6 +1283,7 @@ class ReadingProgressTableCompanion
       wordIndex: wordIndex ?? this.wordIndex,
       wpm: wpm ?? this.wpm,
       updatedAt: updatedAt ?? this.updatedAt,
+      readerMode: readerMode ?? this.readerMode,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -1252,6 +1306,9 @@ class ReadingProgressTableCompanion
     if (updatedAt.present) {
       map['updated_at'] = Variable<DateTime>(updatedAt.value);
     }
+    if (readerMode.present) {
+      map['reader_mode'] = Variable<String>(readerMode.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -1266,6 +1323,7 @@ class ReadingProgressTableCompanion
           ..write('wordIndex: $wordIndex, ')
           ..write('wpm: $wpm, ')
           ..write('updatedAt: $updatedAt, ')
+          ..write('readerMode: $readerMode, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -3280,6 +3338,7 @@ typedef $$ReadingProgressTableTableCreateCompanionBuilder =
       required int wordIndex,
       Value<int> wpm,
       required DateTime updatedAt,
+      Value<String?> readerMode,
       Value<int> rowid,
     });
 typedef $$ReadingProgressTableTableUpdateCompanionBuilder =
@@ -3289,6 +3348,7 @@ typedef $$ReadingProgressTableTableUpdateCompanionBuilder =
       Value<int> wordIndex,
       Value<int> wpm,
       Value<DateTime> updatedAt,
+      Value<String?> readerMode,
       Value<int> rowid,
     });
 
@@ -3354,6 +3414,11 @@ class $$ReadingProgressTableTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get readerMode => $composableBuilder(
+    column: $table.readerMode,
+    builder: (column) => ColumnFilters(column),
+  );
+
   $$BooksTableTableFilterComposer get bookId {
     final $$BooksTableTableFilterComposer composer = $composerBuilder(
       composer: this,
@@ -3407,6 +3472,11 @@ class $$ReadingProgressTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get readerMode => $composableBuilder(
+    column: $table.readerMode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$BooksTableTableOrderingComposer get bookId {
     final $$BooksTableTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -3453,6 +3523,11 @@ class $$ReadingProgressTableTableAnnotationComposer
 
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get readerMode => $composableBuilder(
+    column: $table.readerMode,
+    builder: (column) => column,
+  );
 
   $$BooksTableTableAnnotationComposer get bookId {
     final $$BooksTableTableAnnotationComposer composer = $composerBuilder(
@@ -3519,6 +3594,7 @@ class $$ReadingProgressTableTableTableManager
                 Value<int> wordIndex = const Value.absent(),
                 Value<int> wpm = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
+                Value<String?> readerMode = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ReadingProgressTableCompanion(
                 bookId: bookId,
@@ -3526,6 +3602,7 @@ class $$ReadingProgressTableTableTableManager
                 wordIndex: wordIndex,
                 wpm: wpm,
                 updatedAt: updatedAt,
+                readerMode: readerMode,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -3535,6 +3612,7 @@ class $$ReadingProgressTableTableTableManager
                 required int wordIndex,
                 Value<int> wpm = const Value.absent(),
                 required DateTime updatedAt,
+                Value<String?> readerMode = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ReadingProgressTableCompanion.insert(
                 bookId: bookId,
@@ -3542,6 +3620,7 @@ class $$ReadingProgressTableTableTableManager
                 wordIndex: wordIndex,
                 wpm: wpm,
                 updatedAt: updatedAt,
+                readerMode: readerMode,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

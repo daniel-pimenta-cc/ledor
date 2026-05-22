@@ -4,6 +4,40 @@ import 'display_settings.dart';
 
 enum ReaderMode { rsvp, scroll, ereader, tts }
 
+/// Serialises a [ReaderMode] for storage. `scroll` and `rsvp` collapse to
+/// the same string (`'rsvp'`) because the two share a single user-facing
+/// identity — `scroll` is just the paused half of the RSVP experience,
+/// not a separately-selectable mode.
+String persistedReaderMode(ReaderMode mode) {
+  switch (mode) {
+    case ReaderMode.rsvp:
+    case ReaderMode.scroll:
+      return 'rsvp';
+    case ReaderMode.ereader:
+      return 'ereader';
+    case ReaderMode.tts:
+      return 'tts';
+  }
+}
+
+/// Inverse of [persistedReaderMode]. Returns the [ReaderMode] the engine
+/// should start in for a given persisted string. `'rsvp'` maps to
+/// [ReaderMode.scroll] (the natural "RSVP paused" startup state, ready
+/// for the user to tap play). Unknown / null inputs return `null` so the
+/// caller can fall back to its default.
+ReaderMode? parsePersistedReaderMode(String? raw) {
+  switch (raw) {
+    case 'rsvp':
+      return ReaderMode.scroll;
+    case 'ereader':
+      return ReaderMode.ereader;
+    case 'tts':
+      return ReaderMode.tts;
+    default:
+      return null;
+  }
+}
+
 class RsvpState {
   final String bookId;
   final List<Chapter> chapters;

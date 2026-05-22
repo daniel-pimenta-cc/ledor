@@ -393,6 +393,7 @@ class LibrarySyncService {
                 wordIndex: progress.wordIndex,
                 wpm: progress.wpm,
                 updatedAt: progress.updatedAt,
+                readerMode: progress.readerMode,
               ),
         deletedAt: null,
         updatedAt: book.lastReadAt ?? book.importedAt,
@@ -479,6 +480,7 @@ class LibrarySyncService {
                 wordIndex: Value(book.progress!.wordIndex),
                 wpm: Value(book.progress!.wpm),
                 updatedAt: Value(book.progress!.updatedAt),
+                readerMode: Value(book.progress!.readerMode),
               ));
             }
           }
@@ -499,7 +501,8 @@ class LibrarySyncService {
             (localProg == null ||
                 !remoteProg.updatedAt.isAtSameMomentAs(localProg.updatedAt) ||
                 remoteProg.wordIndex != localProg.wordIndex ||
-                remoteProg.chapterIndex != localProg.chapterIndex);
+                remoteProg.chapterIndex != localProg.chapterIndex ||
+                remoteProg.readerMode != localProg.readerMode);
         if (progressDiffers) {
           await _progressDao.upsertProgress(ReadingProgressTableCompanion(
             bookId: Value(book.id),
@@ -507,6 +510,7 @@ class LibrarySyncService {
             wordIndex: Value(remoteProg.wordIndex),
             wpm: Value(remoteProg.wpm),
             updatedAt: Value(remoteProg.updatedAt),
+            readerMode: Value(remoteProg.readerMode),
           ));
         }
         final lastReadDiffers = book.lastReadAt != null &&
@@ -640,6 +644,7 @@ class LibrarySyncService {
           wordIndex: Value(book.progress!.wordIndex),
           wpm: Value(book.progress!.wpm),
           updatedAt: Value(book.progress!.updatedAt),
+          readerMode: Value(book.progress!.readerMode),
         ));
       }
       return;
@@ -685,6 +690,7 @@ class LibrarySyncService {
         wordIndex: Value(book.progress!.wordIndex),
         wpm: Value(book.progress!.wpm),
         updatedAt: Value(book.progress!.updatedAt),
+        readerMode: Value(book.progress!.readerMode),
       ));
     }
   }

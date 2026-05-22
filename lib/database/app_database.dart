@@ -26,8 +26,9 @@ part 'app_database.g.dart';
 ///   token list), plus word/paragraph counts. The `id` column is
 ///   auto-incremented.
 /// - ReadingProgressTable (primary key: `bookId`): a single progress row
-///   per book that tracks `chapterIndex`, `wordIndex`, `wpm`, and
-///   `updatedAt`.
+///   per book that tracks `chapterIndex`, `wordIndex`, `wpm`,
+///   `updatedAt`, and `readerMode` (last reader mode the user chose for
+///   this book — `'rsvp'` / `'ereader'` / `'tts'`, nullable).
 ///
 /// Relationships: both `CachedTokensTable.bookId` and
 /// `ReadingProgressTable.bookId` reference `BooksTable.id`. `chapterIndex`
@@ -64,7 +65,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 8;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -90,6 +91,10 @@ class AppDatabase extends _$AppDatabase {
           }
           if (from < 7) {
             await m.addColumn(booksTable, booksTable.ratingUpdatedAt);
+          }
+          if (from < 8) {
+            await m.addColumn(
+                readingProgressTable, readingProgressTable.readerMode);
           }
         },
       );

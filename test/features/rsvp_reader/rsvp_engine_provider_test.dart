@@ -515,6 +515,72 @@ void main() {
         expect(engine.state.wpm, 420);
         expect(engine.state.currentWord?.text, 'zeta');
       });
+
+      test('restores ereader mode from saved progress', () async {
+        final mocks = _wireMocks(
+          chapterRows: _twoChapterRows(),
+          savedProgress: ReadingProgressTableData(
+            bookId: 'book-1',
+            chapterIndex: 0,
+            wordIndex: 0,
+            wpm: 300,
+            updatedAt: DateTime.fromMillisecondsSinceEpoch(0),
+            readerMode: 'ereader',
+          ),
+        );
+        final container = _container(mocks);
+
+        final engine = await _bootEngine(container, _FakeTickerProvider());
+
+        expect(engine.state.mode, ReaderMode.ereader);
+        expect(engine.state.isLoading, isFalse);
+      });
+
+      test('restores tts mode from saved progress (calls enterTtsMode)',
+          () async {
+        final tts = _StubTtsBackend();
+        final mocks = _wireMocks(
+          chapterRows: _twoChapterRows(),
+          savedProgress: ReadingProgressTableData(
+            bookId: 'book-1',
+            chapterIndex: 0,
+            wordIndex: 0,
+            wpm: 300,
+            updatedAt: DateTime.fromMillisecondsSinceEpoch(0),
+            readerMode: 'tts',
+          ),
+        );
+        final container = _ttsContainer(mocks, tts);
+
+        final engine = await _bootEngine(container, _FakeTickerProvider());
+        // _loadBook awaits enterTtsMode internally, so by the time
+        // _bootEngine returns the mode and backend should be ready.
+        await _pumpMicrotasks();
+
+        expect(engine.state.mode, ReaderMode.tts);
+        expect(engine.state.isLoading, isFalse);
+        expect(tts.initCalled, isTrue);
+      });
+
+      test('null readerMode in progress keeps the default scroll mode',
+          () async {
+        final mocks = _wireMocks(
+          chapterRows: _twoChapterRows(),
+          savedProgress: ReadingProgressTableData(
+            bookId: 'book-1',
+            chapterIndex: 0,
+            wordIndex: 0,
+            wpm: 300,
+            updatedAt: DateTime.fromMillisecondsSinceEpoch(0),
+            readerMode: null,
+          ),
+        );
+        final container = _container(mocks);
+
+        final engine = await _bootEngine(container, _FakeTickerProvider());
+
+        expect(engine.state.mode, ReaderMode.scroll);
+      });
     });
 
     group('play / pause', () {
@@ -1085,6 +1151,100 @@ void main() {
         expect(tts.speakCalls.length, greaterThan(firstSpeak));
         expect(engine.state.globalWordIndex, 4);
         expect(tts.speakModes.last, TtsQueueMode.flush);
+      });
+    });
+
+    group('persisted reader mode', () {
+      test('enterEreaderMode upserts readerMode="ereader"', () async {
+        final mocks = _wireMocks(chapterRows: _twoChapterRows());
+        final container = _container(mocks);
+        final engine = await _bootEngine(container, _FakeTickerProvider());
+
+        engine.enterEreaderMode();
+        await _pumpMicrotasks();
+
+        verify(() => mocks.progress.upsertProgress(
+              any(
+                that: isA<ReadingProgressTableCompanion>().having(
+                  (c) => c.readerMode,
+                  'readerMode',
+                  const Value('ereader'),
+                ),
+              ),
+            )).called(1);
+      });
+
+      test('exitEreaderMode upserts readerMode="rsvp"', () async {
+        final mocks = _wireMocks(
+          chapterRows: _twoChapterRows(),
+          savedProgress: ReadingProgressTableData(
+            bookId: 'book-1',
+            chapterIndex: 0,
+            wordIndex: 0,
+            wpm: 300,
+            updatedAt: DateTime.fromMillisecondsSinceEpoch(0),
+            readerMode: 'ereader',
+          ),
+        );
+        final container = _container(mocks);
+        final engine = await _bootEngine(container, _FakeTickerProvider());
+        expect(engine.state.mode, ReaderMode.ereader);
+
+        // Restore should not have triggered any persistence call.
+        verifyNever(() => mocks.progress.upsertProgress(any()));
+
+        engine.exitEreaderMode();
+        await _pumpMicrotasks();
+
+        verify(() => mocks.progress.upsertProgress(
+              any(
+                that: isA<ReadingProgressTableCompanion>().having(
+                  (c) => c.readerMode,
+                  'readerMode',
+                  const Value('rsvp'),
+                ),
+              ),
+            )).called(1);
+      });
+
+      test('enterTtsMode upserts readerMode="tts"', () async {
+        final tts = _StubTtsBackend();
+        final mocks = _wireMocks(chapterRows: _twoChapterRows());
+        final container = _ttsContainer(mocks, tts);
+        final engine = await _bootEngine(container, _FakeTickerProvider());
+
+        await engine.enterTtsMode();
+        await _pumpMicrotasks();
+
+        verify(() => mocks.progress.upsertProgress(
+              any(
+                that: isA<ReadingProgressTableCompanion>().having(
+                  (c) => c.readerMode,
+                  'readerMode',
+                  const Value('tts'),
+                ),
+              ),
+            )).called(1);
+      });
+
+      test('auto-restore does NOT trigger a save (dedup honours existing mode)',
+          () async {
+        final mocks = _wireMocks(
+          chapterRows: _twoChapterRows(),
+          savedProgress: ReadingProgressTableData(
+            bookId: 'book-1',
+            chapterIndex: 0,
+            wordIndex: 0,
+            wpm: 300,
+            updatedAt: DateTime.fromMillisecondsSinceEpoch(0),
+            readerMode: 'ereader',
+          ),
+        );
+        final container = _container(mocks);
+        await _bootEngine(container, _FakeTickerProvider());
+        await _pumpMicrotasks();
+
+        verifyNever(() => mocks.progress.upsertProgress(any()));
       });
     });
   });
