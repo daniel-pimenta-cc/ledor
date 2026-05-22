@@ -667,4 +667,21 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get ttsEnginePickerSystemDefault => 'Padrão do sistema';
+
+  @override
+  String get ttsVoicePickerSearchHint => 'Buscar vozes, idiomas, regiões...';
+
+  @override
+  String get ttsVoicePickerScopeCurrent => 'Idioma atual';
+
+  @override
+  String get ttsVoicePickerScopeAll => 'Todos os idiomas';
+
+  @override
+  String get ttsVoicePickerNoMatches => 'Nenhuma voz corresponde à busca';
+
+  @override
+  String ttsVoicePickerNoCurrentVoices(String language) {
+    return 'Não há vozes para $language neste aparelho. Mude para Todos os idiomas para ver as disponíveis.';
+  }
 }

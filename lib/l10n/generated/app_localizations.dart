@@ -1225,6 +1225,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'System default'**
   String get ttsEnginePickerSystemDefault;
+
+  /// No description provided for @ttsVoicePickerSearchHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Search voices, languages, regions...'**
+  String get ttsVoicePickerSearchHint;
+
+  /// No description provided for @ttsVoicePickerScopeCurrent.
+  ///
+  /// In en, this message translates to:
+  /// **'Current language'**
+  String get ttsVoicePickerScopeCurrent;
+
+  /// No description provided for @ttsVoicePickerScopeAll.
+  ///
+  /// In en, this message translates to:
+  /// **'All languages'**
+  String get ttsVoicePickerScopeAll;
+
+  /// No description provided for @ttsVoicePickerNoMatches.
+  ///
+  /// In en, this message translates to:
+  /// **'No voices match your search'**
+  String get ttsVoicePickerNoMatches;
+
+  /// No description provided for @ttsVoicePickerNoCurrentVoices.
+  ///
+  /// In en, this message translates to:
+  /// **'No voices for {language} on this device. Switch to All languages to browse what\'s installed.'**
+  String ttsVoicePickerNoCurrentVoices(String language);
 }
 
 class _AppLocalizationsDelegate

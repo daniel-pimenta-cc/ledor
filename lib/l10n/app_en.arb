@@ -322,5 +322,15 @@
   "ttsEnginePickerTitle": "Choose an engine",
   "ttsEnginePickerSubtitle": "Different engines produce different voices and sound quality",
   "ttsEnginePickerEmpty": "No alternative engines installed",
-  "ttsEnginePickerSystemDefault": "System default"
+  "ttsEnginePickerSystemDefault": "System default",
+  "ttsVoicePickerSearchHint": "Search voices, languages, regions...",
+  "ttsVoicePickerScopeCurrent": "Current language",
+  "ttsVoicePickerScopeAll": "All languages",
+  "ttsVoicePickerNoMatches": "No voices match your search",
+  "ttsVoicePickerNoCurrentVoices": "No voices for {language} on this device. Switch to All languages to browse what's installed.",
+  "@ttsVoicePickerNoCurrentVoices": {
+    "placeholders": {
+      "language": { "type": "String" }
+    }
+  }
 }

@@ -44,7 +44,7 @@
 - [ ] Reader: atalho rápido pra mudar voz TTS sem precisar entrar em settings (talvez chip no transport row em modo TTS, ou opção no `ReaderModeMenu`)
 - [ ] Settings: reformular o painel pra separar opções por modo (RSVP-specific, TTS-specific, comuns) — hoje sentence/chapter pause aparece pra todos os modos sem indicar que é RSVP-only
 - [x] TTS: engine picker no Android (`flutter_tts.getEngines` + `setEngine`) + output module no Linux (via SSIP `LIST OUTPUT_MODULES` ou `spd-say -O`). UI em `TtsEnginePickerSheet`; campo `DisplaySettings.ttsEngineId` sincronizado via Drive. Row escondida quando o backend reporta ≤1 engine.
-- [ ] TTS: melhorar labels do voice picker — hoje mostra `en-gb-x-fis-local#female_1-local (en-GB)`; ideal seria "Inglês (Reino Unido) — Feminina" + identificador técnico como caption discreta
+- [x] TTS: melhorar labels do voice picker — `voice_label_formatter` (em `lib/core/utils/`) converte nomes técnicos em "Inglês (Reino Unido) · Feminina 1", com tech id como caption discreta. Sheet ganhou search bar e segmented toggle "Idioma atual" (default) / "Todos os idiomas".
 - [x] Incremental sync (phase 1): sharded manifest in `library/books.json` + `settings.json` + `sessions.json`; push parallelises writes and skips unchanged shards. Phase 2 (per-record + index.json) is parked until it becomes a bottleneck.
 - [ ] Improve speed ramp-up (more natural curve? configurable duration/word count?)
 - [ ] Bug: investigate imports when the user drops an EPUB straight into the `RSVP Reader/books/` Drive folder (orphan import via `_autoImportOrphanFiles`) — something isn't behaving as expected

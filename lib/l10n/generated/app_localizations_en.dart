@@ -669,4 +669,21 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get ttsEnginePickerSystemDefault => 'System default';
+
+  @override
+  String get ttsVoicePickerSearchHint => 'Search voices, languages, regions...';
+
+  @override
+  String get ttsVoicePickerScopeCurrent => 'Current language';
+
+  @override
+  String get ttsVoicePickerScopeAll => 'All languages';
+
+  @override
+  String get ttsVoicePickerNoMatches => 'No voices match your search';
+
+  @override
+  String ttsVoicePickerNoCurrentVoices(String language) {
+    return 'No voices for $language on this device. Switch to All languages to browse what\'s installed.';
+  }
 }
