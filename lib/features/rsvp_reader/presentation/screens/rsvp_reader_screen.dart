@@ -51,6 +51,12 @@ class _RsvpReaderScreenState extends ConsumerState<RsvpReaderScreen>
     with TickerProviderStateMixin, WidgetsBindingObserver {
   final FocusNode _shortcutsFocusNode = FocusNode(debugLabel: 'RsvpShortcuts');
 
+  /// Set to true after we drained [readerPendingSeekProvider] /
+  /// [readerPendingActionProvider]. Subsequent rebuilds skip the
+  /// post-frame consume so we don't try to mutate a provider that's
+  /// already null/none.
+  bool _pendingConsumed = false;
+
   @override
   void initState() {
     super.initState();
@@ -76,11 +82,16 @@ class _RsvpReaderScreenState extends ConsumerState<RsvpReaderScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _shortcutsFocusNode.dispose();
-    // Reset side-panel state so switching between books doesn't keep a
-    // panel open for an unrelated book.
+    // Snapshot the notifier before super.dispose() — `ref` becomes
+    // invalid the moment the element is unmounted, so reading it inside
+    // the microtask below would throw "Cannot use ref after disposed".
+    final sidePanelNotifier =
+        ref.read(readerSidePanelProvider.notifier);
+    // Defer the reset so a replacement reader (e.g. master-detail
+    // selection flip) has a chance to set its own panel mode first —
+    // the microtask still runs before the next frame.
     Future.microtask(() {
-      if (mounted) return; // still mounted → another reader may need it
-      ref.read(readerSidePanelProvider.notifier).state = ReaderSidePanelMode.none;
+      sidePanelNotifier.state = ReaderSidePanelMode.none;
     });
     super.dispose();
   }
@@ -126,20 +137,32 @@ class _RsvpReaderScreenState extends ConsumerState<RsvpReaderScreen>
     }
 
     // Consume any deferred action (set by the library long-press menu /
-    // global bookmarks screen before navigating to the reader). Done
-    // after `isLoading` flips so the engine state used by _openBookmarks
-    // is fully populated.
-    final pendingSeek = ref.read(readerPendingSeekProvider);
-    if (pendingSeek != null) {
-      ref.read(readerPendingSeekProvider.notifier).state = null;
-      engine.seekToWord(pendingSeek);
-    }
-    final pending = ref.read(readerPendingActionProvider);
-    if (pending == ReaderPendingAction.openBookmarks) {
-      ref.read(readerPendingActionProvider.notifier).state =
-          ReaderPendingAction.none;
+    // global bookmarks screen before navigating to the reader). The work
+    // is scheduled in a post-frame callback so we don't mutate providers
+    // during build (Riverpod forbids that). _pendingConsumed gates this
+    // to a single run per mount so subsequent rebuilds don't re-schedule.
+    if (!_pendingConsumed) {
+      _pendingConsumed = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _openBookmarks(state, engine);
+        if (!mounted) return;
+        final pendingSeek = ref.read(readerPendingSeekProvider);
+        if (pendingSeek != null) {
+          ref.read(readerPendingSeekProvider.notifier).state = null;
+          ref
+              .read(rsvpEngineProvider(widget.bookId).notifier)
+              .seekToWord(pendingSeek);
+        }
+        final pending = ref.read(readerPendingActionProvider);
+        if (pending == ReaderPendingAction.openBookmarks) {
+          ref.read(readerPendingActionProvider.notifier).state =
+              ReaderPendingAction.none;
+          // _openBookmarks reads the latest state itself.
+          final latestState =
+              ref.read(rsvpEngineProvider(widget.bookId));
+          final engineNotifier =
+              ref.read(rsvpEngineProvider(widget.bookId).notifier);
+          _openBookmarks(latestState, engineNotifier);
+        }
       });
     }
 
