@@ -6,6 +6,7 @@ import '../../features/reading_stats/presentation/providers/monthly_recap_provid
 import '../../features/reading_stats/presentation/screens/book_completion_screen.dart';
 import '../../features/reading_stats/presentation/screens/monthly_recap_screen.dart';
 import '../../features/reading_stats/presentation/screens/reading_stats_screen.dart';
+import '../../features/rsvp_reader/presentation/screens/bookmarks_screen.dart';
 import '../../features/rsvp_reader/presentation/screens/rsvp_reader_screen.dart';
 import '../../features/settings/presentation/screens/settings_screen.dart';
 
@@ -43,6 +44,10 @@ final appRouter = GoRouter(
       path: '/books/:bookId/completion',
       builder: (context, state) =>
           BookCompletionScreen(bookId: state.pathParameters['bookId']!),
+    ),
+    GoRoute(
+      path: '/bookmarks',
+      builder: (context, state) => const BookmarksScreen(),
     ),
   ],
 );

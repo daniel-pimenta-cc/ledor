@@ -26,6 +26,15 @@ class BookmarksDao extends DatabaseAccessor<AppDatabase>
         .get();
   }
 
+  /// Live list of every non-tombstoned bookmark across the library,
+  /// ordered most-recent first. Feeds the global `/bookmarks` screen.
+  Stream<List<BookmarksTableData>> watchAll() {
+    return (select(bookmarksTable)
+          ..where((t) => t.deletedAt.isNull())
+          ..orderBy([(t) => OrderingTerm.desc(t.updatedAt)]))
+        .watch();
+  }
+
   Future<BookmarksTableData?> getById(String id) {
     return (select(bookmarksTable)..where((t) => t.id.equals(id)))
         .getSingleOrNull();

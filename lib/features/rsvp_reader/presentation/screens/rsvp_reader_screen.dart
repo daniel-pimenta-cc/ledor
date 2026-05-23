@@ -125,6 +125,24 @@ class _RsvpReaderScreenState extends ConsumerState<RsvpReaderScreen>
       return Scaffold(backgroundColor: settings.backgroundColor);
     }
 
+    // Consume any deferred action (set by the library long-press menu /
+    // global bookmarks screen before navigating to the reader). Done
+    // after `isLoading` flips so the engine state used by _openBookmarks
+    // is fully populated.
+    final pendingSeek = ref.read(readerPendingSeekProvider);
+    if (pendingSeek != null) {
+      ref.read(readerPendingSeekProvider.notifier).state = null;
+      engine.seekToWord(pendingSeek);
+    }
+    final pending = ref.read(readerPendingActionProvider);
+    if (pending == ReaderPendingAction.openBookmarks) {
+      ref.read(readerPendingActionProvider.notifier).state =
+          ReaderPendingAction.none;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _openBookmarks(state, engine);
+      });
+    }
+
     final readerBody = SafeArea(
       child: Column(
         children: [
