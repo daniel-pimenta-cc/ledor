@@ -686,4 +686,47 @@ class AppLocalizationsEn extends AppLocalizations {
   String ttsVoicePickerNoCurrentVoices(String language) {
     return 'No voices for $language on this device. Switch to All languages to browse what\'s installed.';
   }
+
+  @override
+  String get settingsSectionSpeedTiming => 'Speed & Timing';
+
+  @override
+  String get settingsSectionRsvpDisplay => 'RSVP Display';
+
+  @override
+  String get settingsSectionAudio => 'Audio';
+
+  @override
+  String get settingsSectionReaderView => 'Reader View';
+
+  @override
+  String get settingsSectionTypography => 'Typography & Background';
+
+  @override
+  String get settingsSectionChrome => 'Reader Chrome';
+
+  @override
+  String get settingsScopeRsvp => 'RSVP';
+
+  @override
+  String get settingsScopeAudio => 'Audio';
+
+  @override
+  String get settingsScopeReader => 'Reader';
+
+  @override
+  String get settingsScopeAllModes => 'All modes';
+
+  @override
+  String get settingsScopeRsvpTooltip => 'Applies to RSVP mode only';
+
+  @override
+  String get settingsScopeAudioTooltip => 'Applies to audio playback (TTS)';
+
+  @override
+  String get settingsScopeReaderTooltip =>
+      'Applies to scroll, e-reader, and audio modes';
+
+  @override
+  String get settingsScopeAllModesTooltip => 'Applies to all reading modes';
 }

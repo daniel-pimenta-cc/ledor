@@ -1,8 +1,49 @@
-part of 'display_settings_panel.dart';
+import 'package:flex_color_picker/flex_color_picker.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
 
-/// Available reading fonts. The [value] is what we persist; [googleFont] is
-/// the name used by the google_fonts package; [label] is shown in the picker.
-const _fontOptions = <({String value, String googleFont, String label})>[
+import '../../../domain/entities/display_settings.dart';
+import '../../providers/display_settings_provider.dart';
+import '../../providers/rsvp_engine_provider.dart';
+
+/// Pushes [updater] into both the persisted [displaySettingsProvider] and,
+/// when a [bookId] is supplied, the running [RsvpEngineNotifier]. The same
+/// [updater] hits both sides so the engine state only sees the field the
+/// user touched.
+///
+/// An earlier version snapshotted the provider state and replaced the
+/// engine's `displaySettings` wholesale — that worked until a user adjusted
+/// `ttsRate` (or `wpm`) from a capsule, because those handlers only mutate
+/// the engine state. The next time the user moved a slider, the snapshot
+/// from the provider (still at the old rate) wiped out the engine's value
+/// and re-issued `setSpeechRate` to the backend mid-utterance — which
+/// silently broke flutter_tts on Android.
+void updateDisplaySetting(
+  WidgetRef ref,
+  String? bookId,
+  DisplaySettings Function(DisplaySettings) updater,
+) {
+  ref.read(displaySettingsProvider.notifier).update(updater);
+  if (bookId != null) {
+    ref
+        .read(rsvpEngineProvider(bookId).notifier)
+        .updateDisplaySettings(updater);
+  }
+}
+
+/// Formats a multiplier value for the slider readout. Shows one decimal for
+/// whole and half steps (`1.0`, `1.5`) and two for quarters (`1.25`) so the
+/// label never grows when the user nudges between divisions.
+String formatMultiplier(double v) {
+  final s = v.toStringAsFixed(2);
+  return s.endsWith('0') ? s.substring(0, s.length - 1) : s;
+}
+
+/// Catalogue of fonts the reader can switch between. [value] is what we
+/// persist; [googleFont] is the family name google_fonts knows; [label] is
+/// shown in the picker rendered in its own typeface.
+const fontOptions = <({String value, String googleFont, String label})>[
   (value: 'RobotoMono', googleFont: 'Roboto Mono', label: 'Roboto Mono'),
   (value: 'JetBrainsMono', googleFont: 'JetBrains Mono', label: 'JetBrains Mono'),
   (value: 'FiraCode', googleFont: 'Fira Code', label: 'Fira Code'),
@@ -11,48 +52,20 @@ const _fontOptions = <({String value, String googleFont, String label})>[
   (value: 'SourceSerif4', googleFont: 'Source Serif 4', label: 'Source Serif (serif)'),
 ];
 
-const _fontPreviewSample = 'The quick brown fox jumps 0123';
+const fontPreviewSample = 'The quick brown fox jumps 0123';
 
-/// Formats a multiplier value for the slider readout. Shows one decimal for
-/// whole and half steps (`1.0`, `1.5`) and two for quarters (`1.25`) so the
-/// label never grows when the user nudges between divisions.
-String _formatMultiplier(double v) {
-  final s = v.toStringAsFixed(2);
-  return s.endsWith('0') ? s.substring(0, s.length - 1) : s;
-}
-
-class _SectionHeader extends StatelessWidget {
-  final String label;
-  final Color color;
-
-  const _SectionHeader({required this.label, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 4, bottom: 12),
-      child: Text(
-        label.toUpperCase(),
-        style: TextStyle(
-          color: color.withAlpha(140),
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 1.5,
-        ),
-      ),
-    );
-  }
-}
-
-class _SettingRow extends StatelessWidget {
+/// Row with a label on the left and an arbitrary [child] (typically a
+/// control like a slider or stepper) on the right.
+class SettingRow extends StatelessWidget {
   final String label;
   final Color labelColor;
   final Widget child;
 
-  const _SettingRow({
+  const SettingRow({
     required this.label,
     required this.labelColor,
     required this.child,
+    super.key,
   });
 
   @override
@@ -70,19 +83,20 @@ class _SettingRow extends StatelessWidget {
   }
 }
 
-class _SwitchRow extends StatelessWidget {
+class SwitchRow extends StatelessWidget {
   final String label;
   final String? subtitle;
   final Color labelColor;
   final bool value;
   final ValueChanged<bool> onChanged;
 
-  const _SwitchRow({
+  const SwitchRow({
     required this.label,
     this.subtitle,
     required this.labelColor,
     required this.value,
     required this.onChanged,
+    super.key,
   });
 
   @override
@@ -112,17 +126,18 @@ class _SwitchRow extends StatelessWidget {
   }
 }
 
-class _PlusMinusControl extends StatelessWidget {
+class PlusMinusControl extends StatelessWidget {
   final int value;
   final Color color;
   final VoidCallback onDecrease;
   final VoidCallback onIncrease;
 
-  const _PlusMinusControl({
+  const PlusMinusControl({
     required this.value,
     required this.color,
     required this.onDecrease,
     required this.onIncrease,
+    super.key,
   });
 
   @override
@@ -176,17 +191,18 @@ class _CircleButton extends StatelessWidget {
   }
 }
 
-class _ColorRow extends StatelessWidget {
+class ColorRow extends StatelessWidget {
   final String label;
   final Color labelColor;
   final Color color;
   final ValueChanged<Color> onChanged;
 
-  const _ColorRow({
+  const ColorRow({
     required this.label,
     required this.labelColor,
     required this.color,
     required this.onChanged,
+    super.key,
   });
 
   @override
@@ -247,7 +263,7 @@ class _ColorRow extends StatelessWidget {
 /// Continuous slider for one of the structural-pause multipliers (sentence
 /// or chapter). Shows the label, an optional subtitle, the current value
 /// formatted as "1.5x", and a discrete-step slider tinted with [orpColor].
-class _MultiplierSliderRow extends StatelessWidget {
+class MultiplierSliderRow extends StatelessWidget {
   final String label;
   final String? subtitle;
   final Color labelColor;
@@ -259,7 +275,7 @@ class _MultiplierSliderRow extends StatelessWidget {
   final String Function(double) labelFor;
   final ValueChanged<double> onChanged;
 
-  const _MultiplierSliderRow({
+  const MultiplierSliderRow({
     required this.label,
     this.subtitle,
     required this.labelColor,
@@ -270,6 +286,7 @@ class _MultiplierSliderRow extends StatelessWidget {
     required this.divisions,
     required this.labelFor,
     required this.onChanged,
+    super.key,
   });
 
   @override
@@ -337,7 +354,7 @@ class _MultiplierSliderRow extends StatelessWidget {
 /// Segmented picker for [DisplaySettings.timeRemainingMode]. Three text-only
 /// options sit next to the meta row in the reader, so a SegmentedButton with
 /// text labels is sufficient (no preview tile needed).
-class _TimeRemainingRow extends StatelessWidget {
+class TimeRemainingRow extends StatelessWidget {
   final String label;
   final String subtitle;
   final Color labelColor;
@@ -346,7 +363,7 @@ class _TimeRemainingRow extends StatelessWidget {
   final String Function(TimeRemainingMode) labelFor;
   final ValueChanged<TimeRemainingMode> onChanged;
 
-  const _TimeRemainingRow({
+  const TimeRemainingRow({
     required this.label,
     required this.subtitle,
     required this.labelColor,
@@ -354,6 +371,7 @@ class _TimeRemainingRow extends StatelessWidget {
     required this.value,
     required this.labelFor,
     required this.onChanged,
+    super.key,
   });
 
   @override
@@ -379,9 +397,6 @@ class _TimeRemainingRow extends StatelessWidget {
             showSelectedIcon: false,
             onSelectionChanged: (s) => onChanged(s.first),
             style: ButtonStyle(
-              // The reader palette is independent of the global theme, so
-              // override both bg + fg to keep the selected pill readable on
-              // any reader background.
               backgroundColor: WidgetStateProperty.resolveWith(
                 (states) => states.contains(WidgetState.selected)
                     ? orpColor.withAlpha(40)
@@ -411,8 +426,7 @@ class _TimeRemainingRow extends StatelessWidget {
 
 /// Picker for the ORP indicator visual style. Renders each option as a small
 /// preview tile (matching the four indicator styles) above a row of labels.
-/// Selection lives in [DisplaySettings.orpIndicator] and feeds [RsvpWordDisplay].
-class _OrpIndicatorRow extends StatelessWidget {
+class OrpIndicatorRow extends StatelessWidget {
   final String label;
   final String subtitle;
   final Color labelColor;
@@ -422,7 +436,7 @@ class _OrpIndicatorRow extends StatelessWidget {
   final String Function(OrpIndicatorStyle) labelFor;
   final ValueChanged<OrpIndicatorStyle> onChanged;
 
-  const _OrpIndicatorRow({
+  const OrpIndicatorRow({
     required this.label,
     required this.subtitle,
     required this.labelColor,
@@ -431,6 +445,7 @@ class _OrpIndicatorRow extends StatelessWidget {
     required this.value,
     required this.labelFor,
     required this.onChanged,
+    super.key,
   });
 
   @override
@@ -558,8 +573,6 @@ class _OrpIndicatorPreviewPainter extends CustomPainter {
     final centerX = size.width / 2;
     final wordCenterY = size.height / 2;
 
-    // Stylized "word": three dim bars, with the middle one in orpColor as
-    // the ORP letter.
     final dim = Paint()..color = wordColor.withAlpha(170);
     final accent = Paint()..color = orpColor;
     const barH = 8.0;
@@ -605,8 +618,6 @@ class _OrpIndicatorPreviewPainter extends CustomPainter {
           indicator,
         );
       case OrpIndicatorStyle.linesAround:
-        // Two short vertical ticks centered on the ORP "letter" (middle
-        // bar), one above and one below the word.
         final orpCx = wordLeft + barW + gap + barW / 2;
         canvas.drawRect(
           Rect.fromLTWH(orpCx - 0.6, wordTop - 5, 1.2, 4),
@@ -629,34 +640,35 @@ class _OrpIndicatorPreviewPainter extends CustomPainter {
 }
 
 /// Tap-target row that surfaces the currently selected TTS voice and opens
-/// the voice picker sheet. Mirrors the `_FontSelector` shape but compresses
-/// the picker into a sheet (voice lists are too long for a dropdown).
-class _TtsVoiceRow extends StatelessWidget {
+/// the voice picker sheet.
+class TtsVoiceRow extends StatelessWidget {
   final String label;
   final String subtitle;
   final Color labelColor;
   final Color orpColor;
   final String? currentVoiceName;
   final String currentLocale;
+  final String Function(String locale) fallbackLabelFor;
   final VoidCallback onTap;
 
-  const _TtsVoiceRow({
+  const TtsVoiceRow({
     required this.label,
     required this.subtitle,
     required this.labelColor,
     required this.orpColor,
     required this.currentVoiceName,
     required this.currentLocale,
+    required this.fallbackLabelFor,
     required this.onTap,
+    super.key,
   });
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
     final hasVoice =
         currentVoiceName != null && currentVoiceName!.isNotEmpty;
     final displayName =
-        hasVoice ? currentVoiceName! : l10n.ttsVoiceFallbackLabel(currentLocale);
+        hasVoice ? currentVoiceName! : fallbackLabelFor(currentLocale);
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(8),
@@ -706,9 +718,8 @@ class _TtsVoiceRow extends StatelessWidget {
 }
 
 /// Tap-target row that surfaces the currently selected TTS engine and
-/// opens the engine picker sheet. Same shape as [_TtsVoiceRow] so the
-/// section reads as a coherent group.
-class _TtsEngineRow extends StatelessWidget {
+/// opens the engine picker sheet.
+class TtsEngineRow extends StatelessWidget {
   final String label;
   final String subtitle;
   final Color labelColor;
@@ -716,13 +727,14 @@ class _TtsEngineRow extends StatelessWidget {
   final String currentLabel;
   final VoidCallback onTap;
 
-  const _TtsEngineRow({
+  const TtsEngineRow({
     required this.label,
     required this.subtitle,
     required this.labelColor,
     required this.orpColor,
     required this.currentLabel,
     required this.onTap,
+    super.key,
   });
 
   @override
@@ -777,26 +789,27 @@ class _TtsEngineRow extends StatelessWidget {
 
 /// Font picker that renders each option in its own typeface and shows
 /// a sample line below using the currently selected font.
-class _FontSelector extends StatelessWidget {
+class FontSelector extends StatelessWidget {
   final String label;
   final String currentValue;
   final Color labelColor;
   final Color backgroundColor;
   final ValueChanged<String> onChanged;
 
-  const _FontSelector({
+  const FontSelector({
     required this.label,
     required this.currentValue,
     required this.labelColor,
     required this.backgroundColor,
     required this.onChanged,
+    super.key,
   });
 
   @override
   Widget build(BuildContext context) {
-    final current = _fontOptions.firstWhere(
+    final current = fontOptions.firstWhere(
       (o) => o.value == currentValue,
-      orElse: () => _fontOptions.first,
+      orElse: () => fontOptions.first,
     );
 
     return Column(
@@ -811,7 +824,7 @@ class _FontSelector extends StatelessWidget {
               dropdownColor:
                   Color.lerp(backgroundColor, Colors.white, 0.12),
               underline: const SizedBox.shrink(),
-              selectedItemBuilder: (context) => _fontOptions
+              selectedItemBuilder: (context) => fontOptions
                   .map((opt) => Align(
                         alignment: Alignment.centerRight,
                         child: Text(
@@ -824,7 +837,7 @@ class _FontSelector extends StatelessWidget {
                         ),
                       ))
                   .toList(),
-              items: _fontOptions
+              items: fontOptions
                   .map((opt) => DropdownMenuItem(
                         value: opt.value,
                         child: Text(
@@ -852,7 +865,7 @@ class _FontSelector extends StatelessWidget {
             border: Border.all(color: labelColor.withAlpha(30)),
           ),
           child: Text(
-            _fontPreviewSample,
+            fontPreviewSample,
             style: GoogleFonts.getFont(
               current.googleFont,
               color: labelColor,

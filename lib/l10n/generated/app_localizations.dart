@@ -1255,6 +1255,90 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No voices for {language} on this device. Switch to All languages to browse what\'s installed.'**
   String ttsVoicePickerNoCurrentVoices(String language);
+
+  /// No description provided for @settingsSectionSpeedTiming.
+  ///
+  /// In en, this message translates to:
+  /// **'Speed & Timing'**
+  String get settingsSectionSpeedTiming;
+
+  /// No description provided for @settingsSectionRsvpDisplay.
+  ///
+  /// In en, this message translates to:
+  /// **'RSVP Display'**
+  String get settingsSectionRsvpDisplay;
+
+  /// No description provided for @settingsSectionAudio.
+  ///
+  /// In en, this message translates to:
+  /// **'Audio'**
+  String get settingsSectionAudio;
+
+  /// No description provided for @settingsSectionReaderView.
+  ///
+  /// In en, this message translates to:
+  /// **'Reader View'**
+  String get settingsSectionReaderView;
+
+  /// No description provided for @settingsSectionTypography.
+  ///
+  /// In en, this message translates to:
+  /// **'Typography & Background'**
+  String get settingsSectionTypography;
+
+  /// No description provided for @settingsSectionChrome.
+  ///
+  /// In en, this message translates to:
+  /// **'Reader Chrome'**
+  String get settingsSectionChrome;
+
+  /// No description provided for @settingsScopeRsvp.
+  ///
+  /// In en, this message translates to:
+  /// **'RSVP'**
+  String get settingsScopeRsvp;
+
+  /// No description provided for @settingsScopeAudio.
+  ///
+  /// In en, this message translates to:
+  /// **'Audio'**
+  String get settingsScopeAudio;
+
+  /// No description provided for @settingsScopeReader.
+  ///
+  /// In en, this message translates to:
+  /// **'Reader'**
+  String get settingsScopeReader;
+
+  /// No description provided for @settingsScopeAllModes.
+  ///
+  /// In en, this message translates to:
+  /// **'All modes'**
+  String get settingsScopeAllModes;
+
+  /// No description provided for @settingsScopeRsvpTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Applies to RSVP mode only'**
+  String get settingsScopeRsvpTooltip;
+
+  /// No description provided for @settingsScopeAudioTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Applies to audio playback (TTS)'**
+  String get settingsScopeAudioTooltip;
+
+  /// No description provided for @settingsScopeReaderTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Applies to scroll, e-reader, and audio modes'**
+  String get settingsScopeReaderTooltip;
+
+  /// No description provided for @settingsScopeAllModesTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Applies to all reading modes'**
+  String get settingsScopeAllModesTooltip;
 }
 
 class _AppLocalizationsDelegate

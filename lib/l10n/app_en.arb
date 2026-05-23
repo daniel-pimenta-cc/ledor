@@ -332,5 +332,19 @@
     "placeholders": {
       "language": { "type": "String" }
     }
-  }
+  },
+  "settingsSectionSpeedTiming": "Speed & Timing",
+  "settingsSectionRsvpDisplay": "RSVP Display",
+  "settingsSectionAudio": "Audio",
+  "settingsSectionReaderView": "Reader View",
+  "settingsSectionTypography": "Typography & Background",
+  "settingsSectionChrome": "Reader Chrome",
+  "settingsScopeRsvp": "RSVP",
+  "settingsScopeAudio": "Audio",
+  "settingsScopeReader": "Reader",
+  "settingsScopeAllModes": "All modes",
+  "settingsScopeRsvpTooltip": "Applies to RSVP mode only",
+  "settingsScopeAudioTooltip": "Applies to audio playback (TTS)",
+  "settingsScopeReaderTooltip": "Applies to scroll, e-reader, and audio modes",
+  "settingsScopeAllModesTooltip": "Applies to all reading modes"
 }
