@@ -462,19 +462,22 @@ class OrpIndicatorRow extends StatelessWidget {
         const SizedBox(height: 10),
         Row(
           children: [
-            for (final style in OrpIndicatorStyle.values) ...[
+            for (var i = 0; i < OrpIndicatorStyle.values.length; i++) ...[
               Expanded(
                 child: _OrpIndicatorTile(
-                  style: style,
-                  selected: style == value,
-                  label: labelFor(style),
+                  style: OrpIndicatorStyle.values[i],
+                  selected: OrpIndicatorStyle.values[i] == value,
+                  label: labelFor(OrpIndicatorStyle.values[i]),
                   labelColor: labelColor,
                   orpColor: orpColor,
                   backgroundColor: backgroundColor,
-                  onTap: () => onChanged(style),
+                  onTap: () => onChanged(OrpIndicatorStyle.values[i]),
                 ),
               ),
-              if (style != OrpIndicatorStyle.values.last)
+              // Index-based separator instead of `style != values.last`,
+              // so reordering the enum (e.g. moving `off` mid-list) keeps
+              // the row spacing correct.
+              if (i < OrpIndicatorStyle.values.length - 1)
                 const SizedBox(width: 6),
             ],
           ],

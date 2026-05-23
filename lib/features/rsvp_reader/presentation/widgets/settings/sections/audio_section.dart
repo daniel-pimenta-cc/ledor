@@ -36,11 +36,15 @@ class AudioSection extends ConsumerWidget {
       orElse: () => const <TtsEngine>[],
     );
     final showEnginePicker = engines.length >= 2;
-    final currentEngineLabel = _engineLabel(
-      engines: engines,
-      currentId: settings.ttsEngineId,
-      systemDefault: l10n.ttsEnginePickerSystemDefault,
-    );
+    // Skip the label lookup entirely when the row is hidden — saves a
+    // for-loop on every panel rebuild (which fires on every slider tick).
+    final currentEngineLabel = showEnginePicker
+        ? _engineLabel(
+            engines: engines,
+            currentId: settings.ttsEngineId,
+            systemDefault: l10n.ttsEnginePickerSystemDefault,
+          )
+        : '';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -117,6 +121,10 @@ class AudioSection extends ConsumerWidget {
     for (final e in engines) {
       if (e.id == currentId) return e.displayName;
     }
-    return currentId;
+    // currentId came from Drive sync but the local device doesn't have
+    // that engine installed — the backend will fall back to the system
+    // default at speak time, so the label should say so rather than
+    // surface the raw package name (e.g. "com.samsung.SMT").
+    return systemDefault;
   }
 }
