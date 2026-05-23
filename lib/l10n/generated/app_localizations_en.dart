@@ -94,9 +94,6 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get settingsDisplay => 'Display';
-
-  @override
   String get settingsFontSize => 'Font Size';
 
   @override
@@ -125,9 +122,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsFont => 'Font';
-
-  @override
-  String get settingsReading => 'Reading';
 
   @override
   String get settingsDefaultSpeed => 'Default Speed';
@@ -596,20 +590,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get imageMissing => 'Image unavailable';
 
   @override
-  String get settingsTtsSection => 'Text-to-speech';
-
-  @override
   String get settingsTtsVoice => 'Voice';
 
   @override
   String get settingsTtsVoiceDesc =>
       'Pick the synthesis voice used in TTS mode';
-
-  @override
-  String get settingsTtsLanguage => 'Language';
-
-  @override
-  String get settingsTtsLanguageDesc => 'Locale the TTS engine speaks';
 
   @override
   String get settingsTtsPitch => 'Pitch';
@@ -686,4 +671,54 @@ class AppLocalizationsEn extends AppLocalizations {
   String ttsVoicePickerNoCurrentVoices(String language) {
     return 'No voices for $language on this device. Switch to All languages to browse what\'s installed.';
   }
+
+  @override
+  String get settingsSectionSpeedTiming => 'Speed & Timing';
+
+  @override
+  String get settingsSectionRsvpDisplay => 'RSVP Display';
+
+  @override
+  String get settingsSectionAudio => 'Audio';
+
+  @override
+  String get settingsSectionReaderView => 'Reader View';
+
+  @override
+  String get settingsSectionTypography => 'Typography & Background';
+
+  @override
+  String get settingsSectionChrome => 'Reader Chrome';
+
+  @override
+  String get settingsScopeRsvp => 'RSVP';
+
+  @override
+  String get settingsScopeAudio => 'Audio';
+
+  @override
+  String get settingsScopeReader => 'Reader';
+
+  @override
+  String get settingsScopeAllModes => 'All modes';
+
+  @override
+  String get settingsScopeControls => 'RSVP & Audio';
+
+  @override
+  String get settingsScopeRsvpTooltip => 'Applies to RSVP mode only';
+
+  @override
+  String get settingsScopeAudioTooltip => 'Applies to audio playback (TTS)';
+
+  @override
+  String get settingsScopeReaderTooltip =>
+      'Applies to RSVP, e-reader, and audio modes';
+
+  @override
+  String get settingsScopeAllModesTooltip => 'Applies to all reading modes';
+
+  @override
+  String get settingsScopeControlsTooltip =>
+      'Applies wherever the playback controls are visible (not e-reader)';
 }

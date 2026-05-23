@@ -55,7 +55,6 @@
       "minutes": { "type": "int" }
     }
   },
-  "settingsDisplay": "Display",
   "settingsFontSize": "Font Size",
   "settingsFontSizeRsvp": "RSVP Font Size",
   "settingsFontSizeContext": "Reader Font Size",
@@ -66,7 +65,6 @@
   "settingsVerticalPosition": "Vertical Position",
   "settingsHorizontalPosition": "Horizontal Position",
   "settingsFont": "Font",
-  "settingsReading": "Reading",
   "settingsDefaultSpeed": "Default Speed",
   "settingsSmartTiming": "Smart Timing",
   "settingsSmartTimingDesc": "Adjust word duration based on punctuation and length",
@@ -291,11 +289,8 @@
   "imageContinue": "Continue",
   "imageClose": "Close",
   "imageMissing": "Image unavailable",
-  "settingsTtsSection": "Text-to-speech",
   "settingsTtsVoice": "Voice",
   "settingsTtsVoiceDesc": "Pick the synthesis voice used in TTS mode",
-  "settingsTtsLanguage": "Language",
-  "settingsTtsLanguageDesc": "Locale the TTS engine speaks",
   "settingsTtsPitch": "Pitch",
   "settingsTtsPitchDesc": "Voice pitch — lower sounds deeper, higher sounds brighter",
   "ttsVoicePickerTitle": "Choose a voice",
@@ -332,5 +327,21 @@
     "placeholders": {
       "language": { "type": "String" }
     }
-  }
+  },
+  "settingsSectionSpeedTiming": "Speed & Timing",
+  "settingsSectionRsvpDisplay": "RSVP Display",
+  "settingsSectionAudio": "Audio",
+  "settingsSectionReaderView": "Reader View",
+  "settingsSectionTypography": "Typography & Background",
+  "settingsSectionChrome": "Reader Chrome",
+  "settingsScopeRsvp": "RSVP",
+  "settingsScopeAudio": "Audio",
+  "settingsScopeReader": "Reader",
+  "settingsScopeAllModes": "All modes",
+  "settingsScopeControls": "RSVP & Audio",
+  "settingsScopeRsvpTooltip": "Applies to RSVP mode only",
+  "settingsScopeAudioTooltip": "Applies to audio playback (TTS)",
+  "settingsScopeReaderTooltip": "Applies to RSVP, e-reader, and audio modes",
+  "settingsScopeAllModesTooltip": "Applies to all reading modes",
+  "settingsScopeControlsTooltip": "Applies wherever the playback controls are visible (not e-reader)"
 }

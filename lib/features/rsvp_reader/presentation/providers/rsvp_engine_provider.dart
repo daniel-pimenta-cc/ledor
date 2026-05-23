@@ -781,6 +781,26 @@ final rsvpEngineProvider = StateNotifierProvider.autoDispose
   (ref, bookId) => RsvpEngineNotifier(ref, bookId),
 );
 
+/// Narrow view of the engine that only exposes [RsvpState.mode]. Widgets
+/// like [DisplaySettingsPanel] need to know which reading mode is active
+/// but don't care about the rest of the state — watching `rsvpEngineProvider`
+/// directly would rebuild them on every word tick. `select` keeps the
+/// rebuild scoped to actual mode changes.
+///
+/// Returns `null` while the engine is still loading the book — the default
+/// `state.mode` is `scroll`, but the *persisted* mode (which could be `tts`
+/// or `ereader`) only lands after `_loadBook` completes. Surfacing `null`
+/// during the loading window lets consumers fall back to a neutral layout
+/// instead of rendering the wrong mode's ordering for ~100-300ms and then
+/// reshuffling on top of the user.
+final readerModeProvider =
+    Provider.autoDispose.family<ReaderMode?, String>((ref, bookId) {
+  final isLoading =
+      ref.watch(rsvpEngineProvider(bookId).select((s) => s.isLoading));
+  if (isLoading) return null;
+  return ref.watch(rsvpEngineProvider(bookId).select((s) => s.mode));
+});
+
 /// Returns the effective WPM during ramp-up.
 ///
 /// Starts at [AppConstants.rampUpStartFraction] of [targetWpm] and follows

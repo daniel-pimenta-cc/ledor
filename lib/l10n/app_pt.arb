@@ -29,7 +29,6 @@
   "chapterOf": "Capítulo {current} de {total}",
   "progressPercent": "{percent}%",
   "minutesRemaining": "~{minutes} min",
-  "settingsDisplay": "Exibição",
   "settingsFontSize": "Tamanho da Fonte",
   "settingsFontSizeRsvp": "Fonte RSVP",
   "settingsFontSizeContext": "Fonte Leitura",
@@ -40,7 +39,6 @@
   "settingsVerticalPosition": "Posição Vertical",
   "settingsHorizontalPosition": "Posição Horizontal",
   "settingsFont": "Fonte",
-  "settingsReading": "Leitura",
   "settingsDefaultSpeed": "Velocidade Padrão",
   "settingsSmartTiming": "Timing Inteligente",
   "settingsSmartTimingDesc": "Ajusta a duração da palavra com base em pontuação e comprimento",
@@ -265,11 +263,8 @@
   "imageContinue": "Continuar",
   "imageClose": "Fechar",
   "imageMissing": "Imagem indisponível",
-  "settingsTtsSection": "Narração",
   "settingsTtsVoice": "Voz",
   "settingsTtsVoiceDesc": "Escolha a voz usada no modo TTS",
-  "settingsTtsLanguage": "Idioma",
-  "settingsTtsLanguageDesc": "Idioma falado pela narração",
   "settingsTtsPitch": "Tom",
   "settingsTtsPitchDesc": "Tom da voz — mais baixo soa grave, mais alto soa agudo",
   "ttsVoicePickerTitle": "Escolha uma voz",
@@ -306,5 +301,21 @@
     "placeholders": {
       "language": { "type": "String" }
     }
-  }
+  },
+  "settingsSectionSpeedTiming": "Velocidade & Timing",
+  "settingsSectionRsvpDisplay": "Exibição RSVP",
+  "settingsSectionAudio": "Áudio",
+  "settingsSectionReaderView": "Texto Corrido",
+  "settingsSectionTypography": "Tipografia & Fundo",
+  "settingsSectionChrome": "Controles do Leitor",
+  "settingsScopeRsvp": "RSVP",
+  "settingsScopeAudio": "Áudio",
+  "settingsScopeReader": "Leitor",
+  "settingsScopeAllModes": "Todos os modos",
+  "settingsScopeControls": "RSVP & Áudio",
+  "settingsScopeRsvpTooltip": "Aplica-se apenas ao modo RSVP",
+  "settingsScopeAudioTooltip": "Aplica-se à reprodução em áudio (TTS)",
+  "settingsScopeReaderTooltip": "Aplica-se aos modos RSVP, e-reader e áudio",
+  "settingsScopeAllModesTooltip": "Aplica-se a todos os modos de leitura",
+  "settingsScopeControlsTooltip": "Aplica-se quando os controles de leitura estão visíveis (não em e-reader)"
 }
