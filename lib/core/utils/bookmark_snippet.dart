@@ -70,3 +70,38 @@ bool _hasMoreContent(List<WordToken> tokens, int startIdx, int step) {
   }
   return false;
 }
+
+/// Builds the preview shown for a multi-word range bookmark. The selected
+/// text is rendered verbatim (with single spaces) inside quotes, truncated
+/// at [maxChars] characters to avoid an overlong list tile.
+///
+/// Returns `null` for malformed ranges so the UI can fall back to the
+/// single-word snippet or label.
+String? buildBookmarkRangeSnippet({
+  required List<WordToken> tokens,
+  required int firstLocalIndex,
+  required int lastLocalIndex,
+  int maxChars = 120,
+}) {
+  if (tokens.isEmpty) return null;
+  if (firstLocalIndex < 0 || firstLocalIndex >= tokens.length) return null;
+  final last = lastLocalIndex.clamp(firstLocalIndex, tokens.length - 1);
+
+  final buffer = StringBuffer();
+  for (int i = firstLocalIndex; i <= last; i++) {
+    final t = tokens[i];
+    if (t.isImage) continue;
+    final txt = t.text.trim();
+    if (txt.isEmpty) continue;
+    if (buffer.isNotEmpty) buffer.write(' ');
+    buffer.write(txt);
+    if (buffer.length > maxChars * 2) break;
+  }
+
+  var content = buffer.toString();
+  if (content.isEmpty) return null;
+  if (content.length > maxChars) {
+    content = '${content.substring(0, maxChars).trimRight()}…';
+  }
+  return '"$content"';
+}

@@ -69,7 +69,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
 
   @override
-  int get schemaVersion => 9;
+  int get schemaVersion => 10;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -103,6 +103,10 @@ class AppDatabase extends _$AppDatabase {
           if (from < 9) {
             await m.createTable(bookmarksTable);
             await m.createIndex(bookmarksBookIdIdx);
+          }
+          if (from < 10) {
+            await m.addColumn(bookmarksTable, bookmarksTable.endGlobalWordIndex);
+            await m.addColumn(bookmarksTable, bookmarksTable.endChapterIndex);
           }
         },
       );

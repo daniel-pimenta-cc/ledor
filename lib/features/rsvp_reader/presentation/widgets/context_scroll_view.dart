@@ -50,15 +50,15 @@ class ContextScrollView extends ConsumerStatefulWidget {
   final String bookId;
   final bool showHighlight;
 
-  /// Invoked when the user long-presses a word. Hooked up by the reader
-  /// screen to open the bookmark-create dialog. Null disables the gesture
-  /// (e.g. tests / screenshots).
-  final ValueChanged<WordToken>? onWordLongPress;
+  /// Invoked when the user confirms a bookmark range from the OS text
+  /// selection toolbar. [first] and [last] are equal for a single-word
+  /// pick. Null disables the gesture (e.g. tests / screenshots).
+  final void Function(WordToken first, WordToken last)? onBookmarkRange;
 
   const ContextScrollView({
     required this.bookId,
     this.showHighlight = true,
-    this.onWordLongPress,
+    this.onBookmarkRange,
     super.key,
   });
 
@@ -409,7 +409,7 @@ class _ContextScrollViewState extends ConsumerState<ContextScrollView> {
               currentGlobalIndex: -1,
               settings: settings,
               onWordTap: null,
-              onWordLongPress: widget.onWordLongPress,
+              onBookmarkRange: widget.onBookmarkRange,
             );
           }
 
@@ -421,7 +421,7 @@ class _ContextScrollViewState extends ConsumerState<ContextScrollView> {
                 currentGlobalIndex: currentHighlight,
                 settings: settings,
                 onWordTap: _onWordTap,
-                onWordLongPress: widget.onWordLongPress,
+                onBookmarkRange: widget.onBookmarkRange,
                 highlightKey: _highlightedWordKey,
               );
             },

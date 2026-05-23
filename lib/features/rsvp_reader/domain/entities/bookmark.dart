@@ -9,6 +9,11 @@ class Bookmark {
   final int globalWordIndex;
   final int chapterIndex;
 
+  /// Inclusive end of a multi-word range. Null when the bookmark anchors
+  /// a single word.
+  final int? endGlobalWordIndex;
+  final int? endChapterIndex;
+
   /// User-supplied note. When null the UI falls back to [contextSnippet].
   final String? label;
 
@@ -28,12 +33,17 @@ class Bookmark {
     required this.bookId,
     required this.globalWordIndex,
     required this.chapterIndex,
+    this.endGlobalWordIndex,
+    this.endChapterIndex,
     this.label,
     this.contextSnippet,
     required this.createdAt,
     required this.updatedAt,
     this.deletedAt,
   });
+
+  bool get isRange =>
+      endGlobalWordIndex != null && endGlobalWordIndex! > globalWordIndex;
 
   bool get isTombstone => deletedAt != null;
 
@@ -50,6 +60,10 @@ class Bookmark {
     String? bookId,
     int? globalWordIndex,
     int? chapterIndex,
+    int? endGlobalWordIndex,
+    bool clearEndGlobalWordIndex = false,
+    int? endChapterIndex,
+    bool clearEndChapterIndex = false,
     String? label,
     bool clearLabel = false,
     String? contextSnippet,
@@ -64,6 +78,12 @@ class Bookmark {
       bookId: bookId ?? this.bookId,
       globalWordIndex: globalWordIndex ?? this.globalWordIndex,
       chapterIndex: chapterIndex ?? this.chapterIndex,
+      endGlobalWordIndex: clearEndGlobalWordIndex
+          ? null
+          : (endGlobalWordIndex ?? this.endGlobalWordIndex),
+      endChapterIndex: clearEndChapterIndex
+          ? null
+          : (endChapterIndex ?? this.endChapterIndex),
       label: clearLabel ? null : (label ?? this.label),
       contextSnippet: clearContextSnippet
           ? null
@@ -79,6 +99,8 @@ class Bookmark {
         bookId: row.bookId,
         globalWordIndex: row.globalWordIndex,
         chapterIndex: row.chapterIndex,
+        endGlobalWordIndex: row.endGlobalWordIndex,
+        endChapterIndex: row.endChapterIndex,
         label: row.label,
         contextSnippet: row.contextSnippet,
         createdAt: row.createdAt,

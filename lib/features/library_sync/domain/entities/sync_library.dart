@@ -613,6 +613,8 @@ class SyncLibraryBookmark {
   final String bookId;
   final int globalWordIndex;
   final int chapterIndex;
+  final int? endGlobalWordIndex;
+  final int? endChapterIndex;
   final String? label;
   final String? contextSnippet;
   final DateTime createdAt;
@@ -624,6 +626,8 @@ class SyncLibraryBookmark {
     required this.bookId,
     required this.globalWordIndex,
     required this.chapterIndex,
+    this.endGlobalWordIndex,
+    this.endChapterIndex,
     this.label,
     this.contextSnippet,
     required this.createdAt,
@@ -636,6 +640,8 @@ class SyncLibraryBookmark {
         'bookId': bookId,
         'globalWordIndex': globalWordIndex,
         'chapterIndex': chapterIndex,
+        'endGlobalWordIndex': endGlobalWordIndex,
+        'endChapterIndex': endChapterIndex,
         'label': label,
         'contextSnippet': contextSnippet,
         'createdAt': createdAt.toUtc().toIso8601String(),
@@ -649,6 +655,8 @@ class SyncLibraryBookmark {
         bookId: json['bookId'] as String,
         globalWordIndex: (json['globalWordIndex'] as num).toInt(),
         chapterIndex: (json['chapterIndex'] as num?)?.toInt() ?? 0,
+        endGlobalWordIndex: (json['endGlobalWordIndex'] as num?)?.toInt(),
+        endChapterIndex: (json['endChapterIndex'] as num?)?.toInt(),
         label: json['label'] as String?,
         contextSnippet: json['contextSnippet'] as String?,
         createdAt: DateTime.parse(json['createdAt'] as String),

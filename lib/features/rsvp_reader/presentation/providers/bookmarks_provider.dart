@@ -28,10 +28,14 @@ class BookmarksController {
   BookmarksController(this._ref, this.bookId);
 
   /// Creates a new bookmark. Returns the persisted [Bookmark] so the UI
-  /// can confirm via toast / focus the row in the list.
+  /// can confirm via toast / focus the row in the list. Pass
+  /// [endGlobalWordIndex] for a multi-word range; leave null for the
+  /// common single-word anchor.
   Future<Bookmark> create({
     required int globalWordIndex,
     required int chapterIndex,
+    int? endGlobalWordIndex,
+    int? endChapterIndex,
     String? label,
     String? contextSnippet,
   }) async {
@@ -43,6 +47,8 @@ class BookmarksController {
       bookId: bookId,
       globalWordIndex: globalWordIndex,
       chapterIndex: Value(chapterIndex),
+      endGlobalWordIndex: Value(endGlobalWordIndex),
+      endChapterIndex: Value(endChapterIndex),
       label: Value(
           (trimmedLabel == null || trimmedLabel.isEmpty) ? null : trimmedLabel),
       contextSnippet: Value(contextSnippet),
@@ -57,6 +63,8 @@ class BookmarksController {
       bookId: bookId,
       globalWordIndex: globalWordIndex,
       chapterIndex: chapterIndex,
+      endGlobalWordIndex: endGlobalWordIndex,
+      endChapterIndex: endChapterIndex,
       label: entry.label.value,
       contextSnippet: contextSnippet,
       createdAt: now,

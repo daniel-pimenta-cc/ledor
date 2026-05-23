@@ -2701,6 +2701,27 @@ class $BookmarksTableTable extends BookmarksTable
     requiredDuringInsert: false,
     defaultValue: const Constant(0),
   );
+  static const VerificationMeta _endGlobalWordIndexMeta =
+      const VerificationMeta('endGlobalWordIndex');
+  @override
+  late final GeneratedColumn<int> endGlobalWordIndex = GeneratedColumn<int>(
+    'end_global_word_index',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _endChapterIndexMeta = const VerificationMeta(
+    'endChapterIndex',
+  );
+  @override
+  late final GeneratedColumn<int> endChapterIndex = GeneratedColumn<int>(
+    'end_chapter_index',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _labelMeta = const VerificationMeta('label');
   @override
   late final GeneratedColumn<String> label = GeneratedColumn<String>(
@@ -2760,6 +2781,8 @@ class $BookmarksTableTable extends BookmarksTable
     bookId,
     globalWordIndex,
     chapterIndex,
+    endGlobalWordIndex,
+    endChapterIndex,
     label,
     contextSnippet,
     createdAt,
@@ -2808,6 +2831,24 @@ class $BookmarksTableTable extends BookmarksTable
         chapterIndex.isAcceptableOrUnknown(
           data['chapter_index']!,
           _chapterIndexMeta,
+        ),
+      );
+    }
+    if (data.containsKey('end_global_word_index')) {
+      context.handle(
+        _endGlobalWordIndexMeta,
+        endGlobalWordIndex.isAcceptableOrUnknown(
+          data['end_global_word_index']!,
+          _endGlobalWordIndexMeta,
+        ),
+      );
+    }
+    if (data.containsKey('end_chapter_index')) {
+      context.handle(
+        _endChapterIndexMeta,
+        endChapterIndex.isAcceptableOrUnknown(
+          data['end_chapter_index']!,
+          _endChapterIndexMeta,
         ),
       );
     }
@@ -2873,6 +2914,14 @@ class $BookmarksTableTable extends BookmarksTable
         DriftSqlType.int,
         data['${effectivePrefix}chapter_index'],
       )!,
+      endGlobalWordIndex: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}end_global_word_index'],
+      ),
+      endChapterIndex: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}end_chapter_index'],
+      ),
       label: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}label'],
@@ -2920,6 +2969,17 @@ class BookmarksTableData extends DataClass
   /// `_globalToLocal`, and only the displayed chapter number drifts.
   final int chapterIndex;
 
+  /// Last word of a multi-word selection (inclusive). Null for the common
+  /// single-word case. When set, the UI can render the selected range
+  /// verbatim and the seek path still uses [globalWordIndex] (the start)
+  /// — the end is informational + used to rebuild the snippet on devices
+  /// that import the book later.
+  final int? endGlobalWordIndex;
+
+  /// Chapter of the [endGlobalWordIndex] anchor. Null for single-word
+  /// bookmarks; useful for ranges that cross a chapter boundary.
+  final int? endChapterIndex;
+
   /// Optional user-supplied note shown as the primary label in the list.
   /// When null, the UI falls back to [contextSnippet].
   final String? label;
@@ -2940,6 +3000,8 @@ class BookmarksTableData extends DataClass
     required this.bookId,
     required this.globalWordIndex,
     required this.chapterIndex,
+    this.endGlobalWordIndex,
+    this.endChapterIndex,
     this.label,
     this.contextSnippet,
     required this.createdAt,
@@ -2953,6 +3015,12 @@ class BookmarksTableData extends DataClass
     map['book_id'] = Variable<String>(bookId);
     map['global_word_index'] = Variable<int>(globalWordIndex);
     map['chapter_index'] = Variable<int>(chapterIndex);
+    if (!nullToAbsent || endGlobalWordIndex != null) {
+      map['end_global_word_index'] = Variable<int>(endGlobalWordIndex);
+    }
+    if (!nullToAbsent || endChapterIndex != null) {
+      map['end_chapter_index'] = Variable<int>(endChapterIndex);
+    }
     if (!nullToAbsent || label != null) {
       map['label'] = Variable<String>(label);
     }
@@ -2973,6 +3041,12 @@ class BookmarksTableData extends DataClass
       bookId: Value(bookId),
       globalWordIndex: Value(globalWordIndex),
       chapterIndex: Value(chapterIndex),
+      endGlobalWordIndex: endGlobalWordIndex == null && nullToAbsent
+          ? const Value.absent()
+          : Value(endGlobalWordIndex),
+      endChapterIndex: endChapterIndex == null && nullToAbsent
+          ? const Value.absent()
+          : Value(endChapterIndex),
       label: label == null && nullToAbsent
           ? const Value.absent()
           : Value(label),
@@ -2997,6 +3071,8 @@ class BookmarksTableData extends DataClass
       bookId: serializer.fromJson<String>(json['bookId']),
       globalWordIndex: serializer.fromJson<int>(json['globalWordIndex']),
       chapterIndex: serializer.fromJson<int>(json['chapterIndex']),
+      endGlobalWordIndex: serializer.fromJson<int?>(json['endGlobalWordIndex']),
+      endChapterIndex: serializer.fromJson<int?>(json['endChapterIndex']),
       label: serializer.fromJson<String?>(json['label']),
       contextSnippet: serializer.fromJson<String?>(json['contextSnippet']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
@@ -3012,6 +3088,8 @@ class BookmarksTableData extends DataClass
       'bookId': serializer.toJson<String>(bookId),
       'globalWordIndex': serializer.toJson<int>(globalWordIndex),
       'chapterIndex': serializer.toJson<int>(chapterIndex),
+      'endGlobalWordIndex': serializer.toJson<int?>(endGlobalWordIndex),
+      'endChapterIndex': serializer.toJson<int?>(endChapterIndex),
       'label': serializer.toJson<String?>(label),
       'contextSnippet': serializer.toJson<String?>(contextSnippet),
       'createdAt': serializer.toJson<DateTime>(createdAt),
@@ -3025,6 +3103,8 @@ class BookmarksTableData extends DataClass
     String? bookId,
     int? globalWordIndex,
     int? chapterIndex,
+    Value<int?> endGlobalWordIndex = const Value.absent(),
+    Value<int?> endChapterIndex = const Value.absent(),
     Value<String?> label = const Value.absent(),
     Value<String?> contextSnippet = const Value.absent(),
     DateTime? createdAt,
@@ -3035,6 +3115,12 @@ class BookmarksTableData extends DataClass
     bookId: bookId ?? this.bookId,
     globalWordIndex: globalWordIndex ?? this.globalWordIndex,
     chapterIndex: chapterIndex ?? this.chapterIndex,
+    endGlobalWordIndex: endGlobalWordIndex.present
+        ? endGlobalWordIndex.value
+        : this.endGlobalWordIndex,
+    endChapterIndex: endChapterIndex.present
+        ? endChapterIndex.value
+        : this.endChapterIndex,
     label: label.present ? label.value : this.label,
     contextSnippet: contextSnippet.present
         ? contextSnippet.value
@@ -3053,6 +3139,12 @@ class BookmarksTableData extends DataClass
       chapterIndex: data.chapterIndex.present
           ? data.chapterIndex.value
           : this.chapterIndex,
+      endGlobalWordIndex: data.endGlobalWordIndex.present
+          ? data.endGlobalWordIndex.value
+          : this.endGlobalWordIndex,
+      endChapterIndex: data.endChapterIndex.present
+          ? data.endChapterIndex.value
+          : this.endChapterIndex,
       label: data.label.present ? data.label.value : this.label,
       contextSnippet: data.contextSnippet.present
           ? data.contextSnippet.value
@@ -3070,6 +3162,8 @@ class BookmarksTableData extends DataClass
           ..write('bookId: $bookId, ')
           ..write('globalWordIndex: $globalWordIndex, ')
           ..write('chapterIndex: $chapterIndex, ')
+          ..write('endGlobalWordIndex: $endGlobalWordIndex, ')
+          ..write('endChapterIndex: $endChapterIndex, ')
           ..write('label: $label, ')
           ..write('contextSnippet: $contextSnippet, ')
           ..write('createdAt: $createdAt, ')
@@ -3085,6 +3179,8 @@ class BookmarksTableData extends DataClass
     bookId,
     globalWordIndex,
     chapterIndex,
+    endGlobalWordIndex,
+    endChapterIndex,
     label,
     contextSnippet,
     createdAt,
@@ -3099,6 +3195,8 @@ class BookmarksTableData extends DataClass
           other.bookId == this.bookId &&
           other.globalWordIndex == this.globalWordIndex &&
           other.chapterIndex == this.chapterIndex &&
+          other.endGlobalWordIndex == this.endGlobalWordIndex &&
+          other.endChapterIndex == this.endChapterIndex &&
           other.label == this.label &&
           other.contextSnippet == this.contextSnippet &&
           other.createdAt == this.createdAt &&
@@ -3111,6 +3209,8 @@ class BookmarksTableCompanion extends UpdateCompanion<BookmarksTableData> {
   final Value<String> bookId;
   final Value<int> globalWordIndex;
   final Value<int> chapterIndex;
+  final Value<int?> endGlobalWordIndex;
+  final Value<int?> endChapterIndex;
   final Value<String?> label;
   final Value<String?> contextSnippet;
   final Value<DateTime> createdAt;
@@ -3122,6 +3222,8 @@ class BookmarksTableCompanion extends UpdateCompanion<BookmarksTableData> {
     this.bookId = const Value.absent(),
     this.globalWordIndex = const Value.absent(),
     this.chapterIndex = const Value.absent(),
+    this.endGlobalWordIndex = const Value.absent(),
+    this.endChapterIndex = const Value.absent(),
     this.label = const Value.absent(),
     this.contextSnippet = const Value.absent(),
     this.createdAt = const Value.absent(),
@@ -3134,6 +3236,8 @@ class BookmarksTableCompanion extends UpdateCompanion<BookmarksTableData> {
     required String bookId,
     required int globalWordIndex,
     this.chapterIndex = const Value.absent(),
+    this.endGlobalWordIndex = const Value.absent(),
+    this.endChapterIndex = const Value.absent(),
     this.label = const Value.absent(),
     this.contextSnippet = const Value.absent(),
     required DateTime createdAt,
@@ -3150,6 +3254,8 @@ class BookmarksTableCompanion extends UpdateCompanion<BookmarksTableData> {
     Expression<String>? bookId,
     Expression<int>? globalWordIndex,
     Expression<int>? chapterIndex,
+    Expression<int>? endGlobalWordIndex,
+    Expression<int>? endChapterIndex,
     Expression<String>? label,
     Expression<String>? contextSnippet,
     Expression<DateTime>? createdAt,
@@ -3162,6 +3268,9 @@ class BookmarksTableCompanion extends UpdateCompanion<BookmarksTableData> {
       if (bookId != null) 'book_id': bookId,
       if (globalWordIndex != null) 'global_word_index': globalWordIndex,
       if (chapterIndex != null) 'chapter_index': chapterIndex,
+      if (endGlobalWordIndex != null)
+        'end_global_word_index': endGlobalWordIndex,
+      if (endChapterIndex != null) 'end_chapter_index': endChapterIndex,
       if (label != null) 'label': label,
       if (contextSnippet != null) 'context_snippet': contextSnippet,
       if (createdAt != null) 'created_at': createdAt,
@@ -3176,6 +3285,8 @@ class BookmarksTableCompanion extends UpdateCompanion<BookmarksTableData> {
     Value<String>? bookId,
     Value<int>? globalWordIndex,
     Value<int>? chapterIndex,
+    Value<int?>? endGlobalWordIndex,
+    Value<int?>? endChapterIndex,
     Value<String?>? label,
     Value<String?>? contextSnippet,
     Value<DateTime>? createdAt,
@@ -3188,6 +3299,8 @@ class BookmarksTableCompanion extends UpdateCompanion<BookmarksTableData> {
       bookId: bookId ?? this.bookId,
       globalWordIndex: globalWordIndex ?? this.globalWordIndex,
       chapterIndex: chapterIndex ?? this.chapterIndex,
+      endGlobalWordIndex: endGlobalWordIndex ?? this.endGlobalWordIndex,
+      endChapterIndex: endChapterIndex ?? this.endChapterIndex,
       label: label ?? this.label,
       contextSnippet: contextSnippet ?? this.contextSnippet,
       createdAt: createdAt ?? this.createdAt,
@@ -3211,6 +3324,12 @@ class BookmarksTableCompanion extends UpdateCompanion<BookmarksTableData> {
     }
     if (chapterIndex.present) {
       map['chapter_index'] = Variable<int>(chapterIndex.value);
+    }
+    if (endGlobalWordIndex.present) {
+      map['end_global_word_index'] = Variable<int>(endGlobalWordIndex.value);
+    }
+    if (endChapterIndex.present) {
+      map['end_chapter_index'] = Variable<int>(endChapterIndex.value);
     }
     if (label.present) {
       map['label'] = Variable<String>(label.value);
@@ -3240,6 +3359,8 @@ class BookmarksTableCompanion extends UpdateCompanion<BookmarksTableData> {
           ..write('bookId: $bookId, ')
           ..write('globalWordIndex: $globalWordIndex, ')
           ..write('chapterIndex: $chapterIndex, ')
+          ..write('endGlobalWordIndex: $endGlobalWordIndex, ')
+          ..write('endChapterIndex: $endChapterIndex, ')
           ..write('label: $label, ')
           ..write('contextSnippet: $contextSnippet, ')
           ..write('createdAt: $createdAt, ')
@@ -5159,6 +5280,8 @@ typedef $$BookmarksTableTableCreateCompanionBuilder =
       required String bookId,
       required int globalWordIndex,
       Value<int> chapterIndex,
+      Value<int?> endGlobalWordIndex,
+      Value<int?> endChapterIndex,
       Value<String?> label,
       Value<String?> contextSnippet,
       required DateTime createdAt,
@@ -5172,6 +5295,8 @@ typedef $$BookmarksTableTableUpdateCompanionBuilder =
       Value<String> bookId,
       Value<int> globalWordIndex,
       Value<int> chapterIndex,
+      Value<int?> endGlobalWordIndex,
+      Value<int?> endChapterIndex,
       Value<String?> label,
       Value<String?> contextSnippet,
       Value<DateTime> createdAt,
@@ -5206,6 +5331,16 @@ class $$BookmarksTableTableFilterComposer
 
   ColumnFilters<int> get chapterIndex => $composableBuilder(
     column: $table.chapterIndex,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get endGlobalWordIndex => $composableBuilder(
+    column: $table.endGlobalWordIndex,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get endChapterIndex => $composableBuilder(
+    column: $table.endChapterIndex,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -5264,6 +5399,16 @@ class $$BookmarksTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get endGlobalWordIndex => $composableBuilder(
+    column: $table.endGlobalWordIndex,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get endChapterIndex => $composableBuilder(
+    column: $table.endChapterIndex,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get label => $composableBuilder(
     column: $table.label,
     builder: (column) => ColumnOrderings(column),
@@ -5312,6 +5457,16 @@ class $$BookmarksTableTableAnnotationComposer
 
   GeneratedColumn<int> get chapterIndex => $composableBuilder(
     column: $table.chapterIndex,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get endGlobalWordIndex => $composableBuilder(
+    column: $table.endGlobalWordIndex,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get endChapterIndex => $composableBuilder(
+    column: $table.endChapterIndex,
     builder: (column) => column,
   );
 
@@ -5374,6 +5529,8 @@ class $$BookmarksTableTableTableManager
                 Value<String> bookId = const Value.absent(),
                 Value<int> globalWordIndex = const Value.absent(),
                 Value<int> chapterIndex = const Value.absent(),
+                Value<int?> endGlobalWordIndex = const Value.absent(),
+                Value<int?> endChapterIndex = const Value.absent(),
                 Value<String?> label = const Value.absent(),
                 Value<String?> contextSnippet = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
@@ -5385,6 +5542,8 @@ class $$BookmarksTableTableTableManager
                 bookId: bookId,
                 globalWordIndex: globalWordIndex,
                 chapterIndex: chapterIndex,
+                endGlobalWordIndex: endGlobalWordIndex,
+                endChapterIndex: endChapterIndex,
                 label: label,
                 contextSnippet: contextSnippet,
                 createdAt: createdAt,
@@ -5398,6 +5557,8 @@ class $$BookmarksTableTableTableManager
                 required String bookId,
                 required int globalWordIndex,
                 Value<int> chapterIndex = const Value.absent(),
+                Value<int?> endGlobalWordIndex = const Value.absent(),
+                Value<int?> endChapterIndex = const Value.absent(),
                 Value<String?> label = const Value.absent(),
                 Value<String?> contextSnippet = const Value.absent(),
                 required DateTime createdAt,
@@ -5409,6 +5570,8 @@ class $$BookmarksTableTableTableManager
                 bookId: bookId,
                 globalWordIndex: globalWordIndex,
                 chapterIndex: chapterIndex,
+                endGlobalWordIndex: endGlobalWordIndex,
+                endChapterIndex: endChapterIndex,
                 label: label,
                 contextSnippet: contextSnippet,
                 createdAt: createdAt,

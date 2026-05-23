@@ -32,6 +32,17 @@ class BookmarksTable extends Table {
   /// `_globalToLocal`, and only the displayed chapter number drifts.
   IntColumn get chapterIndex => integer().withDefault(const Constant(0))();
 
+  /// Last word of a multi-word selection (inclusive). Null for the common
+  /// single-word case. When set, the UI can render the selected range
+  /// verbatim and the seek path still uses [globalWordIndex] (the start)
+  /// — the end is informational + used to rebuild the snippet on devices
+  /// that import the book later.
+  IntColumn get endGlobalWordIndex => integer().nullable()();
+
+  /// Chapter of the [endGlobalWordIndex] anchor. Null for single-word
+  /// bookmarks; useful for ranges that cross a chapter boundary.
+  IntColumn get endChapterIndex => integer().nullable()();
+
   /// Optional user-supplied note shown as the primary label in the list.
   /// When null, the UI falls back to [contextSnippet].
   TextColumn get label => text().nullable()();

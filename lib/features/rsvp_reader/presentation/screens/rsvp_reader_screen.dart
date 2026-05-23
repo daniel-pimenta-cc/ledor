@@ -207,8 +207,8 @@ class _RsvpReaderScreenState extends ConsumerState<RsvpReaderScreen>
   }
 
   Widget _buildModeArea(RsvpState state, RsvpEngineNotifier engine) {
-    void onLongPress(WordToken token) =>
-        _onBookmarkLongPress(state, engine, token);
+    void onRange(WordToken first, WordToken last) =>
+        _onBookmarkRange(state, engine, first, last);
     switch (state.mode) {
       case ReaderMode.rsvp:
         return _buildRsvpArea(state, engine);
@@ -216,14 +216,14 @@ class _RsvpReaderScreenState extends ConsumerState<RsvpReaderScreen>
         return ContextScrollView(
           key: const ValueKey('scroll'),
           bookId: widget.bookId,
-          onWordLongPress: onLongPress,
+          onBookmarkRange: onRange,
         );
       case ReaderMode.ereader:
         return ContextScrollView(
           key: const ValueKey('ereader'),
           bookId: widget.bookId,
           showHighlight: false,
-          onWordLongPress: onLongPress,
+          onBookmarkRange: onRange,
         );
       case ReaderMode.tts:
         // TTS uses the same scroll-with-highlight surface as ReaderMode.scroll.
@@ -231,7 +231,7 @@ class _RsvpReaderScreenState extends ConsumerState<RsvpReaderScreen>
         return ContextScrollView(
           key: const ValueKey('tts'),
           bookId: widget.bookId,
-          onWordLongPress: onLongPress,
+          onBookmarkRange: onRange,
         );
     }
   }
@@ -257,7 +257,7 @@ class _RsvpReaderScreenState extends ConsumerState<RsvpReaderScreen>
       onLongPress: () {
         final word = state.currentWord;
         if (word == null || word.isImage) return;
-        _onBookmarkLongPress(state, engine, word);
+        _onBookmarkRange(state, engine, word, word);
       },
       onHorizontalDragEnd: (details) {
         if (details.primaryVelocity == null) return;
@@ -325,28 +325,41 @@ class _RsvpReaderScreenState extends ConsumerState<RsvpReaderScreen>
     );
   }
 
-  /// Called when the user long-presses a word in any reader mode. Pauses
-  /// playback (so the bookmark anchors to the word the user actually
-  /// targeted, not whatever advanced under the press) and opens the
-  /// create dialog.
-  Future<void> _onBookmarkLongPress(
+  /// Called when the user confirms a bookmark — either through the OS
+  /// text-selection toolbar (range / single word in scroll/ereader/TTS)
+  /// or via a direct long-press on the focused word in RSVP mode (single
+  /// word, [first] == [last]).
+  ///
+  /// Pauses playback so the bookmark anchors to the word the user
+  /// actually targeted, builds a snippet from the surrounding context,
+  /// and persists it via [BookmarksController].
+  Future<void> _onBookmarkRange(
     RsvpState state,
     RsvpEngineNotifier engine,
-    WordToken token,
+    WordToken first,
+    WordToken last,
   ) async {
     if (state.isPlaying) engine.pause();
 
-    final chapterIdx = token.chapterIndex;
+    final chapterIdx = first.chapterIndex;
     String? snippet;
     if (chapterIdx >= 0 && chapterIdx < state.chapters.length) {
       final chapter = state.chapters[chapterIdx];
-      final localIdx = chapter.tokens
-          .indexWhere((t) => t.globalIndex == token.globalIndex);
-      if (localIdx >= 0) {
-        snippet = buildBookmarkSnippet(
-          tokens: chapter.tokens,
-          targetLocalIndex: localIdx,
-        );
+      final firstLocal = chapter.tokens
+          .indexWhere((t) => t.globalIndex == first.globalIndex);
+      final lastLocal = chapter.tokens
+          .indexWhere((t) => t.globalIndex == last.globalIndex);
+      if (firstLocal >= 0) {
+        snippet = lastLocal > firstLocal
+            ? buildBookmarkRangeSnippet(
+                tokens: chapter.tokens,
+                firstLocalIndex: firstLocal,
+                lastLocalIndex: lastLocal,
+              )
+            : buildBookmarkSnippet(
+                tokens: chapter.tokens,
+                targetLocalIndex: firstLocal,
+              );
       }
     }
 
@@ -357,9 +370,12 @@ class _RsvpReaderScreenState extends ConsumerState<RsvpReaderScreen>
     if (result == null) return;
     if (!mounted) return;
 
+    final isRange = last.globalIndex != first.globalIndex;
     await ref.read(bookmarksControllerProvider(widget.bookId)).create(
-          globalWordIndex: token.globalIndex,
+          globalWordIndex: first.globalIndex,
           chapterIndex: chapterIdx,
+          endGlobalWordIndex: isRange ? last.globalIndex : null,
+          endChapterIndex: isRange ? last.chapterIndex : null,
           label: result.label,
           contextSnippet: snippet,
         );
