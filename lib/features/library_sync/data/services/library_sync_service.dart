@@ -8,6 +8,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../database/app_database.dart';
+import '../../../../database/daos/bookmarks_dao.dart';
 import '../../../../database/daos/books_dao.dart';
 import '../../../../database/daos/cached_tokens_dao.dart';
 import '../../../../database/daos/reading_progress_dao.dart';
@@ -31,6 +32,7 @@ const _kLegacyLibraryFile = 'library.json';
 const _kBooksShardFile = 'library/books.json';
 const _kSettingsShardFile = 'library/settings.json';
 const _kSessionsShardFile = 'library/sessions.json';
+const _kBookmarksShardFile = 'library/bookmarks.json';
 
 const _kBooksDir = 'books';
 
@@ -146,6 +148,7 @@ class LibrarySyncService {
   final ReadingSessionDao _sessionDao;
   final CachedTokensDao _tokensDao;
   final SyncImportFailuresDao _failuresDao;
+  final BookmarksDao _bookmarksDao;
   final EpubExtractionService _extractionService;
 
   LibrarySyncService({
@@ -155,6 +158,7 @@ class LibrarySyncService {
     required ReadingSessionDao sessionDao,
     required CachedTokensDao tokensDao,
     required SyncImportFailuresDao failuresDao,
+    required BookmarksDao bookmarksDao,
     required EpubExtractionService extractionService,
   })  : _gateway = gateway,
         _booksDao = booksDao,
@@ -162,6 +166,7 @@ class LibrarySyncService {
         _sessionDao = sessionDao,
         _tokensDao = tokensDao,
         _failuresDao = failuresDao,
+        _bookmarksDao = bookmarksDao,
         _extractionService = extractionService;
 
   /// Pull remote → merge with local → push merged back.
@@ -185,6 +190,7 @@ class LibrarySyncService {
     final booksShardF = _gateway.readText(folder, _kBooksShardFile);
     final settingsShardF = _gateway.readText(folder, _kSettingsShardFile);
     final sessionsShardF = _gateway.readText(folder, _kSessionsShardFile);
+    final bookmarksShardF = _gateway.readText(folder, _kBookmarksShardFile);
     final listBooksF = config.syncEpubs
         ? _gateway.listFiles(folder, _kBooksDir).catchError(
               (_) => <String>[],
@@ -203,6 +209,7 @@ class LibrarySyncService {
       booksShardF: booksShardF,
       settingsShardF: settingsShardF,
       sessionsShardF: sessionsShardF,
+      bookmarksShardF: bookmarksShardF,
       legacyManifestF: legacyManifestF,
       deviceId: config.deviceId,
     );
@@ -242,6 +249,8 @@ class LibrarySyncService {
         mergeSettingsShard(local.settings, remoteShards.settings, config.deviceId);
     final mergedSessions =
         mergeSessionsShard(local.sessions, remoteShards.sessions, config.deviceId);
+    final mergedBookmarks =
+        mergeBookmarksShard(local.bookmarks, remoteShards.bookmarks, config.deviceId);
 
     // 6. Apply remote → local where remote won.
     await _applyShardsToLocal(
@@ -249,6 +258,7 @@ class LibrarySyncService {
         books: mergedBooks,
         settings: mergedSettings,
         sessions: mergedSessions,
+        bookmarks: mergedBookmarks,
       ),
       localBefore: local,
       config: config,
@@ -275,6 +285,10 @@ class LibrarySyncService {
       pushes.add(_gateway.writeText(
           folder, _kSessionsShardFile, mergedSessions.encode()));
     }
+    if (!_bookmarksShardEquals(mergedBookmarks, remoteShards.bookmarks)) {
+      pushes.add(_gateway.writeText(
+          folder, _kBookmarksShardFile, mergedBookmarks.encode()));
+    }
     await Future.wait(pushes);
 
     // 8. Upload any local EPUBs the folder is missing (when EPUB sync on).
@@ -296,18 +310,21 @@ class LibrarySyncService {
     required Future<String?> booksShardF,
     required Future<String?> settingsShardF,
     required Future<String?> sessionsShardF,
+    required Future<String?> bookmarksShardF,
     required Future<String?> legacyManifestF,
     required String deviceId,
   }) async {
     final booksRaw = await booksShardF;
     final settingsRaw = await settingsShardF;
     final sessionsRaw = await sessionsShardF;
+    final bookmarksRaw = await bookmarksShardF;
     final legacyRaw = await legacyManifestF;
     final legacyPresent = legacyRaw != null && legacyRaw.trim().isNotEmpty;
 
     final anyShardPresent = (booksRaw != null && booksRaw.trim().isNotEmpty) ||
         (settingsRaw != null && settingsRaw.trim().isNotEmpty) ||
-        (sessionsRaw != null && sessionsRaw.trim().isNotEmpty);
+        (sessionsRaw != null && sessionsRaw.trim().isNotEmpty) ||
+        (bookmarksRaw != null && bookmarksRaw.trim().isNotEmpty);
 
     if (!anyShardPresent && legacyPresent) {
       final legacy = SyncLibrary.decode(legacyRaw);
@@ -323,6 +340,7 @@ class LibrarySyncService {
           settings: legacy.settings,
         ),
         sessions: SyncSessionsShard.empty(deviceId),
+        bookmarks: SyncBookmarksShard.empty(deviceId),
         legacyPresent: true,
       );
     }
@@ -337,6 +355,9 @@ class LibrarySyncService {
       sessions: sessionsRaw == null || sessionsRaw.trim().isEmpty
           ? SyncSessionsShard.empty(deviceId)
           : SyncSessionsShard.decode(sessionsRaw),
+      bookmarks: bookmarksRaw == null || bookmarksRaw.trim().isEmpty
+          ? SyncBookmarksShard.empty(deviceId)
+          : SyncBookmarksShard.decode(bookmarksRaw),
       legacyPresent: legacyPresent,
     );
   }
@@ -419,6 +440,24 @@ class LibrarySyncService {
             ))
         .toList();
 
+    // Bookmarks ship every row including tombstones — peers need the
+    // `deletedAt` to converge on deletes. The DAO's getAllIncludingTombstones
+    // is named accordingly.
+    final localBookmarks = await _bookmarksDao.getAllIncludingTombstones();
+    final bookmarkRows = localBookmarks
+        .map((b) => SyncLibraryBookmark(
+              id: b.id,
+              bookId: b.bookId,
+              globalWordIndex: b.globalWordIndex,
+              chapterIndex: b.chapterIndex,
+              label: b.label,
+              contextSnippet: b.contextSnippet,
+              createdAt: b.createdAt,
+              updatedAt: b.updatedAt,
+              deletedAt: b.deletedAt,
+            ))
+        .toList();
+
     final now = DateTime.now().toUtc();
     return _LocalShards(
       books: SyncBooksShard(
@@ -438,6 +477,11 @@ class LibrarySyncService {
         updatedAt: now,
         updatedBy: config.deviceId,
         sessions: sessionRows,
+      ),
+      bookmarks: SyncBookmarksShard(
+        updatedAt: now,
+        updatedBy: config.deviceId,
+        bookmarks: bookmarkRows,
       ),
     );
   }
@@ -570,6 +614,54 @@ class LibrarySyncService {
       debugPrint('[sync] imported $newSessions remote session(s)');
     }
 
+    // Bookmarks: LWW by updatedAt. We compare against the local
+    // `getAllIncludingTombstones()` snapshot so a remote update bumping the
+    // label or flipping deletedAt is applied verbatim.
+    final localBookmarksById = {
+      for (final bm in localBefore.bookmarks.bookmarks) bm.id: bm,
+    };
+    for (final remote in merged.bookmarks.bookmarks) {
+      try {
+        final local = localBookmarksById[remote.id];
+        if (local == null) {
+          // First time we see this bookmark. Skip tombstone-only rows the
+          // local DB never knew about — the remote already carries the
+          // tombstone, so other peers don't need us to round-trip it.
+          if (remote.deletedAt != null) continue;
+          await _bookmarksDao.applyFromSync(BookmarksTableCompanion.insert(
+            id: remote.id,
+            bookId: remote.bookId,
+            globalWordIndex: remote.globalWordIndex,
+            chapterIndex: Value(remote.chapterIndex),
+            label: Value(remote.label),
+            contextSnippet: Value(remote.contextSnippet),
+            createdAt: remote.createdAt,
+            updatedAt: remote.updatedAt,
+            deletedAt: Value(remote.deletedAt),
+          ));
+          continue;
+        }
+        // Use isAtSameMomentAs to compare timestamps across UTC/local
+        // boundaries (Drift writes local-TZ, JSON parses to UTC).
+        if (remote.updatedAt.isAtSameMomentAs(local.updatedAt)) continue;
+        if (remote.updatedAt.isAfter(local.updatedAt)) {
+          await _bookmarksDao.applyFromSync(BookmarksTableCompanion(
+            id: Value(remote.id),
+            bookId: Value(remote.bookId),
+            globalWordIndex: Value(remote.globalWordIndex),
+            chapterIndex: Value(remote.chapterIndex),
+            label: Value(remote.label),
+            contextSnippet: Value(remote.contextSnippet),
+            createdAt: Value(remote.createdAt),
+            updatedAt: Value(remote.updatedAt),
+            deletedAt: Value(remote.deletedAt),
+          ));
+        }
+      } catch (e, st) {
+        debugPrint('Failed to apply remote bookmark "${remote.id}": $e\n$st');
+      }
+    }
+
     // Settings: only apply when remote wins (its updatedAt > local's).
     // Isolated in its own try/catch so a prefs write failure doesn't bail
     // out of the sync before we write the merged manifest back to the
@@ -592,6 +684,11 @@ class LibrarySyncService {
   Future<void> _deleteBookLocally(String bookId) async {
     await _tokensDao.deleteTokensForBook(bookId);
     await _progressDao.deleteProgressForBook(bookId);
+    // Bookmarks of a removed book are dropped outright (no per-row
+    // tombstone needed): the parent book tombstone already propagates the
+    // deletion intent and every peer's _applyShardsToLocal will cascade
+    // here the same way.
+    await _bookmarksDao.deleteAllForBook(bookId);
     final book = await _booksDao.getBookById(bookId);
     if (book != null) {
       final f = File(book.filePath);
@@ -880,6 +977,19 @@ class LibrarySyncService {
     return true;
   }
 
+  bool _bookmarksShardEquals(SyncBookmarksShard a, SyncBookmarksShard b) {
+    if (a.bookmarks.length != b.bookmarks.length) return false;
+    final aBookmarks = [...a.bookmarks]..sort((x, y) => x.id.compareTo(y.id));
+    final bBookmarks = [...b.bookmarks]..sort((x, y) => x.id.compareTo(y.id));
+    for (int i = 0; i < aBookmarks.length; i++) {
+      if (jsonEncode(aBookmarks[i].toJson()) !=
+          jsonEncode(bBookmarks[i].toJson())) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   /// Write a tombstone to the books shard for [bookId] so other devices
   /// drop it on their next sync. Called from the delete path.
   Future<void> pushTombstone({
@@ -944,6 +1054,7 @@ class _RemoteShards {
   final SyncBooksShard books;
   final SyncSettingsShard settings;
   final SyncSessionsShard sessions;
+  final SyncBookmarksShard bookmarks;
 
   /// True when `library.json` is still present remotely (and was migrated
   /// into [books]/[settings]). The sync flow deletes the legacy file on
@@ -954,6 +1065,7 @@ class _RemoteShards {
     required this.books,
     required this.settings,
     required this.sessions,
+    required this.bookmarks,
     required this.legacyPresent,
   });
 }
@@ -963,11 +1075,13 @@ class _LocalShards {
   final SyncBooksShard books;
   final SyncSettingsShard settings;
   final SyncSessionsShard sessions;
+  final SyncBookmarksShard bookmarks;
 
   const _LocalShards({
     required this.books,
     required this.settings,
     required this.sessions,
+    required this.bookmarks,
   });
 }
 
@@ -976,10 +1090,12 @@ class _MergedShards {
   final SyncBooksShard books;
   final SyncSettingsShard settings;
   final SyncSessionsShard sessions;
+  final SyncBookmarksShard bookmarks;
 
   const _MergedShards({
     required this.books,
     required this.settings,
     required this.sessions,
+    required this.bookmarks,
   });
 }

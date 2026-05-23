@@ -605,3 +605,134 @@ SyncSessionsShard mergeSessionsShard(
     sessions: byId.values.toList()..sort((x, y) => x.id.compareTo(y.id)),
   );
 }
+
+/// Per-row bookmark record. LWW by [updatedAt]; [deletedAt] carries
+/// tombstone semantics so deletes converge across devices.
+class SyncLibraryBookmark {
+  final String id;
+  final String bookId;
+  final int globalWordIndex;
+  final int chapterIndex;
+  final String? label;
+  final String? contextSnippet;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final DateTime? deletedAt;
+
+  const SyncLibraryBookmark({
+    required this.id,
+    required this.bookId,
+    required this.globalWordIndex,
+    required this.chapterIndex,
+    this.label,
+    this.contextSnippet,
+    required this.createdAt,
+    required this.updatedAt,
+    this.deletedAt,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'bookId': bookId,
+        'globalWordIndex': globalWordIndex,
+        'chapterIndex': chapterIndex,
+        'label': label,
+        'contextSnippet': contextSnippet,
+        'createdAt': createdAt.toUtc().toIso8601String(),
+        'updatedAt': updatedAt.toUtc().toIso8601String(),
+        'deletedAt': deletedAt?.toUtc().toIso8601String(),
+      };
+
+  factory SyncLibraryBookmark.fromJson(Map<String, dynamic> json) =>
+      SyncLibraryBookmark(
+        id: json['id'] as String,
+        bookId: json['bookId'] as String,
+        globalWordIndex: (json['globalWordIndex'] as num).toInt(),
+        chapterIndex: (json['chapterIndex'] as num?)?.toInt() ?? 0,
+        label: json['label'] as String?,
+        contextSnippet: json['contextSnippet'] as String?,
+        createdAt: DateTime.parse(json['createdAt'] as String),
+        updatedAt: DateTime.parse(json['updatedAt'] as String),
+        deletedAt: json['deletedAt'] == null
+            ? null
+            : DateTime.parse(json['deletedAt'] as String),
+      );
+}
+
+/// Bookmarks shard: `library/bookmarks.json`. Same envelope as the other
+/// shards. Kept in its own file so creating / deleting a bookmark doesn't
+/// drag books or sessions data over the wire.
+class SyncBookmarksShard {
+  final int schemaVersion;
+  final DateTime updatedAt;
+  final String updatedBy;
+  final List<SyncLibraryBookmark> bookmarks;
+
+  const SyncBookmarksShard({
+    this.schemaVersion = syncShardSchemaVersion,
+    required this.updatedAt,
+    required this.updatedBy,
+    required this.bookmarks,
+  });
+
+  factory SyncBookmarksShard.empty(String deviceId) => SyncBookmarksShard(
+        updatedAt: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+        updatedBy: deviceId,
+        bookmarks: const [],
+      );
+
+  Map<String, dynamic> toJson() => {
+        'schemaVersion': schemaVersion,
+        'updatedAt': updatedAt.toUtc().toIso8601String(),
+        'updatedBy': updatedBy,
+        'bookmarks': bookmarks.map((b) => b.toJson()).toList(),
+      };
+
+  factory SyncBookmarksShard.fromJson(Map<String, dynamic> json) =>
+      SyncBookmarksShard(
+        schemaVersion:
+            json['schemaVersion'] as int? ?? syncShardSchemaVersion,
+        updatedAt: DateTime.parse(json['updatedAt'] as String),
+        updatedBy: json['updatedBy'] as String? ?? '',
+        bookmarks: (json['bookmarks'] as List? ?? const [])
+            .map((b) =>
+                SyncLibraryBookmark.fromJson(b as Map<String, dynamic>))
+            .toList(),
+      );
+
+  String encode() => const JsonEncoder.withIndent('  ').convert(toJson());
+
+  factory SyncBookmarksShard.decode(String raw) =>
+      SyncBookmarksShard.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+}
+
+/// LWW per bookmark id, by [updatedAt]. A tombstone (non-null [deletedAt])
+/// follows the same comparison — whichever side has the latest update
+/// wins, including its [deletedAt].
+SyncLibraryBookmark mergeBookmark(
+  SyncLibraryBookmark a,
+  SyncLibraryBookmark b,
+) {
+  assert(a.id == b.id);
+  return a.updatedAt.isAfter(b.updatedAt) ? a : b;
+}
+
+SyncBookmarksShard mergeBookmarksShard(
+  SyncBookmarksShard a,
+  SyncBookmarksShard b,
+  String deviceId,
+) {
+  final byId = <String, SyncLibraryBookmark>{};
+  for (final bm in a.bookmarks) {
+    byId[bm.id] = bm;
+  }
+  for (final bm in b.bookmarks) {
+    final existing = byId[bm.id];
+    byId[bm.id] = existing == null ? bm : mergeBookmark(existing, bm);
+  }
+  return SyncBookmarksShard(
+    updatedAt: _later(a.updatedAt, b.updatedAt),
+    updatedBy: deviceId,
+    bookmarks: byId.values.toList()..sort((x, y) => x.id.compareTo(y.id)),
+  );
+}
