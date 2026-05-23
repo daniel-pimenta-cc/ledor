@@ -94,9 +94,6 @@ class AppLocalizationsPt extends AppLocalizations {
   }
 
   @override
-  String get settingsDisplay => 'Exibição';
-
-  @override
   String get settingsFontSize => 'Tamanho da Fonte';
 
   @override
@@ -125,9 +122,6 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get settingsFont => 'Fonte';
-
-  @override
-  String get settingsReading => 'Leitura';
 
   @override
   String get settingsDefaultSpeed => 'Velocidade Padrão';
@@ -595,19 +589,10 @@ class AppLocalizationsPt extends AppLocalizations {
   String get imageMissing => 'Imagem indisponível';
 
   @override
-  String get settingsTtsSection => 'Narração';
-
-  @override
   String get settingsTtsVoice => 'Voz';
 
   @override
   String get settingsTtsVoiceDesc => 'Escolha a voz usada no modo TTS';
-
-  @override
-  String get settingsTtsLanguage => 'Idioma';
-
-  @override
-  String get settingsTtsLanguageDesc => 'Idioma falado pela narração';
 
   @override
   String get settingsTtsPitch => 'Tom';

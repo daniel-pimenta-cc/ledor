@@ -242,12 +242,6 @@ abstract class AppLocalizations {
   /// **'~{minutes} min'**
   String minutesRemaining(int minutes);
 
-  /// No description provided for @settingsDisplay.
-  ///
-  /// In en, this message translates to:
-  /// **'Display'**
-  String get settingsDisplay;
-
   /// No description provided for @settingsFontSize.
   ///
   /// In en, this message translates to:
@@ -307,12 +301,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Font'**
   String get settingsFont;
-
-  /// No description provided for @settingsReading.
-  ///
-  /// In en, this message translates to:
-  /// **'Reading'**
-  String get settingsReading;
 
   /// No description provided for @settingsDefaultSpeed.
   ///
@@ -1094,12 +1082,6 @@ abstract class AppLocalizations {
   /// **'Image unavailable'**
   String get imageMissing;
 
-  /// No description provided for @settingsTtsSection.
-  ///
-  /// In en, this message translates to:
-  /// **'Text-to-speech'**
-  String get settingsTtsSection;
-
   /// No description provided for @settingsTtsVoice.
   ///
   /// In en, this message translates to:
@@ -1111,18 +1093,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Pick the synthesis voice used in TTS mode'**
   String get settingsTtsVoiceDesc;
-
-  /// No description provided for @settingsTtsLanguage.
-  ///
-  /// In en, this message translates to:
-  /// **'Language'**
-  String get settingsTtsLanguage;
-
-  /// No description provided for @settingsTtsLanguageDesc.
-  ///
-  /// In en, this message translates to:
-  /// **'Locale the TTS engine speaks'**
-  String get settingsTtsLanguageDesc;
 
   /// No description provided for @settingsTtsPitch.
   ///

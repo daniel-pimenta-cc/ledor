@@ -94,9 +94,6 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get settingsDisplay => 'Display';
-
-  @override
   String get settingsFontSize => 'Font Size';
 
   @override
@@ -125,9 +122,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsFont => 'Font';
-
-  @override
-  String get settingsReading => 'Reading';
 
   @override
   String get settingsDefaultSpeed => 'Default Speed';
@@ -596,20 +590,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get imageMissing => 'Image unavailable';
 
   @override
-  String get settingsTtsSection => 'Text-to-speech';
-
-  @override
   String get settingsTtsVoice => 'Voice';
 
   @override
   String get settingsTtsVoiceDesc =>
       'Pick the synthesis voice used in TTS mode';
-
-  @override
-  String get settingsTtsLanguage => 'Language';
-
-  @override
-  String get settingsTtsLanguageDesc => 'Locale the TTS engine speaks';
 
   @override
   String get settingsTtsPitch => 'Pitch';
