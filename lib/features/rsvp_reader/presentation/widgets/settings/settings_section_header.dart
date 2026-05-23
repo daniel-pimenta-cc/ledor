@@ -87,6 +87,8 @@ class SettingsSectionHeader extends StatelessWidget {
         return l10n.settingsScopeReader;
       case SettingsScope.allModes:
         return l10n.settingsScopeAllModes;
+      case SettingsScope.controlsModes:
+        return l10n.settingsScopeControls;
     }
   }
 
@@ -100,6 +102,8 @@ class SettingsSectionHeader extends StatelessWidget {
         return l10n.settingsScopeReaderTooltip;
       case SettingsScope.allModes:
         return l10n.settingsScopeAllModesTooltip;
+      case SettingsScope.controlsModes:
+        return l10n.settingsScopeControlsTooltip;
     }
   }
 }

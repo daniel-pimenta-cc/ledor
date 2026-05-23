@@ -703,6 +703,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsScopeAllModes => 'All modes';
 
   @override
+  String get settingsScopeControls => 'RSVP & Audio';
+
+  @override
   String get settingsScopeRsvpTooltip => 'Applies to RSVP mode only';
 
   @override
@@ -710,8 +713,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsScopeReaderTooltip =>
-      'Applies to scroll, e-reader, and audio modes';
+      'Applies to RSVP, e-reader, and audio modes';
 
   @override
   String get settingsScopeAllModesTooltip => 'Applies to all reading modes';
+
+  @override
+  String get settingsScopeControlsTooltip =>
+      'Applies wherever the playback controls are visible (not e-reader)';
 }

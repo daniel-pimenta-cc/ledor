@@ -1286,6 +1286,12 @@ abstract class AppLocalizations {
   /// **'All modes'**
   String get settingsScopeAllModes;
 
+  /// No description provided for @settingsScopeControls.
+  ///
+  /// In en, this message translates to:
+  /// **'RSVP & Audio'**
+  String get settingsScopeControls;
+
   /// No description provided for @settingsScopeRsvpTooltip.
   ///
   /// In en, this message translates to:
@@ -1301,7 +1307,7 @@ abstract class AppLocalizations {
   /// No description provided for @settingsScopeReaderTooltip.
   ///
   /// In en, this message translates to:
-  /// **'Applies to scroll, e-reader, and audio modes'**
+  /// **'Applies to RSVP, e-reader, and audio modes'**
   String get settingsScopeReaderTooltip;
 
   /// No description provided for @settingsScopeAllModesTooltip.
@@ -1309,6 +1315,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Applies to all reading modes'**
   String get settingsScopeAllModesTooltip;
+
+  /// No description provided for @settingsScopeControlsTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Applies wherever the playback controls are visible (not e-reader)'**
+  String get settingsScopeControlsTooltip;
 }
 
 class _AppLocalizationsDelegate

@@ -49,6 +49,13 @@ enum SettingsScope {
 
   /// Affects everything (RSVP word and the flowing-text modes).
   allModes,
+
+  /// Modes that host the [RsvpControls] transport dock — RSVP, scroll, and
+  /// TTS. E-reader intentionally hides the dock (a "naked" reading mode),
+  /// so the settings that only live inside the dock (progress slider,
+  /// time-remaining badge) are inert there even though they're technically
+  /// available to edit.
+  controlsModes,
 }
 
 extension SettingsCategoryScope on SettingsCategory {
@@ -62,8 +69,9 @@ extension SettingsCategoryScope on SettingsCategory {
       case SettingsCategory.readerView:
         return SettingsScope.readerModes;
       case SettingsCategory.typography:
-      case SettingsCategory.chrome:
         return SettingsScope.allModes;
+      case SettingsCategory.chrome:
+        return SettingsScope.controlsModes;
     }
   }
 }
@@ -128,16 +136,27 @@ List<SettingsCategory> orderedCategoriesFor(ReaderMode? mode) {
 /// neutral style — there is no "active mode" to highlight.
 bool isCategoryActiveFor(SettingsCategory category, ReaderMode? mode) {
   if (mode == null) return false;
+  // RSVP and scroll are the same user-facing mode (scroll == "RSVP paused"),
+  // so collapse them before checking scope membership. Without this, pausing
+  // RSVP playback would un-highlight `rsvpDisplay`'s chip — a misleading
+  // signal to the user.
+  final effective = mode == ReaderMode.scroll ? ReaderMode.rsvp : mode;
   switch (category.scope) {
     case SettingsScope.rsvpOnly:
-      return mode == ReaderMode.rsvp || mode == ReaderMode.scroll;
+      return effective == ReaderMode.rsvp;
     case SettingsScope.audioOnly:
-      return mode == ReaderMode.tts;
+      return effective == ReaderMode.tts;
     case SettingsScope.readerModes:
-      return mode == ReaderMode.scroll ||
-          mode == ReaderMode.ereader ||
-          mode == ReaderMode.tts;
+      // contextFontSize + highlightColor render in the context-scroll view,
+      // which the RSVP mode also surfaces when paused — so include RSVP.
+      return effective == ReaderMode.rsvp ||
+          effective == ReaderMode.ereader ||
+          effective == ReaderMode.tts;
     case SettingsScope.allModes:
       return true;
+    case SettingsScope.controlsModes:
+      // E-reader hides the controls dock entirely, so chrome settings have
+      // no visible effect there even though they're set in the panel.
+      return effective != ReaderMode.ereader;
   }
 }

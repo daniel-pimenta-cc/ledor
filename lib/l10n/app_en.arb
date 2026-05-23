@@ -338,8 +338,10 @@
   "settingsScopeAudio": "Audio",
   "settingsScopeReader": "Reader",
   "settingsScopeAllModes": "All modes",
+  "settingsScopeControls": "RSVP & Audio",
   "settingsScopeRsvpTooltip": "Applies to RSVP mode only",
   "settingsScopeAudioTooltip": "Applies to audio playback (TTS)",
-  "settingsScopeReaderTooltip": "Applies to scroll, e-reader, and audio modes",
-  "settingsScopeAllModesTooltip": "Applies to all reading modes"
+  "settingsScopeReaderTooltip": "Applies to RSVP, e-reader, and audio modes",
+  "settingsScopeAllModesTooltip": "Applies to all reading modes",
+  "settingsScopeControlsTooltip": "Applies wherever the playback controls are visible (not e-reader)"
 }

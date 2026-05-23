@@ -132,7 +132,7 @@ void main() {
   });
 
   group('DisplaySettingsPanel active chip', () {
-    testWidgets('RSVP mode lights up RSVP + allModes sections', (tester) async {
+    testWidgets('RSVP mode lights up everything except audio', (tester) async {
       await pumpPanel(tester, bookId: 'book-1', mode: ReaderMode.rsvp);
 
       final activeByCategory = <SettingsCategory, bool>{};
@@ -143,9 +143,10 @@ void main() {
 
       expect(activeByCategory[SettingsCategory.speedTiming], isTrue);
       expect(activeByCategory[SettingsCategory.rsvpDisplay], isTrue);
+      expect(activeByCategory[SettingsCategory.readerView], isTrue,
+          reason: 'context-scroll view is reachable from RSVP (pause)');
       expect(activeByCategory[SettingsCategory.typography], isTrue);
       expect(activeByCategory[SettingsCategory.chrome], isTrue);
-      expect(activeByCategory[SettingsCategory.readerView], isFalse);
       expect(activeByCategory[SettingsCategory.audio], isFalse);
     });
 
@@ -167,7 +168,7 @@ void main() {
       expect(activeByCategory[SettingsCategory.rsvpDisplay], isFalse);
     });
 
-    testWidgets('ereader mode only lights up readerView + allModes',
+    testWidgets('ereader mode only lights up readerView + typography',
         (tester) async {
       await pumpPanel(tester, bookId: 'book-1', mode: ReaderMode.ereader);
 
@@ -179,7 +180,9 @@ void main() {
 
       expect(activeByCategory[SettingsCategory.readerView], isTrue);
       expect(activeByCategory[SettingsCategory.typography], isTrue);
-      expect(activeByCategory[SettingsCategory.chrome], isTrue);
+      // chrome is gated to controlsModes; the dock isn't shown in e-reader.
+      expect(activeByCategory[SettingsCategory.chrome], isFalse,
+          reason: 'controls dock is hidden in e-reader');
       expect(activeByCategory[SettingsCategory.audio], isFalse);
       expect(activeByCategory[SettingsCategory.speedTiming], isFalse);
       expect(activeByCategory[SettingsCategory.rsvpDisplay], isFalse);
@@ -200,9 +203,14 @@ void main() {
       expect(tooltipMessages, contains('Applies to audio playback (TTS)'));
       expect(
         tooltipMessages,
-        contains('Applies to scroll, e-reader, and audio modes'),
+        contains('Applies to RSVP, e-reader, and audio modes'),
       );
       expect(tooltipMessages, contains('Applies to all reading modes'));
+      expect(
+        tooltipMessages,
+        contains(
+            'Applies wherever the playback controls are visible (not e-reader)'),
+      );
     });
   });
 }
