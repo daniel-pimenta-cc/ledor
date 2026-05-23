@@ -2654,6 +2654,603 @@ class SyncImportFailuresTableCompanion
   }
 }
 
+class $BookmarksTableTable extends BookmarksTable
+    with TableInfo<$BookmarksTableTable, BookmarksTableData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $BookmarksTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _bookIdMeta = const VerificationMeta('bookId');
+  @override
+  late final GeneratedColumn<String> bookId = GeneratedColumn<String>(
+    'book_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _globalWordIndexMeta = const VerificationMeta(
+    'globalWordIndex',
+  );
+  @override
+  late final GeneratedColumn<int> globalWordIndex = GeneratedColumn<int>(
+    'global_word_index',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _chapterIndexMeta = const VerificationMeta(
+    'chapterIndex',
+  );
+  @override
+  late final GeneratedColumn<int> chapterIndex = GeneratedColumn<int>(
+    'chapter_index',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _labelMeta = const VerificationMeta('label');
+  @override
+  late final GeneratedColumn<String> label = GeneratedColumn<String>(
+    'label',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _contextSnippetMeta = const VerificationMeta(
+    'contextSnippet',
+  );
+  @override
+  late final GeneratedColumn<String> contextSnippet = GeneratedColumn<String>(
+    'context_snippet',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    bookId,
+    globalWordIndex,
+    chapterIndex,
+    label,
+    contextSnippet,
+    createdAt,
+    updatedAt,
+    deletedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'bookmarks_table';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<BookmarksTableData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('book_id')) {
+      context.handle(
+        _bookIdMeta,
+        bookId.isAcceptableOrUnknown(data['book_id']!, _bookIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_bookIdMeta);
+    }
+    if (data.containsKey('global_word_index')) {
+      context.handle(
+        _globalWordIndexMeta,
+        globalWordIndex.isAcceptableOrUnknown(
+          data['global_word_index']!,
+          _globalWordIndexMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_globalWordIndexMeta);
+    }
+    if (data.containsKey('chapter_index')) {
+      context.handle(
+        _chapterIndexMeta,
+        chapterIndex.isAcceptableOrUnknown(
+          data['chapter_index']!,
+          _chapterIndexMeta,
+        ),
+      );
+    }
+    if (data.containsKey('label')) {
+      context.handle(
+        _labelMeta,
+        label.isAcceptableOrUnknown(data['label']!, _labelMeta),
+      );
+    }
+    if (data.containsKey('context_snippet')) {
+      context.handle(
+        _contextSnippetMeta,
+        contextSnippet.isAcceptableOrUnknown(
+          data['context_snippet']!,
+          _contextSnippetMeta,
+        ),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  BookmarksTableData map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return BookmarksTableData(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      bookId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}book_id'],
+      )!,
+      globalWordIndex: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}global_word_index'],
+      )!,
+      chapterIndex: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}chapter_index'],
+      )!,
+      label: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}label'],
+      ),
+      contextSnippet: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}context_snippet'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      ),
+    );
+  }
+
+  @override
+  $BookmarksTableTable createAlias(String alias) {
+    return $BookmarksTableTable(attachedDatabase, alias);
+  }
+}
+
+class BookmarksTableData extends DataClass
+    implements Insertable<BookmarksTableData> {
+  final String id;
+  final String bookId;
+
+  /// Global word index inside the book — what the reader engine actually
+  /// seeks to. We persist it directly (rather than reconstructing from
+  /// chapter+wordIndex) so a bookmark survives even if a re-import shifts
+  /// chapter boundaries. The seek path already clamps to total words.
+  final int globalWordIndex;
+
+  /// Chapter index at creation time — kept so the list can show
+  /// "Ch. N · 42%" without having to re-resolve `globalWordIndex` against
+  /// the current chapter table. Survives re-imports trivially: if the
+  /// chapter shape changed, the seek path normalises through
+  /// `_globalToLocal`, and only the displayed chapter number drifts.
+  final int chapterIndex;
+
+  /// Optional user-supplied note shown as the primary label in the list.
+  /// When null, the UI falls back to [contextSnippet].
+  final String? label;
+
+  /// Few words around the bookmarked word, captured at creation time, so
+  /// the list has a meaningful preview even when [label] is null and the
+  /// book hasn't been loaded into the engine yet (e.g. opening Bookmarks
+  /// from outside the reader, syncing in fresh on a new device).
+  final String? contextSnippet;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  /// Non-null marks the row as a tombstone. Sync ships these to peers so
+  /// deletes converge; the DAO hides them from the reader UI.
+  final DateTime? deletedAt;
+  const BookmarksTableData({
+    required this.id,
+    required this.bookId,
+    required this.globalWordIndex,
+    required this.chapterIndex,
+    this.label,
+    this.contextSnippet,
+    required this.createdAt,
+    required this.updatedAt,
+    this.deletedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['book_id'] = Variable<String>(bookId);
+    map['global_word_index'] = Variable<int>(globalWordIndex);
+    map['chapter_index'] = Variable<int>(chapterIndex);
+    if (!nullToAbsent || label != null) {
+      map['label'] = Variable<String>(label);
+    }
+    if (!nullToAbsent || contextSnippet != null) {
+      map['context_snippet'] = Variable<String>(contextSnippet);
+    }
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt);
+    }
+    return map;
+  }
+
+  BookmarksTableCompanion toCompanion(bool nullToAbsent) {
+    return BookmarksTableCompanion(
+      id: Value(id),
+      bookId: Value(bookId),
+      globalWordIndex: Value(globalWordIndex),
+      chapterIndex: Value(chapterIndex),
+      label: label == null && nullToAbsent
+          ? const Value.absent()
+          : Value(label),
+      contextSnippet: contextSnippet == null && nullToAbsent
+          ? const Value.absent()
+          : Value(contextSnippet),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+    );
+  }
+
+  factory BookmarksTableData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return BookmarksTableData(
+      id: serializer.fromJson<String>(json['id']),
+      bookId: serializer.fromJson<String>(json['bookId']),
+      globalWordIndex: serializer.fromJson<int>(json['globalWordIndex']),
+      chapterIndex: serializer.fromJson<int>(json['chapterIndex']),
+      label: serializer.fromJson<String?>(json['label']),
+      contextSnippet: serializer.fromJson<String?>(json['contextSnippet']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'bookId': serializer.toJson<String>(bookId),
+      'globalWordIndex': serializer.toJson<int>(globalWordIndex),
+      'chapterIndex': serializer.toJson<int>(chapterIndex),
+      'label': serializer.toJson<String?>(label),
+      'contextSnippet': serializer.toJson<String?>(contextSnippet),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
+    };
+  }
+
+  BookmarksTableData copyWith({
+    String? id,
+    String? bookId,
+    int? globalWordIndex,
+    int? chapterIndex,
+    Value<String?> label = const Value.absent(),
+    Value<String?> contextSnippet = const Value.absent(),
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    Value<DateTime?> deletedAt = const Value.absent(),
+  }) => BookmarksTableData(
+    id: id ?? this.id,
+    bookId: bookId ?? this.bookId,
+    globalWordIndex: globalWordIndex ?? this.globalWordIndex,
+    chapterIndex: chapterIndex ?? this.chapterIndex,
+    label: label.present ? label.value : this.label,
+    contextSnippet: contextSnippet.present
+        ? contextSnippet.value
+        : this.contextSnippet,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+  );
+  BookmarksTableData copyWithCompanion(BookmarksTableCompanion data) {
+    return BookmarksTableData(
+      id: data.id.present ? data.id.value : this.id,
+      bookId: data.bookId.present ? data.bookId.value : this.bookId,
+      globalWordIndex: data.globalWordIndex.present
+          ? data.globalWordIndex.value
+          : this.globalWordIndex,
+      chapterIndex: data.chapterIndex.present
+          ? data.chapterIndex.value
+          : this.chapterIndex,
+      label: data.label.present ? data.label.value : this.label,
+      contextSnippet: data.contextSnippet.present
+          ? data.contextSnippet.value
+          : this.contextSnippet,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BookmarksTableData(')
+          ..write('id: $id, ')
+          ..write('bookId: $bookId, ')
+          ..write('globalWordIndex: $globalWordIndex, ')
+          ..write('chapterIndex: $chapterIndex, ')
+          ..write('label: $label, ')
+          ..write('contextSnippet: $contextSnippet, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    bookId,
+    globalWordIndex,
+    chapterIndex,
+    label,
+    contextSnippet,
+    createdAt,
+    updatedAt,
+    deletedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is BookmarksTableData &&
+          other.id == this.id &&
+          other.bookId == this.bookId &&
+          other.globalWordIndex == this.globalWordIndex &&
+          other.chapterIndex == this.chapterIndex &&
+          other.label == this.label &&
+          other.contextSnippet == this.contextSnippet &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.deletedAt == this.deletedAt);
+}
+
+class BookmarksTableCompanion extends UpdateCompanion<BookmarksTableData> {
+  final Value<String> id;
+  final Value<String> bookId;
+  final Value<int> globalWordIndex;
+  final Value<int> chapterIndex;
+  final Value<String?> label;
+  final Value<String?> contextSnippet;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<DateTime?> deletedAt;
+  final Value<int> rowid;
+  const BookmarksTableCompanion({
+    this.id = const Value.absent(),
+    this.bookId = const Value.absent(),
+    this.globalWordIndex = const Value.absent(),
+    this.chapterIndex = const Value.absent(),
+    this.label = const Value.absent(),
+    this.contextSnippet = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  BookmarksTableCompanion.insert({
+    required String id,
+    required String bookId,
+    required int globalWordIndex,
+    this.chapterIndex = const Value.absent(),
+    this.label = const Value.absent(),
+    this.contextSnippet = const Value.absent(),
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       bookId = Value(bookId),
+       globalWordIndex = Value(globalWordIndex),
+       createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt);
+  static Insertable<BookmarksTableData> custom({
+    Expression<String>? id,
+    Expression<String>? bookId,
+    Expression<int>? globalWordIndex,
+    Expression<int>? chapterIndex,
+    Expression<String>? label,
+    Expression<String>? contextSnippet,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<DateTime>? deletedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (bookId != null) 'book_id': bookId,
+      if (globalWordIndex != null) 'global_word_index': globalWordIndex,
+      if (chapterIndex != null) 'chapter_index': chapterIndex,
+      if (label != null) 'label': label,
+      if (contextSnippet != null) 'context_snippet': contextSnippet,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  BookmarksTableCompanion copyWith({
+    Value<String>? id,
+    Value<String>? bookId,
+    Value<int>? globalWordIndex,
+    Value<int>? chapterIndex,
+    Value<String?>? label,
+    Value<String?>? contextSnippet,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<DateTime?>? deletedAt,
+    Value<int>? rowid,
+  }) {
+    return BookmarksTableCompanion(
+      id: id ?? this.id,
+      bookId: bookId ?? this.bookId,
+      globalWordIndex: globalWordIndex ?? this.globalWordIndex,
+      chapterIndex: chapterIndex ?? this.chapterIndex,
+      label: label ?? this.label,
+      contextSnippet: contextSnippet ?? this.contextSnippet,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (bookId.present) {
+      map['book_id'] = Variable<String>(bookId.value);
+    }
+    if (globalWordIndex.present) {
+      map['global_word_index'] = Variable<int>(globalWordIndex.value);
+    }
+    if (chapterIndex.present) {
+      map['chapter_index'] = Variable<int>(chapterIndex.value);
+    }
+    if (label.present) {
+      map['label'] = Variable<String>(label.value);
+    }
+    if (contextSnippet.present) {
+      map['context_snippet'] = Variable<String>(contextSnippet.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BookmarksTableCompanion(')
+          ..write('id: $id, ')
+          ..write('bookId: $bookId, ')
+          ..write('globalWordIndex: $globalWordIndex, ')
+          ..write('chapterIndex: $chapterIndex, ')
+          ..write('label: $label, ')
+          ..write('contextSnippet: $contextSnippet, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -2666,6 +3263,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $CachedTokensTableTable(this);
   late final $SyncImportFailuresTableTable syncImportFailuresTable =
       $SyncImportFailuresTableTable(this);
+  late final $BookmarksTableTable bookmarksTable = $BookmarksTableTable(this);
   late final Index readingSessionStartedAtIdx = Index(
     'reading_session_started_at_idx',
     'CREATE INDEX reading_session_started_at_idx ON reading_session_table (started_at)',
@@ -2673,6 +3271,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final Index readingSessionBookIdIdx = Index(
     'reading_session_book_id_idx',
     'CREATE INDEX reading_session_book_id_idx ON reading_session_table (book_id)',
+  );
+  late final Index bookmarksBookIdIdx = Index(
+    'bookmarks_book_id_idx',
+    'CREATE INDEX bookmarks_book_id_idx ON bookmarks_table (book_id)',
   );
   late final BooksDao booksDao = BooksDao(this as AppDatabase);
   late final ReadingProgressDao readingProgressDao = ReadingProgressDao(
@@ -2686,6 +3288,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   );
   late final SyncImportFailuresDao syncImportFailuresDao =
       SyncImportFailuresDao(this as AppDatabase);
+  late final BookmarksDao bookmarksDao = BookmarksDao(this as AppDatabase);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -2696,8 +3299,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     readingSessionTable,
     cachedTokensTable,
     syncImportFailuresTable,
+    bookmarksTable,
     readingSessionStartedAtIdx,
     readingSessionBookIdIdx,
+    bookmarksBookIdIdx,
   ];
 }
 
@@ -4548,6 +5153,294 @@ typedef $$SyncImportFailuresTableTableProcessedTableManager =
       SyncImportFailuresTableData,
       PrefetchHooks Function()
     >;
+typedef $$BookmarksTableTableCreateCompanionBuilder =
+    BookmarksTableCompanion Function({
+      required String id,
+      required String bookId,
+      required int globalWordIndex,
+      Value<int> chapterIndex,
+      Value<String?> label,
+      Value<String?> contextSnippet,
+      required DateTime createdAt,
+      required DateTime updatedAt,
+      Value<DateTime?> deletedAt,
+      Value<int> rowid,
+    });
+typedef $$BookmarksTableTableUpdateCompanionBuilder =
+    BookmarksTableCompanion Function({
+      Value<String> id,
+      Value<String> bookId,
+      Value<int> globalWordIndex,
+      Value<int> chapterIndex,
+      Value<String?> label,
+      Value<String?> contextSnippet,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<DateTime?> deletedAt,
+      Value<int> rowid,
+    });
+
+class $$BookmarksTableTableFilterComposer
+    extends Composer<_$AppDatabase, $BookmarksTableTable> {
+  $$BookmarksTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get bookId => $composableBuilder(
+    column: $table.bookId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get globalWordIndex => $composableBuilder(
+    column: $table.globalWordIndex,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get chapterIndex => $composableBuilder(
+    column: $table.chapterIndex,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get label => $composableBuilder(
+    column: $table.label,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get contextSnippet => $composableBuilder(
+    column: $table.contextSnippet,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$BookmarksTableTableOrderingComposer
+    extends Composer<_$AppDatabase, $BookmarksTableTable> {
+  $$BookmarksTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get bookId => $composableBuilder(
+    column: $table.bookId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get globalWordIndex => $composableBuilder(
+    column: $table.globalWordIndex,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get chapterIndex => $composableBuilder(
+    column: $table.chapterIndex,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get label => $composableBuilder(
+    column: $table.label,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get contextSnippet => $composableBuilder(
+    column: $table.contextSnippet,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$BookmarksTableTableAnnotationComposer
+    extends Composer<_$AppDatabase, $BookmarksTableTable> {
+  $$BookmarksTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get bookId =>
+      $composableBuilder(column: $table.bookId, builder: (column) => column);
+
+  GeneratedColumn<int> get globalWordIndex => $composableBuilder(
+    column: $table.globalWordIndex,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get chapterIndex => $composableBuilder(
+    column: $table.chapterIndex,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get label =>
+      $composableBuilder(column: $table.label, builder: (column) => column);
+
+  GeneratedColumn<String> get contextSnippet => $composableBuilder(
+    column: $table.contextSnippet,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+}
+
+class $$BookmarksTableTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $BookmarksTableTable,
+          BookmarksTableData,
+          $$BookmarksTableTableFilterComposer,
+          $$BookmarksTableTableOrderingComposer,
+          $$BookmarksTableTableAnnotationComposer,
+          $$BookmarksTableTableCreateCompanionBuilder,
+          $$BookmarksTableTableUpdateCompanionBuilder,
+          (
+            BookmarksTableData,
+            BaseReferences<
+              _$AppDatabase,
+              $BookmarksTableTable,
+              BookmarksTableData
+            >,
+          ),
+          BookmarksTableData,
+          PrefetchHooks Function()
+        > {
+  $$BookmarksTableTableTableManager(
+    _$AppDatabase db,
+    $BookmarksTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$BookmarksTableTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$BookmarksTableTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$BookmarksTableTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> bookId = const Value.absent(),
+                Value<int> globalWordIndex = const Value.absent(),
+                Value<int> chapterIndex = const Value.absent(),
+                Value<String?> label = const Value.absent(),
+                Value<String?> contextSnippet = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => BookmarksTableCompanion(
+                id: id,
+                bookId: bookId,
+                globalWordIndex: globalWordIndex,
+                chapterIndex: chapterIndex,
+                label: label,
+                contextSnippet: contextSnippet,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String bookId,
+                required int globalWordIndex,
+                Value<int> chapterIndex = const Value.absent(),
+                Value<String?> label = const Value.absent(),
+                Value<String?> contextSnippet = const Value.absent(),
+                required DateTime createdAt,
+                required DateTime updatedAt,
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => BookmarksTableCompanion.insert(
+                id: id,
+                bookId: bookId,
+                globalWordIndex: globalWordIndex,
+                chapterIndex: chapterIndex,
+                label: label,
+                contextSnippet: contextSnippet,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$BookmarksTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $BookmarksTableTable,
+      BookmarksTableData,
+      $$BookmarksTableTableFilterComposer,
+      $$BookmarksTableTableOrderingComposer,
+      $$BookmarksTableTableAnnotationComposer,
+      $$BookmarksTableTableCreateCompanionBuilder,
+      $$BookmarksTableTableUpdateCompanionBuilder,
+      (
+        BookmarksTableData,
+        BaseReferences<_$AppDatabase, $BookmarksTableTable, BookmarksTableData>,
+      ),
+      BookmarksTableData,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -4565,4 +5458,6 @@ class $AppDatabaseManager {
         _db,
         _db.syncImportFailuresTable,
       );
+  $$BookmarksTableTableTableManager get bookmarksTable =>
+      $$BookmarksTableTableTableManager(_db, _db.bookmarksTable);
 }
