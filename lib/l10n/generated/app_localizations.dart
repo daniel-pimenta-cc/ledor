@@ -536,17 +536,29 @@ abstract class AppLocalizations {
   /// **'Tap to resume'**
   String get tapToResume;
 
-  /// No description provided for @switchToEreaderMode.
+  /// No description provided for @readerModeMenuTooltip.
   ///
   /// In en, this message translates to:
   /// **'Reading mode'**
-  String get switchToEreaderMode;
+  String get readerModeMenuTooltip;
 
-  /// No description provided for @switchToRsvpMode.
+  /// No description provided for @readerModeRsvp.
   ///
   /// In en, this message translates to:
-  /// **'RSVP mode'**
-  String get switchToRsvpMode;
+  /// **'RSVP'**
+  String get readerModeRsvp;
+
+  /// No description provided for @readerModeEreader.
+  ///
+  /// In en, this message translates to:
+  /// **'E-reader'**
+  String get readerModeEreader;
+
+  /// No description provided for @readerModeTts.
+  ///
+  /// In en, this message translates to:
+  /// **'Text-to-speech'**
+  String get readerModeTts;
 
   /// No description provided for @lockHighlight.
   ///
@@ -1081,6 +1093,168 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Image unavailable'**
   String get imageMissing;
+
+  /// No description provided for @settingsTtsSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Text-to-speech'**
+  String get settingsTtsSection;
+
+  /// No description provided for @settingsTtsVoice.
+  ///
+  /// In en, this message translates to:
+  /// **'Voice'**
+  String get settingsTtsVoice;
+
+  /// No description provided for @settingsTtsVoiceDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Pick the synthesis voice used in TTS mode'**
+  String get settingsTtsVoiceDesc;
+
+  /// No description provided for @settingsTtsLanguage.
+  ///
+  /// In en, this message translates to:
+  /// **'Language'**
+  String get settingsTtsLanguage;
+
+  /// No description provided for @settingsTtsLanguageDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Locale the TTS engine speaks'**
+  String get settingsTtsLanguageDesc;
+
+  /// No description provided for @settingsTtsPitch.
+  ///
+  /// In en, this message translates to:
+  /// **'Pitch'**
+  String get settingsTtsPitch;
+
+  /// No description provided for @settingsTtsPitchDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Voice pitch — lower sounds deeper, higher sounds brighter'**
+  String get settingsTtsPitchDesc;
+
+  /// No description provided for @ttsVoicePickerTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a voice'**
+  String get ttsVoicePickerTitle;
+
+  /// No description provided for @ttsVoicePreviewSample.
+  ///
+  /// In en, this message translates to:
+  /// **'The quick brown fox jumps over the lazy dog.'**
+  String get ttsVoicePreviewSample;
+
+  /// No description provided for @ttsVoicePreviewTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Preview this voice'**
+  String get ttsVoicePreviewTooltip;
+
+  /// No description provided for @ttsVoiceCurrent.
+  ///
+  /// In en, this message translates to:
+  /// **'Selected'**
+  String get ttsVoiceCurrent;
+
+  /// No description provided for @ttsNoVoicesAvailable.
+  ///
+  /// In en, this message translates to:
+  /// **'No voices available on this device'**
+  String get ttsNoVoicesAvailable;
+
+  /// No description provided for @ttsLinuxRequiresSpeechDispatcher.
+  ///
+  /// In en, this message translates to:
+  /// **'Install speech-dispatcher to enable TTS on Linux (e.g. `sudo apt install speech-dispatcher`)'**
+  String get ttsLinuxRequiresSpeechDispatcher;
+
+  /// No description provided for @ttsFirstUseHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap play to start narration'**
+  String get ttsFirstUseHint;
+
+  /// No description provided for @ttsErrorPrefix.
+  ///
+  /// In en, this message translates to:
+  /// **'TTS error: {error}'**
+  String ttsErrorPrefix(String error);
+
+  /// No description provided for @ttsVoiceFallbackLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Default for {locale}'**
+  String ttsVoiceFallbackLabel(String locale);
+
+  /// No description provided for @settingsTtsEngine.
+  ///
+  /// In en, this message translates to:
+  /// **'Engine'**
+  String get settingsTtsEngine;
+
+  /// No description provided for @settingsTtsEngineDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'TTS engine used to synthesise speech'**
+  String get settingsTtsEngineDesc;
+
+  /// No description provided for @ttsEnginePickerTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose an engine'**
+  String get ttsEnginePickerTitle;
+
+  /// No description provided for @ttsEnginePickerSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Different engines produce different voices and sound quality'**
+  String get ttsEnginePickerSubtitle;
+
+  /// No description provided for @ttsEnginePickerEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No alternative engines installed'**
+  String get ttsEnginePickerEmpty;
+
+  /// No description provided for @ttsEnginePickerSystemDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'System default'**
+  String get ttsEnginePickerSystemDefault;
+
+  /// No description provided for @ttsVoicePickerSearchHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Search voices, languages, regions...'**
+  String get ttsVoicePickerSearchHint;
+
+  /// No description provided for @ttsVoicePickerScopeCurrent.
+  ///
+  /// In en, this message translates to:
+  /// **'Current language'**
+  String get ttsVoicePickerScopeCurrent;
+
+  /// No description provided for @ttsVoicePickerScopeAll.
+  ///
+  /// In en, this message translates to:
+  /// **'All languages'**
+  String get ttsVoicePickerScopeAll;
+
+  /// No description provided for @ttsVoicePickerNoMatches.
+  ///
+  /// In en, this message translates to:
+  /// **'No voices match your search'**
+  String get ttsVoicePickerNoMatches;
+
+  /// No description provided for @ttsVoicePickerNoCurrentVoices.
+  ///
+  /// In en, this message translates to:
+  /// **'No voices for {language} on this device. Switch to All languages to browse what\'s installed.'**
+  String ttsVoicePickerNoCurrentVoices(String language);
 }
 
 class _AppLocalizationsDelegate

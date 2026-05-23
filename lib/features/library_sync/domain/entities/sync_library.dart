@@ -13,11 +13,17 @@ class SyncLibraryProgress {
   final int wpm;
   final DateTime updatedAt;
 
+  /// Persisted reader-mode tag (`'rsvp'` / `'ereader'` / `'tts'`). Null
+  /// for rows that predate the schema bump or never had a mode selected
+  /// — the local engine treats null as "default" (scroll/RSVP).
+  final String? readerMode;
+
   const SyncLibraryProgress({
     required this.chapterIndex,
     required this.wordIndex,
     required this.wpm,
     required this.updatedAt,
+    this.readerMode,
   });
 
   Map<String, dynamic> toJson() => {
@@ -25,6 +31,7 @@ class SyncLibraryProgress {
         'wordIndex': wordIndex,
         'wpm': wpm,
         'updatedAt': updatedAt.toUtc().toIso8601String(),
+        if (readerMode != null) 'readerMode': readerMode,
       };
 
   factory SyncLibraryProgress.fromJson(Map<String, dynamic> json) =>
@@ -33,6 +40,7 @@ class SyncLibraryProgress {
         wordIndex: json['wordIndex'] as int,
         wpm: json['wpm'] as int,
         updatedAt: DateTime.parse(json['updatedAt'] as String),
+        readerMode: json['readerMode'] as String?,
       );
 }
 

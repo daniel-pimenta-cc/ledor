@@ -109,8 +109,10 @@
   "bookFinished": "You finished the book!",
   "tapToPause": "Tap to pause",
   "tapToResume": "Tap to resume",
-  "switchToEreaderMode": "Reading mode",
-  "switchToRsvpMode": "RSVP mode",
+  "readerModeMenuTooltip": "Reading mode",
+  "readerModeRsvp": "RSVP",
+  "readerModeEreader": "E-reader",
+  "readerModeTts": "Text-to-speech",
   "lockHighlight": "Lock focused word",
   "unlockHighlight": "Unlock focused word",
   "recenterHighlight": "Back to focused word",
@@ -288,5 +290,47 @@
   },
   "imageContinue": "Continue",
   "imageClose": "Close",
-  "imageMissing": "Image unavailable"
+  "imageMissing": "Image unavailable",
+  "settingsTtsSection": "Text-to-speech",
+  "settingsTtsVoice": "Voice",
+  "settingsTtsVoiceDesc": "Pick the synthesis voice used in TTS mode",
+  "settingsTtsLanguage": "Language",
+  "settingsTtsLanguageDesc": "Locale the TTS engine speaks",
+  "settingsTtsPitch": "Pitch",
+  "settingsTtsPitchDesc": "Voice pitch — lower sounds deeper, higher sounds brighter",
+  "ttsVoicePickerTitle": "Choose a voice",
+  "ttsVoicePreviewSample": "The quick brown fox jumps over the lazy dog.",
+  "ttsVoicePreviewTooltip": "Preview this voice",
+  "ttsVoiceCurrent": "Selected",
+  "ttsNoVoicesAvailable": "No voices available on this device",
+  "ttsLinuxRequiresSpeechDispatcher": "Install speech-dispatcher to enable TTS on Linux (e.g. `sudo apt install speech-dispatcher`)",
+  "ttsFirstUseHint": "Tap play to start narration",
+  "ttsErrorPrefix": "TTS error: {error}",
+  "@ttsErrorPrefix": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+  "ttsVoiceFallbackLabel": "Default for {locale}",
+  "@ttsVoiceFallbackLabel": {
+    "placeholders": {
+      "locale": { "type": "String" }
+    }
+  },
+  "settingsTtsEngine": "Engine",
+  "settingsTtsEngineDesc": "TTS engine used to synthesise speech",
+  "ttsEnginePickerTitle": "Choose an engine",
+  "ttsEnginePickerSubtitle": "Different engines produce different voices and sound quality",
+  "ttsEnginePickerEmpty": "No alternative engines installed",
+  "ttsEnginePickerSystemDefault": "System default",
+  "ttsVoicePickerSearchHint": "Search voices, languages, regions...",
+  "ttsVoicePickerScopeCurrent": "Current language",
+  "ttsVoicePickerScopeAll": "All languages",
+  "ttsVoicePickerNoMatches": "No voices match your search",
+  "ttsVoicePickerNoCurrentVoices": "No voices for {language} on this device. Switch to All languages to browse what's installed.",
+  "@ttsVoicePickerNoCurrentVoices": {
+    "placeholders": {
+      "language": { "type": "String" }
+    }
+  }
 }

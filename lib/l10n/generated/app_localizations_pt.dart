@@ -249,10 +249,16 @@ class AppLocalizationsPt extends AppLocalizations {
   String get tapToResume => 'Toque para retomar';
 
   @override
-  String get switchToEreaderMode => 'Modo leitura';
+  String get readerModeMenuTooltip => 'Modo de leitura';
 
   @override
-  String get switchToRsvpMode => 'Modo RSVP';
+  String get readerModeRsvp => 'RSVP';
+
+  @override
+  String get readerModeEreader => 'E-reader';
+
+  @override
+  String get readerModeTts => 'Narração';
 
   @override
   String get lockHighlight => 'Travar palavra de foco';
@@ -587,4 +593,95 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get imageMissing => 'Imagem indisponível';
+
+  @override
+  String get settingsTtsSection => 'Narração';
+
+  @override
+  String get settingsTtsVoice => 'Voz';
+
+  @override
+  String get settingsTtsVoiceDesc => 'Escolha a voz usada no modo TTS';
+
+  @override
+  String get settingsTtsLanguage => 'Idioma';
+
+  @override
+  String get settingsTtsLanguageDesc => 'Idioma falado pela narração';
+
+  @override
+  String get settingsTtsPitch => 'Tom';
+
+  @override
+  String get settingsTtsPitchDesc =>
+      'Tom da voz — mais baixo soa grave, mais alto soa agudo';
+
+  @override
+  String get ttsVoicePickerTitle => 'Escolha uma voz';
+
+  @override
+  String get ttsVoicePreviewSample =>
+      'O sol nasceu cedo e a manhã estava clara.';
+
+  @override
+  String get ttsVoicePreviewTooltip => 'Ouvir prévia';
+
+  @override
+  String get ttsVoiceCurrent => 'Selecionada';
+
+  @override
+  String get ttsNoVoicesAvailable => 'Nenhuma voz disponível neste dispositivo';
+
+  @override
+  String get ttsLinuxRequiresSpeechDispatcher =>
+      'Instale o speech-dispatcher para habilitar a narração no Linux (ex.: `sudo apt install speech-dispatcher`)';
+
+  @override
+  String get ttsFirstUseHint => 'Toque em play para iniciar a narração';
+
+  @override
+  String ttsErrorPrefix(String error) {
+    return 'Erro de narração: $error';
+  }
+
+  @override
+  String ttsVoiceFallbackLabel(String locale) {
+    return 'Padrão para $locale';
+  }
+
+  @override
+  String get settingsTtsEngine => 'Engine';
+
+  @override
+  String get settingsTtsEngineDesc => 'Engine usada para sintetizar a fala';
+
+  @override
+  String get ttsEnginePickerTitle => 'Escolha uma engine';
+
+  @override
+  String get ttsEnginePickerSubtitle =>
+      'Engines diferentes oferecem vozes e qualidades distintas';
+
+  @override
+  String get ttsEnginePickerEmpty => 'Nenhuma engine alternativa instalada';
+
+  @override
+  String get ttsEnginePickerSystemDefault => 'Padrão do sistema';
+
+  @override
+  String get ttsVoicePickerSearchHint => 'Buscar vozes, idiomas, regiões...';
+
+  @override
+  String get ttsVoicePickerScopeCurrent => 'Idioma atual';
+
+  @override
+  String get ttsVoicePickerScopeAll => 'Todos os idiomas';
+
+  @override
+  String get ttsVoicePickerNoMatches => 'Nenhuma voz corresponde à busca';
+
+  @override
+  String ttsVoicePickerNoCurrentVoices(String language) {
+    return 'Não há vozes para $language neste aparelho. Mude para Todos os idiomas para ver as disponíveis.';
+  }
 }

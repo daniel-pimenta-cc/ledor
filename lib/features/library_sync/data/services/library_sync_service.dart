@@ -58,6 +58,15 @@ Map<String, dynamic> displaySettingsToMap(DisplaySettings s) => {
       'timeRemainingMode': s.timeRemainingMode.name,
       'sentencePauseMultiplier': s.sentencePauseMultiplier,
       'chapterPauseMultiplier': s.chapterPauseMultiplier,
+      'ttsLanguage': s.ttsLanguage,
+      // ttsVoiceName / ttsEngineId are intentionally written even when null
+      // so the remote shard reflects "clear voice / use default engine".
+      // The local backend falls back gracefully when the synced value
+      // doesn't exist on this device (different Android engine list, etc.).
+      'ttsVoiceName': s.ttsVoiceName,
+      'ttsPitch': s.ttsPitch,
+      'ttsRate': s.ttsRate,
+      'ttsEngineId': s.ttsEngineId,
     };
 
 DisplaySettings displaySettingsFromMap(Map<String, dynamic> m) {
@@ -85,6 +94,13 @@ DisplaySettings displaySettingsFromMap(Map<String, dynamic> m) {
     sentencePauseMultiplier:
         (m['sentencePauseMultiplier'] as num?)?.toDouble(),
     chapterPauseMultiplier: (m['chapterPauseMultiplier'] as num?)?.toDouble(),
+    ttsLanguage: m['ttsLanguage'] as String?,
+    ttsVoiceName: m.containsKey('ttsVoiceName') ? m['ttsVoiceName'] as String? : defaults.ttsVoiceName,
+    ttsPitch: (m['ttsPitch'] as num?)?.toDouble(),
+    ttsRate: (m['ttsRate'] as num?)?.toDouble(),
+    ttsEngineId: m.containsKey('ttsEngineId')
+        ? m['ttsEngineId'] as String?
+        : defaults.ttsEngineId,
   );
 }
 
@@ -377,6 +393,7 @@ class LibrarySyncService {
                 wordIndex: progress.wordIndex,
                 wpm: progress.wpm,
                 updatedAt: progress.updatedAt,
+                readerMode: progress.readerMode,
               ),
         deletedAt: null,
         updatedAt: book.lastReadAt ?? book.importedAt,
@@ -463,6 +480,7 @@ class LibrarySyncService {
                 wordIndex: Value(book.progress!.wordIndex),
                 wpm: Value(book.progress!.wpm),
                 updatedAt: Value(book.progress!.updatedAt),
+                readerMode: Value(book.progress!.readerMode),
               ));
             }
           }
@@ -483,7 +501,8 @@ class LibrarySyncService {
             (localProg == null ||
                 !remoteProg.updatedAt.isAtSameMomentAs(localProg.updatedAt) ||
                 remoteProg.wordIndex != localProg.wordIndex ||
-                remoteProg.chapterIndex != localProg.chapterIndex);
+                remoteProg.chapterIndex != localProg.chapterIndex ||
+                remoteProg.readerMode != localProg.readerMode);
         if (progressDiffers) {
           await _progressDao.upsertProgress(ReadingProgressTableCompanion(
             bookId: Value(book.id),
@@ -491,6 +510,7 @@ class LibrarySyncService {
             wordIndex: Value(remoteProg.wordIndex),
             wpm: Value(remoteProg.wpm),
             updatedAt: Value(remoteProg.updatedAt),
+            readerMode: Value(remoteProg.readerMode),
           ));
         }
         final lastReadDiffers = book.lastReadAt != null &&
@@ -624,6 +644,7 @@ class LibrarySyncService {
           wordIndex: Value(book.progress!.wordIndex),
           wpm: Value(book.progress!.wpm),
           updatedAt: Value(book.progress!.updatedAt),
+          readerMode: Value(book.progress!.readerMode),
         ));
       }
       return;
@@ -669,6 +690,7 @@ class LibrarySyncService {
         wordIndex: Value(book.progress!.wordIndex),
         wpm: Value(book.progress!.wpm),
         updatedAt: Value(book.progress!.updatedAt),
+        readerMode: Value(book.progress!.readerMode),
       ));
     }
   }

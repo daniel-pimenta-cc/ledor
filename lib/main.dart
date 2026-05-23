@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:audio_service/audio_service.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -15,7 +16,9 @@ import 'database/app_database.dart';
 import 'features/library_sync/presentation/providers/drive_auth_provider.dart';
 import 'features/library_sync/presentation/providers/library_sync_provider.dart';
 import 'features/library_sync/presentation/providers/sync_config_provider.dart';
+import 'features/rsvp_reader/data/services/tts_audio_handler.dart';
 import 'features/rsvp_reader/presentation/providers/display_settings_provider.dart';
+import 'features/rsvp_reader/presentation/providers/tts_audio_handler_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -41,9 +44,31 @@ void main() async {
     NativeDatabase.createInBackground(dbFile),
   );
 
+  // Spin up the media-session bridge on platforms that support background
+  // audio. The handler is a long-lived singleton — engines bind/unbind
+  // themselves as the user navigates between books. Linux / Web skip this
+  // (audio_service has no implementation there).
+  TtsAudioHandler? audioHandler;
+  if (PlatformCapabilities.supportsBackgroundAudio) {
+    audioHandler = await AudioService.init(
+      builder: () => TtsAudioHandler(),
+      config: const AudioServiceConfig(
+        androidNotificationChannelId: 'cc.danielpimenta.rsvp_reader.tts',
+        androidNotificationChannelName: 'TTS playback',
+        androidNotificationChannelDescription:
+            'Controls for the TTS narration',
+        androidNotificationOngoing: true,
+        androidStopForegroundOnPause: true,
+        notificationColor: Color(0xFFE55324),
+      ),
+    );
+  }
+
   final container = ProviderContainer(
     overrides: [
       appDatabaseProvider.overrideWithValue(database),
+      if (audioHandler != null)
+        ttsAudioHandlerProvider.overrideWithValue(audioHandler),
     ],
   );
 

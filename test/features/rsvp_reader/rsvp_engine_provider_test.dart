@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:drift/drift.dart' show Value;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -14,9 +15,11 @@ import 'package:rsvp_reader/database/daos/reading_progress_dao.dart';
 import 'package:rsvp_reader/database/daos/reading_session_dao.dart';
 import 'package:rsvp_reader/features/epub_import/domain/entities/word_token.dart';
 import 'package:rsvp_reader/features/library_sync/presentation/providers/library_sync_provider.dart';
+import 'package:rsvp_reader/features/rsvp_reader/data/services/tts_backend.dart';
 import 'package:rsvp_reader/features/rsvp_reader/domain/entities/display_settings.dart';
 import 'package:rsvp_reader/features/rsvp_reader/domain/entities/rsvp_state.dart';
 import 'package:rsvp_reader/features/rsvp_reader/presentation/providers/rsvp_engine_provider.dart';
+import 'package:rsvp_reader/features/rsvp_reader/presentation/providers/tts_backend_provider.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
@@ -178,6 +181,9 @@ _Mocks _wireMocks({
   when(() => progress.upsertProgress(any())).thenAnswer((_) async {});
   when(() => sessions.insertSession(any())).thenAnswer((_) async {});
   when(() => books.updateLastReadAt(any())).thenAnswer((_) async {});
+  // Engine reads the book row for the audio-handler media item; tests
+  // don't exercise that surface so a null row is fine.
+  when(() => books.getBookById(any())).thenAnswer((_) async => null);
 
   return (tokens: tokens, progress: progress, sessions: sessions, books: books);
 }
@@ -508,6 +514,72 @@ void main() {
         expect(engine.state.globalWordIndex, 5); // 3 + 2
         expect(engine.state.wpm, 420);
         expect(engine.state.currentWord?.text, 'zeta');
+      });
+
+      test('restores ereader mode from saved progress', () async {
+        final mocks = _wireMocks(
+          chapterRows: _twoChapterRows(),
+          savedProgress: ReadingProgressTableData(
+            bookId: 'book-1',
+            chapterIndex: 0,
+            wordIndex: 0,
+            wpm: 300,
+            updatedAt: DateTime.fromMillisecondsSinceEpoch(0),
+            readerMode: 'ereader',
+          ),
+        );
+        final container = _container(mocks);
+
+        final engine = await _bootEngine(container, _FakeTickerProvider());
+
+        expect(engine.state.mode, ReaderMode.ereader);
+        expect(engine.state.isLoading, isFalse);
+      });
+
+      test('restores tts mode from saved progress (calls enterTtsMode)',
+          () async {
+        final tts = _StubTtsBackend();
+        final mocks = _wireMocks(
+          chapterRows: _twoChapterRows(),
+          savedProgress: ReadingProgressTableData(
+            bookId: 'book-1',
+            chapterIndex: 0,
+            wordIndex: 0,
+            wpm: 300,
+            updatedAt: DateTime.fromMillisecondsSinceEpoch(0),
+            readerMode: 'tts',
+          ),
+        );
+        final container = _ttsContainer(mocks, tts);
+
+        final engine = await _bootEngine(container, _FakeTickerProvider());
+        // _loadBook awaits enterTtsMode internally, so by the time
+        // _bootEngine returns the mode and backend should be ready.
+        await _pumpMicrotasks();
+
+        expect(engine.state.mode, ReaderMode.tts);
+        expect(engine.state.isLoading, isFalse);
+        expect(tts.initCalled, isTrue);
+      });
+
+      test('null readerMode in progress keeps the default scroll mode',
+          () async {
+        final mocks = _wireMocks(
+          chapterRows: _twoChapterRows(),
+          savedProgress: ReadingProgressTableData(
+            bookId: 'book-1',
+            chapterIndex: 0,
+            wordIndex: 0,
+            wpm: 300,
+            updatedAt: DateTime.fromMillisecondsSinceEpoch(0),
+            readerMode: null,
+          ),
+        );
+        final container = _container(mocks);
+
+        final engine = await _bootEngine(container, _FakeTickerProvider());
+
+        expect(engine.state.mode, ReaderMode.scroll);
       });
     });
 
@@ -906,5 +978,402 @@ void main() {
         expect(engine.state.displaySettings, same(expected));
       });
     });
+
+    group('TTS mode', () {
+      test('enterTtsMode transitions to tts and initialises the backend',
+          () async {
+        final tts = _StubTtsBackend();
+        final mocks = _wireMocks(chapterRows: _twoChapterRows());
+        final container = _ttsContainer(mocks, tts);
+        final engine = await _bootEngine(container, _FakeTickerProvider());
+
+        await engine.enterTtsMode();
+        // applySettings is fired without await; pump microtasks so the
+        // language assignment lands before we check.
+        await _pumpMicrotasks();
+
+        expect(engine.state.mode, ReaderMode.tts);
+        expect(engine.state.isPlaying, isFalse);
+        expect(tts.initCalled, isTrue);
+        // Settings should have been applied up front.
+        expect(tts.language, 'en-US');
+      });
+
+      test('enterTtsMode while playing flushes the existing session',
+          () async {
+        final tts = _StubTtsBackend();
+        final mocks = _wireMocks(chapterRows: _twoChapterRows());
+        final container = _ttsContainer(mocks, tts);
+        final engine = await _bootEngine(container, _FakeTickerProvider());
+
+        engine.play(); // start RSVP
+        expect(engine.state.isPlaying, isTrue);
+
+        await engine.enterTtsMode();
+
+        expect(engine.state.mode, ReaderMode.tts);
+        expect(engine.state.isPlaying, isFalse);
+      });
+
+      test('pause in tts mode keeps mode == tts (does not flip to scroll)',
+          () async {
+        final tts = _StubTtsBackend();
+        final mocks = _wireMocks(chapterRows: _twoChapterRows());
+        final container = _ttsContainer(mocks, tts);
+        final engine = await _bootEngine(container, _FakeTickerProvider());
+
+        await engine.enterTtsMode();
+        engine.play();
+        expect(engine.state.mode, ReaderMode.tts);
+        expect(engine.state.isPlaying, isTrue);
+
+        engine.pause();
+        expect(engine.state.mode, ReaderMode.tts);
+        expect(engine.state.isPlaying, isFalse);
+        expect(tts.stopCalled, isTrue);
+      });
+
+      test(
+          'progress callback advances globalWordIndex while in tts + playing',
+          () async {
+        final tts = _StubTtsBackend();
+        final mocks = _wireMocks(chapterRows: _twoChapterRows());
+        final container = _ttsContainer(mocks, tts);
+        final engine = await _bootEngine(container, _FakeTickerProvider());
+
+        await engine.enterTtsMode();
+        engine.play();
+        // The player applies settings then enqueues the lookahead pipeline;
+        // pump microtasks until both speaks have been issued.
+        await _pumpMicrotasks();
+        expect(tts.speakCalls, isNotEmpty);
+
+        // The two-chapter fixture has no terminal punctuation, so segment 0
+        // captures all 3 tokens of chapter 0 in one chunk. tokenCharOffsets
+        // for ['alpha', 'beta', 'gamma'] joined with spaces: alpha=0,
+        // beta=6, gamma=11. Simulate a progress callback at the start of
+        // "beta" (global index 1).
+        tts.emitProgress(6, 10, 'beta');
+
+        expect(engine.state.globalWordIndex, 1);
+      });
+
+      test('play() pre-queues a lookahead segment in add-mode', () async {
+        final tts = _StubTtsBackend();
+        final mocks = _wireMocks(chapterRows: _twoChapterRows());
+        final container = _ttsContainer(mocks, tts);
+        final engine = await _bootEngine(container, _FakeTickerProvider());
+
+        await engine.enterTtsMode();
+        engine.play();
+        await _pumpMicrotasks();
+
+        // Two segments queued: chapter 0 (flush) + chapter 1 (add).
+        expect(tts.speakCalls.length, 2);
+        expect(tts.speakModes, [TtsQueueMode.flush, TtsQueueMode.add]);
+      });
+
+      test('completion advances past the spoken segment', () async {
+        final tts = _StubTtsBackend();
+        final mocks = _wireMocks(chapterRows: _twoChapterRows());
+        final container = _ttsContainer(mocks, tts);
+        final engine = await _bootEngine(container, _FakeTickerProvider());
+
+        await engine.enterTtsMode();
+        engine.play();
+        await _pumpMicrotasks();
+
+        // First chapter has 3 tokens; completion of segment 0 advances the
+        // cursor to index 3 (the start of chapter 1, the segment cap).
+        // No new speak fires because segment 1 was already pre-queued.
+        tts.emitCompletion();
+        await _pumpMicrotasks();
+
+        expect(engine.state.globalWordIndex, 3);
+      });
+
+      test('completion at end-of-book bumps finishTicket exactly once',
+          () async {
+        final tts = _StubTtsBackend();
+        final mocks = _wireMocks(chapterRows: _twoChapterRows());
+        final container = _ttsContainer(mocks, tts);
+        final engine = await _bootEngine(container, _FakeTickerProvider());
+
+        await engine.enterTtsMode();
+        // Seek to the last word so the next segment ends the book.
+        engine.seekToWord(5);
+        engine.play();
+        await _pumpMicrotasks();
+
+        final beforeTicket = engine.state.finishTicket;
+        tts.emitCompletion();
+        await _pumpMicrotasks();
+
+        expect(engine.state.finishTicket, beforeTicket + 1);
+        expect(engine.state.isPlaying, isFalse);
+      });
+
+      test('exitTtsMode returns to scroll and clears playback', () async {
+        final tts = _StubTtsBackend();
+        final mocks = _wireMocks(chapterRows: _twoChapterRows());
+        final container = _ttsContainer(mocks, tts);
+        final engine = await _bootEngine(container, _FakeTickerProvider());
+
+        await engine.enterTtsMode();
+        engine.play();
+        await _pumpMicrotasks();
+
+        engine.exitTtsMode();
+
+        expect(engine.state.mode, ReaderMode.scroll);
+        expect(engine.state.isPlaying, isFalse);
+      });
+
+      test('seekToWord while tts playing restarts speak from the new index',
+          () async {
+        final tts = _StubTtsBackend();
+        final mocks = _wireMocks(chapterRows: _twoChapterRows());
+        final container = _ttsContainer(mocks, tts);
+        final engine = await _bootEngine(container, _FakeTickerProvider());
+
+        await engine.enterTtsMode();
+        engine.play();
+        await _pumpMicrotasks();
+        final firstSpeak = tts.speakCalls.length;
+        tts.stopCalled = false;
+
+        engine.seekToWord(4);
+        await _pumpMicrotasks();
+
+        expect(tts.stopCalled, isTrue);
+        // The player flushes its queue then re-fills from the new index;
+        // at least one new speak was issued (in flush mode this time).
+        expect(tts.speakCalls.length, greaterThan(firstSpeak));
+        expect(engine.state.globalWordIndex, 4);
+        expect(tts.speakModes.last, TtsQueueMode.flush);
+      });
+    });
+
+    group('persisted reader mode', () {
+      test('enterEreaderMode upserts readerMode="ereader"', () async {
+        final mocks = _wireMocks(chapterRows: _twoChapterRows());
+        final container = _container(mocks);
+        final engine = await _bootEngine(container, _FakeTickerProvider());
+
+        engine.enterEreaderMode();
+        await _pumpMicrotasks();
+
+        verify(() => mocks.progress.upsertProgress(
+              any(
+                that: isA<ReadingProgressTableCompanion>().having(
+                  (c) => c.readerMode,
+                  'readerMode',
+                  const Value('ereader'),
+                ),
+              ),
+            )).called(1);
+      });
+
+      test('exitEreaderMode upserts readerMode="rsvp"', () async {
+        final mocks = _wireMocks(
+          chapterRows: _twoChapterRows(),
+          savedProgress: ReadingProgressTableData(
+            bookId: 'book-1',
+            chapterIndex: 0,
+            wordIndex: 0,
+            wpm: 300,
+            updatedAt: DateTime.fromMillisecondsSinceEpoch(0),
+            readerMode: 'ereader',
+          ),
+        );
+        final container = _container(mocks);
+        final engine = await _bootEngine(container, _FakeTickerProvider());
+        expect(engine.state.mode, ReaderMode.ereader);
+
+        // Restore should not have triggered any persistence call.
+        verifyNever(() => mocks.progress.upsertProgress(any()));
+
+        engine.exitEreaderMode();
+        await _pumpMicrotasks();
+
+        verify(() => mocks.progress.upsertProgress(
+              any(
+                that: isA<ReadingProgressTableCompanion>().having(
+                  (c) => c.readerMode,
+                  'readerMode',
+                  const Value('rsvp'),
+                ),
+              ),
+            )).called(1);
+      });
+
+      test('enterTtsMode upserts readerMode="tts"', () async {
+        final tts = _StubTtsBackend();
+        final mocks = _wireMocks(chapterRows: _twoChapterRows());
+        final container = _ttsContainer(mocks, tts);
+        final engine = await _bootEngine(container, _FakeTickerProvider());
+
+        await engine.enterTtsMode();
+        await _pumpMicrotasks();
+
+        verify(() => mocks.progress.upsertProgress(
+              any(
+                that: isA<ReadingProgressTableCompanion>().having(
+                  (c) => c.readerMode,
+                  'readerMode',
+                  const Value('tts'),
+                ),
+              ),
+            )).called(1);
+      });
+
+      test('auto-restore does NOT trigger a save (dedup honours existing mode)',
+          () async {
+        final mocks = _wireMocks(
+          chapterRows: _twoChapterRows(),
+          savedProgress: ReadingProgressTableData(
+            bookId: 'book-1',
+            chapterIndex: 0,
+            wordIndex: 0,
+            wpm: 300,
+            updatedAt: DateTime.fromMillisecondsSinceEpoch(0),
+            readerMode: 'ereader',
+          ),
+        );
+        final container = _container(mocks);
+        await _bootEngine(container, _FakeTickerProvider());
+        await _pumpMicrotasks();
+
+        verifyNever(() => mocks.progress.upsertProgress(any()));
+      });
+    });
   });
+}
+
+/// Stub backend used by the TTS-mode group. Records every interaction and
+/// exposes hooks so individual tests can fire `_onProgress` /
+/// `_onCompletion` / `_onError` synchronously — none of these tests pump
+/// real audio.
+class _StubTtsBackend implements TtsBackend {
+  bool initCalled = false;
+  final List<String> speakCalls = [];
+  final List<TtsQueueMode> speakModes = [];
+  bool stopCalled = false;
+  String? language;
+  TtsVoice? voice;
+  double? rate;
+  double? pitch;
+  String? engineId;
+
+  @override
+  bool get canPipeline => true;
+
+  TtsProgressHandler? _onProgress;
+  VoidCallback? _onCompletion;
+  void Function(String)? _onError;
+  // _onStart is set by the engine but the stubbed backend never fires it;
+  // we accept the setter to keep the interface honest.
+
+  void emitProgress(int offset, int end, String word) =>
+      _onProgress?.call(offset, end, word);
+  void emitCompletion() => _onCompletion?.call();
+  void emitError(String e) => _onError?.call(e);
+
+  @override
+  Future<void> init() async {
+    initCalled = true;
+  }
+
+  @override
+  Future<List<TtsVoice>> getVoices() async => const [];
+
+  @override
+  Future<List<String>> getLanguages() async => const [];
+
+  @override
+  Future<List<TtsEngine>> getEngines() async => const [];
+
+  @override
+  Future<void> setEngine(String id) async {
+    engineId = id;
+  }
+
+  @override
+  Future<void> setVoice(TtsVoice? v) async {
+    voice = v;
+  }
+
+  @override
+  Future<void> setLanguage(String iso) async {
+    language = iso;
+  }
+
+  @override
+  Future<void> setRate(double r) async {
+    rate = r;
+  }
+
+  @override
+  Future<void> setPitch(double p) async {
+    pitch = p;
+  }
+
+  @override
+  Future<void> speak(
+    String text, {
+    TtsQueueMode mode = TtsQueueMode.flush,
+  }) async {
+    speakCalls.add(text);
+    speakModes.add(mode);
+  }
+
+  @override
+  Future<void> stop() async {
+    stopCalled = true;
+  }
+
+  @override
+  Future<void> dispose() async {}
+
+  @override
+  set onProgress(TtsProgressHandler? cb) => _onProgress = cb;
+
+  @override
+  set onCompletion(VoidCallback? cb) => _onCompletion = cb;
+
+  @override
+  set onError(void Function(String error)? cb) => _onError = cb;
+
+  @override
+  set onStart(VoidCallback? cb) {
+    // Not used in these tests; the stub never fires the start hook.
+  }
+}
+
+/// Yields enough microtasks so chained awaits inside the engine + player
+/// (apply-settings, enqueue, speak, …) have time to resolve before
+/// assertions run. 30 is comfortably above the deepest chain we have.
+Future<void> _pumpMicrotasks([int count = 30]) async {
+  for (var i = 0; i < count; i++) {
+    await Future<void>.value();
+  }
+}
+
+/// Like [_container] but with the TTS backend provider overridden to a stub.
+ProviderContainer _ttsContainer(_Mocks mocks, _StubTtsBackend backend) {
+  final container = ProviderContainer(
+    overrides: [
+      cachedTokensDaoProvider.overrideWithValue(mocks.tokens),
+      readingProgressDaoProvider.overrideWithValue(mocks.progress),
+      readingSessionDaoProvider.overrideWithValue(mocks.sessions),
+      booksDaoProvider.overrideWithValue(mocks.books),
+      librarySyncProvider.overrideWith((ref) => _StubLibrarySyncNotifier(ref)),
+      ttsBackendProvider.overrideWithValue(backend),
+    ],
+  );
+  addTearDown(container.dispose);
+  addTearDown(() async {
+    await Future<void>.delayed(const Duration(milliseconds: 350));
+  });
+  return container;
 }

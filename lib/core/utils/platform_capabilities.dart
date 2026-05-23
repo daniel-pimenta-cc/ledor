@@ -36,4 +36,51 @@ class PlatformCapabilities {
     if (kIsWeb) return false;
     return Platform.isAndroid || Platform.isIOS;
   }
+
+  /// Linux desktop. The TTS path uses a `speech-dispatcher` socket backend
+  /// (`spd-say` fallback) which can't pipeline as cleanly as `flutter_tts`,
+  /// so the reader feeds it larger chunks. Also used by drag-drop and the
+  /// keyboard-shortcut bindings that are Linux-only.
+  static bool get isLinux {
+    if (kIsWeb) return false;
+    return Platform.isLinux;
+  }
+
+  /// Android. Used by features gated behind Android-only APIs:
+  /// `flutter_tts.getEngines` / `setEngine`, the foreground service that
+  /// keeps TTS alive in background, etc.
+  static bool get isAndroid {
+    if (kIsWeb) return false;
+    return Platform.isAndroid;
+  }
+
+  /// Text-to-speech reader mode. Android/iOS/macOS/Windows use the
+  /// `flutter_tts` package; Linux desktop uses a custom backend on top of
+  /// `spd-say` (speech-dispatcher). On platforms where neither is wired up
+  /// (currently just web) the mode is hidden from the reader.
+  static bool get supportsTts {
+    if (kIsWeb) return false;
+    return Platform.isAndroid ||
+        Platform.isIOS ||
+        Platform.isLinux ||
+        Platform.isMacOS ||
+        Platform.isWindows;
+  }
+
+  /// Whether the platform can host TTS playback while the app is
+  /// backgrounded / the screen is locked. `audio_service` (the underlying
+  /// package) supports Android, iOS, macOS, Windows and Web; Linux
+  /// desktop is not in its support matrix yet, and Web doesn't need a
+  /// service at all but we keep it out of the contract for consistency.
+  ///
+  /// When this is false the TTS mode still works, but only while the
+  /// reader screen is in the foreground — the OS may kill the synth
+  /// when the user backgrounds the app.
+  static bool get supportsBackgroundAudio {
+    if (kIsWeb) return false;
+    return Platform.isAndroid ||
+        Platform.isIOS ||
+        Platform.isMacOS ||
+        Platform.isWindows;
+  }
 }

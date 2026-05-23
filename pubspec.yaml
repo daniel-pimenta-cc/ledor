@@ -61,6 +61,17 @@ dependencies:
   google_fonts: ^6.2.1
   flex_color_picker: ^3.6.0
 
+  # Text-to-speech (mobile/desktop/web). Linux desktop is unsupported by
+  # this package; the reader falls back to a custom speech-dispatcher socket
+  # backend (with spd-say as a last-resort fallback).
+  flutter_tts: ^4.2.5
+
+  # Background TTS playback: foreground service on Android, AVAudioSession
+  # category=playback on iOS, plus lockscreen / notification media controls
+  # (play/pause/skip) on both. Linux desktop is unsupported — the engine
+  # gates this behind PlatformCapabilities.supportsBackgroundAudio.
+  audio_service: ^0.18.15
+
   # Scroll
   scrollable_positioned_list: ^0.3.8
 

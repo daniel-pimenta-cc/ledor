@@ -9,16 +9,27 @@ import 'package:uuid/uuid.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/di/providers.dart';
+import '../../../../core/utils/platform_capabilities.dart';
+import '../../../../core/utils/sentence_boundary.dart';
 import '../../../../database/app_database.dart';
 import '../../../epub_import/domain/entities/chapter.dart';
 import '../../../epub_import/domain/entities/word_token.dart';
 import '../../../library_sync/presentation/providers/library_sync_provider.dart';
+import '../../data/services/tts_audio_handler.dart';
+import '../../data/services/tts_player.dart';
 import '../../domain/entities/display_settings.dart';
 import '../../domain/entities/rsvp_state.dart';
 import 'display_settings_provider.dart';
+import 'tts_audio_handler_provider.dart';
+import 'tts_backend_provider.dart';
 
 /// The heart of the app. Manages RSVP playback using a [Ticker] for
 /// frame-accurate word timing.
+///
+/// TTS playback is delegated to [TtsPlayer] (see `data/services/tts_player.dart`)
+/// — the engine only orchestrates state transitions, session bookkeeping,
+/// and progress persistence; the player owns the speak / queue / progress
+/// pipeline.
 class RsvpEngineNotifier extends StateNotifier<RsvpState> {
   final Ref _ref;
   Ticker? _ticker;
@@ -30,9 +41,37 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
   Timer? _saveDebounce;
   int _lastSavedWordIndex = -1;
 
+  /// String form of the reader mode last persisted to the progress row.
+  /// We compare against this before writing so the auto-restore in
+  /// [_loadBook] doesn't trigger a wasted write — only genuine user
+  /// changes via [enterTtsMode] / [exitTtsMode] / [enterEreaderMode] /
+  /// [exitEreaderMode] cause a DB+sync round-trip.
+  String? _lastSavedReaderMode;
+
   DateTime? _sessionStartedAt;
   int? _sessionStartWordIndex;
   static const _uuid = Uuid();
+
+  /// TTS playback delegate. Lazily constructed on first [enterTtsMode] so
+  /// the platform-channel cost is paid only when the user actually uses
+  /// the mode.
+  TtsPlayer? _ttsPlayer;
+
+  /// Audio-handler source we registered on enter. Held so dispose can
+  /// release it without clobbering a handler that's already moved on to a
+  /// different reader.
+  TtsAudioSource? _audioSource;
+
+  /// Cached handler reference so [_unbindAudioHandler] can do its work
+  /// without re-reading the provider — useful in [dispose], where the
+  /// `ProviderContainer` itself may already be tearing down and a read
+  /// would throw.
+  TtsAudioHandler? _audioHandler;
+
+  /// Book title cached during _loadBook for the media notification. Falls
+  /// back to the book id if the lookup fails or the title is empty.
+  String _bookTitle = '';
+  String _bookAuthor = '';
 
   RsvpEngineNotifier(this._ref, String bookId)
       : super(RsvpState(bookId: bookId)) {
@@ -53,14 +92,20 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
   Future<void> _loadBook() async {
     final tokensDao = _ref.read(cachedTokensDaoProvider);
     final progressDao = _ref.read(readingProgressDaoProvider);
+    final booksDao = _ref.read(booksDaoProvider);
     final settingsNotifier = _ref.read(displaySettingsProvider.notifier);
 
     final results = await Future.wait([
       tokensDao.getTokensForBook(state.bookId),
       progressDao.getProgressForBook(state.bookId),
       settingsNotifier.load(),
+      booksDao.getBookById(state.bookId),
     ]);
     if (!mounted) return;
+
+    final book = results[3] as BooksTableData?;
+    _bookTitle = book?.title ?? state.bookId;
+    _bookAuthor = book?.author ?? '';
 
     final cachedRows = results[0] as List<CachedTokensTableData>;
     final progress = results[1] as ReadingProgressTableData?;
@@ -77,6 +122,7 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
     final chapterIdx = progress?.chapterIndex ?? 0;
     final wordIdx = progress?.wordIndex ?? 0;
     final wpm = progress?.wpm ?? _ref.read(displaySettingsProvider).wpm;
+    final persistedMode = parsePersistedReaderMode(progress?.readerMode);
 
     final totalWords = chapters.fold<int>(0, (sum, ch) => sum + ch.wordCount);
     final globalIdx = _calculateGlobalIndex(chapters, chapterIdx, wordIdx);
@@ -85,6 +131,15 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
         _ref.read(displaySettingsProvider).copyWith(wpm: wpm);
 
     _lastSavedWordIndex = globalIdx;
+    _lastSavedReaderMode = progress?.readerMode;
+
+    // TTS restoration is async (player init); keep `isLoading=true` so the
+    // user can't tap play before the player is bound. Ereader / RSVP are
+    // synchronous — flip loading off in the same state copy.
+    final restoringTts = persistedMode == ReaderMode.tts;
+    final initialMode = persistedMode == ReaderMode.ereader
+        ? ReaderMode.ereader
+        : ReaderMode.scroll;
 
     state = state.copyWith(
       chapters: chapters,
@@ -94,9 +149,16 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
       totalWords: totalWords,
       currentWord: chapters[chapterIdx].tokens[wordIdx],
       wpm: wpm,
-      isLoading: false,
+      mode: initialMode,
+      isLoading: restoringTts,
       displaySettings: displaySettings,
     );
+
+    if (restoringTts) {
+      await enterTtsMode();
+      if (!mounted) return;
+      state = state.copyWith(isLoading: false);
+    }
   }
 
   void _onTick(Duration elapsed) {
@@ -151,9 +213,28 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
 
   void play() {
     if (state.isPlaying || state.isLoading) return;
-    if (state.globalWordIndex >= state.totalWords - 1) return;
+
+    // TTS path: ticker stays dormant; the player drives the backend.
+    // The end-of-book guard is intentionally relaxed here — the last
+    // sentence still needs to be spoken; the player's onBookFinished
+    // callback bumps finishTicket.
+    if (state.mode == ReaderMode.tts) {
+      _sessionStartedAt = DateTime.now();
+      _sessionStartWordIndex = state.globalWordIndex;
+      _wordsInSession = 0;
+      state = state.copyWith(isPlaying: true);
+      _pushSettingsToPlayer();
+      unawaited(
+        _ttsPlayer?.play(fromGlobalIndex: state.globalWordIndex),
+      );
+      _pushPlaybackState(true);
+      return;
+    }
+
     final vsync = _vsync;
     if (vsync == null) return;
+
+    if (state.globalWordIndex >= state.totalWords - 1) return;
 
     // Cursor sits on an inline image: don't run the ticker — the reader
     // needs the screen to stay put so they can pan/zoom. Switching to rsvp
@@ -179,6 +260,19 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
 
   void pause() {
     if (!state.isPlaying) return;
+
+    // TTS path: stop the backend, keep mode == tts so the reader stays on
+    // the scroll-with-highlight view. The user expects the same screen
+    // they were on, just without sound.
+    if (state.mode == ReaderMode.tts) {
+      unawaited(_ttsPlayer?.pause());
+      state = state.copyWith(isPlaying: false);
+      _flushSession();
+      _saveProgress();
+      _pushPlaybackState(false);
+      return;
+    }
+
     _ticker?.stop();
     state = state.copyWith(isPlaying: false, mode: ReaderMode.scroll);
     _flushSession();
@@ -214,16 +308,21 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
 
   void enterEreaderMode() {
     if (state.isPlaying) {
-      _ticker?.stop();
+      if (state.mode == ReaderMode.tts) {
+        unawaited(_ttsPlayer?.pause());
+      } else {
+        _ticker?.stop();
+      }
       _flushSession();
-      _saveProgress();
     }
     state = state.copyWith(isPlaying: false, mode: ReaderMode.ereader);
+    unawaited(_saveProgress());
   }
 
   void exitEreaderMode() {
     if (state.mode != ReaderMode.ereader) return;
     state = state.copyWith(mode: ReaderMode.scroll);
+    unawaited(_saveProgress());
   }
 
   void toggleEreaderMode() {
@@ -234,16 +333,126 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
     }
   }
 
+  /// Switches into TTS mode without auto-playing. The reader sees the same
+  /// scroll-with-highlight view used by `ReaderMode.scroll`, but tapping
+  /// play hands control to the TTS player instead of the ticker.
+  ///
+  /// Lazy-initialises the backend on first call so users who never visit
+  /// TTS don't pay the platform-channel cost. If init throws (e.g.
+  /// `spd-say` missing on Linux) the error is propagated via the
+  /// [ttsErrorProvider] and we revert mode back to scroll.
+  Future<void> enterTtsMode() async {
+    if (state.mode == ReaderMode.tts) return;
+
+    if (state.isPlaying) {
+      _ticker?.stop();
+      _flushSession();
+    }
+
+    // Flip the UI to TTS up front so the mode menu reflects the choice
+    // immediately. The backend setup awaits below — without this, a user
+    // who taps play before init finishes would fall into the RSVP path
+    // because `state.mode` was still `scroll`.
+    state = state.copyWith(isPlaying: false, mode: ReaderMode.tts);
+
+    final player = _ensurePlayer();
+    try {
+      await player.init();
+    } catch (e) {
+      if (!mounted) return;
+      _ref.read(ttsErrorProvider.notifier).state = e.toString();
+      state = state.copyWith(mode: ReaderMode.scroll);
+      // Surface the rollback to the persistence layer too so a failed
+      // restoration doesn't leave 'tts' stale in the progress row.
+      unawaited(_saveProgress());
+      return;
+    }
+    if (!mounted) return;
+    // The user may have switched away from TTS while init was awaited
+    // (e.g. tapped Ereader in the menu before the player finished
+    // initialising). Bail without binding the audio handler — the new
+    // mode owns the screen now, and binding here would resurface a
+    // lockscreen notification for a session the user already abandoned.
+    if (state.mode != ReaderMode.tts) return;
+
+    player.setContent(state.chapters, state.totalWords);
+    _pushSettingsToPlayer();
+    // Push settings to the backend right away so previews + the first play
+    // start with the user's chosen voice / rate / language without waiting
+    // for the speak() call to apply them.
+    unawaited(player.applySettings());
+    _bindAudioHandler();
+    // Save the mode (skipped when called from _loadBook auto-restore — the
+    // _lastSavedReaderMode there already equals 'tts').
+    unawaited(_saveProgress());
+  }
+
+  /// Exits TTS mode back to scroll. Stops any in-flight speech, flushes
+  /// the session if needed.
+  void exitTtsMode() {
+    if (state.mode != ReaderMode.tts) return;
+    if (state.isPlaying) {
+      unawaited(_ttsPlayer?.pause());
+      _flushSession();
+    }
+    state = state.copyWith(isPlaying: false, mode: ReaderMode.scroll);
+    _unbindAudioHandler();
+    unawaited(_saveProgress());
+  }
+
+  /// Called by the screen's lifecycle observer when the app resumes. If
+  /// TTS was playing and the OS killed the synth (Android backgrounding
+  /// without MediaSession will do this), restart from the current
+  /// position. Idempotent — safe to call when the TTS path is healthy.
+  void restartTtsIfStalled() {
+    if (state.mode != ReaderMode.tts || !state.isPlaying) return;
+    unawaited(_ttsPlayer?.restartIfStalled());
+  }
+
   void setWpm(int wpm) {
     final clamped = wpm.clamp(AppConstants.minWpm, AppConstants.maxWpm);
     state = state.copyWith(
       wpm: clamped,
       displaySettings: state.displaySettings.copyWith(wpm: clamped),
     );
+    // Mirror into the provider so settings-panel sliders see the latest
+    // WPM. Without this, the panel would render stale state and any
+    // unrelated slider change would snapshot the old value back into the
+    // engine.
+    unawaited(_ref
+        .read(displaySettingsProvider.notifier)
+        .update((s) => s.copyWith(wpm: clamped)));
+    // Note: in TTS mode the user controls speed via `setTtsRate`, not WPM —
+    // WPM is meaningless when an audio engine sets its own cadence. We
+    // intentionally do *not* propagate WPM changes to the backend here.
   }
 
   void increaseWpm() => setWpm(state.wpm + AppConstants.wpmStep);
   void decreaseWpm() => setWpm(state.wpm - AppConstants.wpmStep);
+
+  /// Sets the TTS speech rate (audiobook-style 1.0x / 1.25x / …). Persists
+  /// to `DisplaySettings.ttsRate` and propagates to the player immediately
+  /// so the next utterance (including already-queued lookahead) picks it up.
+  void setTtsRate(double rate) {
+    final clamped = rate.clamp(AppConstants.minTtsRate, AppConstants.maxTtsRate);
+    if (clamped == state.displaySettings.ttsRate) return;
+    state = state.copyWith(
+      displaySettings: state.displaySettings.copyWith(ttsRate: clamped),
+    );
+    // Same rationale as setWpm: mirror into the provider to keep the
+    // settings panel and the engine in sync.
+    unawaited(_ref
+        .read(displaySettingsProvider.notifier)
+        .update((s) => s.copyWith(ttsRate: clamped)));
+    if (state.mode == ReaderMode.tts) {
+      unawaited(_ttsPlayer?.setRate(clamped));
+    }
+  }
+
+  void increaseTtsRate() =>
+      setTtsRate(state.displaySettings.ttsRate + AppConstants.ttsRateStep);
+  void decreaseTtsRate() =>
+      setTtsRate(state.displaySettings.ttsRate - AppConstants.ttsRateStep);
 
   /// Seek to a specific global word index.
   void seekToWord(int globalIndex) {
@@ -256,6 +465,12 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
       globalWordIndex: clamped,
       currentWord: state.chapters[chapterIdx].tokens[wordIdx],
     );
+
+    // TTS mode: the player rebuilds its pipeline from the new position.
+    if (state.mode == ReaderMode.tts) {
+      unawaited(_ttsPlayer?.seek(clamped));
+      return;
+    }
 
     if (!state.isPlaying) _scheduleSaveProgress();
   }
@@ -275,7 +490,128 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
   }
 
   void updateDisplaySettings(DisplaySettings Function(DisplaySettings) updater) {
-    state = state.copyWith(displaySettings: updater(state.displaySettings));
+    final previous = state.displaySettings;
+    final next = updater(previous);
+    state = state.copyWith(displaySettings: next);
+
+    // Live-propagate TTS settings so the user hears them on the next
+    // utterance. The player itself decides what to apply when (rate goes
+    // through immediately; voice / pitch / language wait for the next
+    // utterance).
+    if (state.mode == ReaderMode.tts && _ttsPlayer != null) {
+      _pushSettingsToPlayer();
+    }
+    // Even outside TTS mode, keep an updated snapshot ready so the player
+    // doesn't blow stale settings at the engine on next enterTtsMode.
+    _ttsPlayer?.setSettings(_currentTtsSettings());
+  }
+
+  // ---------- TTS player wiring ----------
+
+  TtsPlayer _ensurePlayer() {
+    final existing = _ttsPlayer;
+    if (existing != null) return existing;
+    final backend = _ref.read(ttsBackendProvider);
+    final player = TtsPlayer(backend);
+    player.onWordAdvance = _onPlayerWordAdvance;
+    player.onBookFinished = _onPlayerBookFinished;
+    player.onError = _onPlayerError;
+    _ttsPlayer = player;
+    return player;
+  }
+
+  TtsPlayerSettings _currentTtsSettings() {
+    final s = state.displaySettings;
+    return TtsPlayerSettings(
+      language: s.ttsLanguage,
+      voiceName: s.ttsVoiceName,
+      engineId: s.ttsEngineId,
+      pitch: s.ttsPitch,
+      rate: s.ttsRate,
+      largeChunks: PlatformCapabilities.isLinux,
+    );
+  }
+
+  void _pushSettingsToPlayer() {
+    final player = _ttsPlayer;
+    if (player == null) return;
+    player.setContent(state.chapters, state.totalWords);
+    player.setSettings(_currentTtsSettings());
+  }
+
+  void _onPlayerWordAdvance(int newGlobalIndex, int wordsAdvanced) {
+    if (!mounted) return;
+    if (newGlobalIndex < 0 || newGlobalIndex >= state.totalWords) return;
+    final (cIdx, wIdx) = _globalToLocal(newGlobalIndex);
+    state = state.copyWith(
+      currentChapterIndex: cIdx,
+      currentWordIndex: wIdx,
+      globalWordIndex: newGlobalIndex,
+      currentWord: state.chapters[cIdx].tokens[wIdx],
+    );
+    if (wordsAdvanced > 0) {
+      _wordsInSession += wordsAdvanced;
+    }
+  }
+
+  void _onPlayerBookFinished() {
+    if (!mounted) return;
+    state = state.copyWith(
+      isPlaying: false,
+      finishTicket: state.finishTicket + 1,
+    );
+    _flushSession();
+    _saveProgress();
+    _pushPlaybackState(false);
+  }
+
+  void _onPlayerError(String error) {
+    if (!mounted) return;
+    if (state.isPlaying && state.mode == ReaderMode.tts) {
+      state = state.copyWith(isPlaying: false);
+      _flushSession();
+      _saveProgress();
+      _pushPlaybackState(false);
+    }
+    _ref.read(ttsErrorProvider.notifier).state = error;
+  }
+
+  // ---------- Audio handler wiring ----------
+
+  void _bindAudioHandler() {
+    final handler = _ref.read(ttsAudioHandlerProvider);
+    if (handler == null) return;
+    final source = TtsAudioSource(
+      play: play,
+      pause: pause,
+      skipForward: () => skipForward(),
+      skipBackward: () => skipBackward(),
+    );
+    _audioSource = source;
+    _audioHandler = handler;
+    handler.bindSource(source);
+    handler.setActiveBook(
+      bookId: state.bookId,
+      title: _bookTitle,
+      author: _bookAuthor.isEmpty ? null : _bookAuthor,
+    );
+    handler.updatePlaybackState(playing: state.isPlaying);
+  }
+
+  void _unbindAudioHandler() {
+    final handler = _audioHandler;
+    final source = _audioSource;
+    if (handler == null || source == null) return;
+    handler.unbindIfActive(source);
+    _audioSource = null;
+    _audioHandler = null;
+  }
+
+  /// Pushes [playing] to the audio handler if one is currently bound.
+  /// Reads through the cached handler reference so it's safe to call
+  /// from any path, including dispose-adjacent.
+  void _pushPlaybackState(bool playing) {
+    _audioHandler?.updatePlaybackState(playing: playing);
   }
 
   // ---------- Private helpers ----------
@@ -307,9 +643,9 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
       currentWord: state.chapters[chapterIdx].tokens[wordIdx],
     );
 
-    // Inline image at the new cursor: stop and wait for the reader to
-    // dismiss it. We keep `mode: ReaderMode.rsvp` so the image widget can
-    // take the spot the RSVP word would have rendered in.
+    // Inline image at the new cursor. RSVP path stops so the reader can
+    // pan/zoom. The TTS path advances through images silently inside the
+    // player and never reaches this code.
     if (state.currentWord?.isImage ?? false) {
       _autoPauseOnImage();
     }
@@ -336,7 +672,7 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
     _sessionStartWordIndex = null;
     if (startedAt == null || startIdx == null) return;
 
-    final durationMs = _elapsed.inMilliseconds;
+    final durationMs = DateTime.now().difference(startedAt).inMilliseconds;
     final wordsRead = _wordsInSession;
     final avgWpm = computeSessionAvgWpm(durationMs, wordsRead);
     if (avgWpm == null) return;
@@ -369,8 +705,12 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
   Future<void> _saveProgress() async {
     _saveDebounce?.cancel();
     _saveDebounce = null;
-    if (state.globalWordIndex == _lastSavedWordIndex) return;
+    final currentMode = persistedReaderMode(state.mode);
+    final wordChanged = state.globalWordIndex != _lastSavedWordIndex;
+    final modeChanged = currentMode != _lastSavedReaderMode;
+    if (!wordChanged && !modeChanged) return;
     _lastSavedWordIndex = state.globalWordIndex;
+    _lastSavedReaderMode = currentMode;
 
     final progressDao = _ref.read(readingProgressDaoProvider);
     await progressDao.upsertProgress(ReadingProgressTableCompanion(
@@ -379,6 +719,7 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
       wordIndex: Value(state.currentWordIndex),
       wpm: Value(state.wpm),
       updatedAt: Value(DateTime.now()),
+      readerMode: Value(currentMode),
     ));
 
     final booksDao = _ref.read(booksDaoProvider);
@@ -411,6 +752,14 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
   @override
   void dispose() {
     _ticker?.dispose();
+    // Dispose the player too — it detaches its callbacks from the shared
+    // backend so a late completion doesn't try to drive this disposed
+    // notifier. The backend itself is owned by ttsBackendProvider.
+    final player = _ttsPlayer;
+    if (player != null) {
+      unawaited(player.dispose());
+    }
+    _unbindAudioHandler();
     _flushSession();
     if (_saveDebounce?.isActive ?? false) {
       _saveDebounce!.cancel();
@@ -419,6 +768,11 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
     super.dispose();
   }
 }
+
+/// Surfaces the most recent TTS error so the screen can show a snackbar.
+/// Cleared by the UI after reading. Plain `StateProvider` because the
+/// error is just a string and we don't need a notifier.
+final ttsErrorProvider = StateProvider<String?>((_) => null);
 
 /// Provider family keyed by bookId. `autoDispose` so the per-book engine
 /// (and its full decoded token graph) is released when the reader unmounts.
@@ -480,18 +834,13 @@ double computeWordIntervalMultiplier({
       ? (currentWord?.timingMultiplier ?? 1.0)
       : 1.0;
 
-  if (currentWord != null && _wordEndsSentence(currentWord.text)) {
+  if (currentWord != null && wordEndsSentence(currentWord.text)) {
     multiplier *= settings.sentencePauseMultiplier;
   }
   if (nextWord != null && nextWord.isChapterStart) {
     multiplier *= settings.chapterPauseMultiplier;
   }
   return multiplier.clamp(0.5, 10.0);
-}
-
-bool _wordEndsSentence(String text) {
-  if (text.endsWith('…') || text.endsWith('...')) return true;
-  return text.endsWith('.') || text.endsWith('!') || text.endsWith('?');
 }
 
 /// Returns the rounded avg WPM for a session with [durationMs] elapsed

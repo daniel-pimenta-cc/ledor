@@ -83,8 +83,10 @@
   "bookFinished": "Você terminou o livro!",
   "tapToPause": "Toque para pausar",
   "tapToResume": "Toque para retomar",
-  "switchToEreaderMode": "Modo leitura",
-  "switchToRsvpMode": "Modo RSVP",
+  "readerModeMenuTooltip": "Modo de leitura",
+  "readerModeRsvp": "RSVP",
+  "readerModeEreader": "E-reader",
+  "readerModeTts": "Narração",
   "lockHighlight": "Travar palavra de foco",
   "unlockHighlight": "Destravar palavra de foco",
   "recenterHighlight": "Voltar para a palavra",
@@ -262,5 +264,47 @@
   },
   "imageContinue": "Continuar",
   "imageClose": "Fechar",
-  "imageMissing": "Imagem indisponível"
+  "imageMissing": "Imagem indisponível",
+  "settingsTtsSection": "Narração",
+  "settingsTtsVoice": "Voz",
+  "settingsTtsVoiceDesc": "Escolha a voz usada no modo TTS",
+  "settingsTtsLanguage": "Idioma",
+  "settingsTtsLanguageDesc": "Idioma falado pela narração",
+  "settingsTtsPitch": "Tom",
+  "settingsTtsPitchDesc": "Tom da voz — mais baixo soa grave, mais alto soa agudo",
+  "ttsVoicePickerTitle": "Escolha uma voz",
+  "ttsVoicePreviewSample": "O sol nasceu cedo e a manhã estava clara.",
+  "ttsVoicePreviewTooltip": "Ouvir prévia",
+  "ttsVoiceCurrent": "Selecionada",
+  "ttsNoVoicesAvailable": "Nenhuma voz disponível neste dispositivo",
+  "ttsLinuxRequiresSpeechDispatcher": "Instale o speech-dispatcher para habilitar a narração no Linux (ex.: `sudo apt install speech-dispatcher`)",
+  "ttsFirstUseHint": "Toque em play para iniciar a narração",
+  "ttsErrorPrefix": "Erro de narração: {error}",
+  "@ttsErrorPrefix": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+  "ttsVoiceFallbackLabel": "Padrão para {locale}",
+  "@ttsVoiceFallbackLabel": {
+    "placeholders": {
+      "locale": { "type": "String" }
+    }
+  },
+  "settingsTtsEngine": "Engine",
+  "settingsTtsEngineDesc": "Engine usada para sintetizar a fala",
+  "ttsEnginePickerTitle": "Escolha uma engine",
+  "ttsEnginePickerSubtitle": "Engines diferentes oferecem vozes e qualidades distintas",
+  "ttsEnginePickerEmpty": "Nenhuma engine alternativa instalada",
+  "ttsEnginePickerSystemDefault": "Padrão do sistema",
+  "ttsVoicePickerSearchHint": "Buscar vozes, idiomas, regiões...",
+  "ttsVoicePickerScopeCurrent": "Idioma atual",
+  "ttsVoicePickerScopeAll": "Todos os idiomas",
+  "ttsVoicePickerNoMatches": "Nenhuma voz corresponde à busca",
+  "ttsVoicePickerNoCurrentVoices": "Não há vozes para {language} neste aparelho. Mude para Todos os idiomas para ver as disponíveis.",
+  "@ttsVoicePickerNoCurrentVoices": {
+    "placeholders": {
+      "language": { "type": "String" }
+    }
+  }
 }

@@ -5,29 +5,28 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../domain/entities/display_settings.dart';
 import '../../domain/entities/rsvp_state.dart';
-import 'wpm_selector.dart';
 
 class ControlsTransportRow extends StatelessWidget {
   final RsvpState state;
   final AppLocalizations l10n;
-  final bool wpmPickerOpen;
+
+  /// Capsule rendered on the right (or below, on narrow widths). Owned by
+  /// the parent so RSVP/scroll/ereader can pass a [WpmCapsule] while TTS
+  /// passes a [TtsRateCapsule] — both speak the same role from this
+  /// widget's point of view: "the speed control".
+  final Widget speedControl;
+
   final VoidCallback onPlayPause;
   final VoidCallback onSkipBack;
   final VoidCallback onSkipForward;
-  final VoidCallback onWpmDown;
-  final VoidCallback onWpmUp;
-  final VoidCallback onWpmLabelTap;
 
   const ControlsTransportRow({
     required this.state,
     required this.l10n,
-    required this.wpmPickerOpen,
+    required this.speedControl,
     required this.onPlayPause,
     required this.onSkipBack,
     required this.onSkipForward,
-    required this.onWpmDown,
-    required this.onWpmUp,
-    required this.onWpmLabelTap,
     super.key,
   });
 
@@ -36,14 +35,6 @@ class ControlsTransportRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final settings = state.displaySettings;
-    final wpm = WpmCapsule(
-      settings: settings,
-      label: l10n.wordsPerMinute(state.wpm),
-      isOpen: wpmPickerOpen,
-      onDown: onWpmDown,
-      onUp: onWpmUp,
-      onLabelTap: onWpmLabelTap,
-    );
     final transport = Row(
       mainAxisAlignment: MainAxisAlignment.center,
       mainAxisSize: MainAxisSize.min,
@@ -77,7 +68,7 @@ class ControlsTransportRow extends StatelessWidget {
               alignment: Alignment.center,
               children: [
                 transport,
-                Align(alignment: Alignment.centerRight, child: wpm),
+                Align(alignment: Alignment.centerRight, child: speedControl),
               ],
             ),
           );
@@ -87,7 +78,7 @@ class ControlsTransportRow extends StatelessWidget {
           children: [
             transport,
             const SizedBox(height: AppSpacing.md),
-            wpm,
+            speedControl,
           ],
         );
       },

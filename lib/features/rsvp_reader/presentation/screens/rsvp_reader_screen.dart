@@ -15,6 +15,7 @@ import '../providers/display_settings_provider.dart';
 import '../providers/reader_side_panel_provider.dart';
 import '../providers/rsvp_engine_provider.dart';
 import '../widgets/context_scroll_view.dart';
+import '../widgets/reader_mode_menu.dart';
 import '../widgets/reader_settings_sheet.dart';
 import '../widgets/reader_side_panel.dart';
 import '../widgets/rsvp_controls.dart';
@@ -42,7 +43,7 @@ class RsvpReaderScreen extends ConsumerStatefulWidget {
 }
 
 class _RsvpReaderScreenState extends ConsumerState<RsvpReaderScreen>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   final FocusNode _shortcutsFocusNode = FocusNode(debugLabel: 'RsvpShortcuts');
 
   @override
@@ -51,10 +52,24 @@ class _RsvpReaderScreenState extends ConsumerState<RsvpReaderScreen>
     ref
         .read(rsvpEngineProvider(widget.bookId).notifier)
         .attachVsync(this);
+    // Observer is only used to recover a stalled TTS stream when the OS
+    // backgrounded the app. Cheap to register unconditionally — the
+    // callback is a no-op for the RSVP/scroll/ereader path.
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      ref
+          .read(rsvpEngineProvider(widget.bookId).notifier)
+          .restartTtsIfStalled();
+    }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _shortcutsFocusNode.dispose();
     // Reset side-panel state so switching between books doesn't keep a
     // panel open for an unrelated book.
@@ -82,6 +97,22 @@ class _RsvpReaderScreenState extends ConsumerState<RsvpReaderScreen>
           context.push('/books/${widget.bookId}/completion');
         });
       }
+    });
+
+    // Surface TTS errors as a snackbar. The engine writes to ttsErrorProvider
+    // when the backend reports a problem (e.g. spd-say missing on Linux).
+    ref.listen<String?>(ttsErrorProvider, (prev, next) {
+      if (next == null || next == prev) return;
+      final l10n = AppLocalizations.of(context)!;
+      final messenger = ScaffoldMessenger.maybeOf(context);
+      messenger?.showSnackBar(
+        SnackBar(
+          content: Text(l10n.ttsErrorPrefix(next)),
+          duration: const Duration(seconds: 5),
+        ),
+      );
+      // Clear the error so a future identical message still triggers.
+      ref.read(ttsErrorProvider.notifier).state = null;
     });
 
     if (state.isLoading) {
@@ -185,6 +216,13 @@ class _RsvpReaderScreenState extends ConsumerState<RsvpReaderScreen>
           bookId: widget.bookId,
           showHighlight: false,
         );
+      case ReaderMode.tts:
+        // TTS uses the same scroll-with-highlight surface as ReaderMode.scroll.
+        // The engine's onProgress callback drives the highlight position.
+        return ContextScrollView(
+          key: const ValueKey('tts'),
+          bookId: widget.bookId,
+        );
     }
   }
 
@@ -256,7 +294,6 @@ class _RsvpReaderScreenState extends ConsumerState<RsvpReaderScreen>
 
   Widget _buildTopBar(RsvpState state, RsvpEngineNotifier engine) {
     final l10n = AppLocalizations.of(context)!;
-    final isEreader = state.mode == ReaderMode.ereader;
     final theme = Theme.of(context);
     // `onClose` is only injected by the master-detail host, so its presence
     // doubles as a "we're in the split-view" signal.
@@ -308,15 +345,7 @@ class _RsvpReaderScreenState extends ConsumerState<RsvpReaderScreen>
               overflow: TextOverflow.ellipsis,
             ),
           ),
-          IconButton(
-            onPressed: engine.toggleEreaderMode,
-            tooltip:
-                isEreader ? l10n.switchToRsvpMode : l10n.switchToEreaderMode,
-            icon: Icon(
-              isEreader ? Icons.bolt : Icons.menu_book_outlined,
-              color: state.displaySettings.wordColor,
-            ),
-          ),
+          ReaderModeMenu(bookId: widget.bookId),
           IconButton(
             onPressed: () => _openSettings(state, engine),
             icon:

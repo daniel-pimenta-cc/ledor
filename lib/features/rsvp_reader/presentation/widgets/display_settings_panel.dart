@@ -4,10 +4,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/utils/platform_capabilities.dart';
 import '../../../../l10n/generated/app_localizations.dart';
+import '../../data/services/tts_backend.dart';
 import '../../domain/entities/display_settings.dart';
 import '../providers/display_settings_provider.dart';
 import '../providers/rsvp_engine_provider.dart';
+import '../providers/tts_voices_provider.dart';
+import 'tts_engine_picker_sheet.dart';
+import 'tts_voice_picker_sheet.dart';
 import 'wpm_selector.dart';
 
 part 'display_settings_widgets.dart';
@@ -32,9 +37,107 @@ class DisplaySettingsPanel extends ConsumerWidget {
       children: [
         _buildReadingSection(ref, l10n, settings),
         const SizedBox(height: 16),
+        if (PlatformCapabilities.supportsTts) ...[
+          _buildTtsSection(ref, l10n, settings),
+          const SizedBox(height: 16),
+        ],
         _buildDisplaySection(ref, l10n, settings),
       ],
     );
+  }
+
+  /// TTS section. Hidden on platforms without TTS support (web today, but
+  /// the guard is there to make the contract explicit).
+  Widget _buildTtsSection(
+    WidgetRef ref,
+    AppLocalizations l10n,
+    DisplaySettings settings,
+  ) {
+    // Engine picker is only meaningful when the backend exposes >1 engines.
+    // Watch the engines provider so the row appears / disappears as the
+    // platform reports availability.
+    final enginesAsync = ref.watch(ttsEnginesProvider);
+    final engines = enginesAsync.maybeWhen(
+      data: (list) => list,
+      orElse: () => const <TtsEngine>[],
+    );
+    final showEnginePicker = engines.length >= 2;
+    final currentEngineLabel = _engineLabel(
+      engines: engines,
+      currentId: settings.ttsEngineId,
+      systemDefault: l10n.ttsEnginePickerSystemDefault,
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _SectionHeader(label: l10n.settingsTtsSection, color: settings.wordColor),
+
+        if (showEnginePicker) ...[
+          _TtsEngineRow(
+            label: l10n.settingsTtsEngine,
+            subtitle: l10n.settingsTtsEngineDesc,
+            labelColor: settings.wordColor,
+            orpColor: settings.orpColor,
+            currentLabel: currentEngineLabel,
+            onTap: () {
+              showModalBottomSheet(
+                context: ref.context,
+                isScrollControlled: true,
+                backgroundColor: Colors.transparent,
+                builder: (_) => const TtsEnginePickerSheet(),
+              );
+            },
+          ),
+          const SizedBox(height: 12),
+        ],
+
+        _TtsVoiceRow(
+          label: l10n.settingsTtsVoice,
+          subtitle: l10n.settingsTtsVoiceDesc,
+          labelColor: settings.wordColor,
+          orpColor: settings.orpColor,
+          currentVoiceName: settings.ttsVoiceName,
+          currentLocale: settings.ttsLanguage,
+          onTap: () {
+            showModalBottomSheet(
+              context: ref.context,
+              isScrollControlled: true,
+              backgroundColor: Colors.transparent,
+              builder: (_) => const TtsVoicePickerSheet(),
+            );
+          },
+        ),
+        const SizedBox(height: 12),
+
+        _MultiplierSliderRow(
+          label: l10n.settingsTtsPitch,
+          subtitle: l10n.settingsTtsPitchDesc,
+          labelColor: settings.wordColor,
+          orpColor: settings.orpColor,
+          value: settings.ttsPitch,
+          min: 0.5,
+          max: 2.0,
+          divisions: 15,
+          labelFor: (v) => '${_formatMultiplier(v)}x',
+          onChanged: (v) => _update(ref, bookId, (s) => s.copyWith(ttsPitch: v)),
+        ),
+      ],
+    );
+  }
+
+  String _engineLabel({
+    required List<TtsEngine> engines,
+    required String? currentId,
+    required String systemDefault,
+  }) {
+    if (currentId == null) return systemDefault;
+    for (final e in engines) {
+      if (e.id == currentId) return e.displayName;
+    }
+    // Synced from a device with a different engine list — show the raw
+    // id so the user knows what the field holds.
+    return currentId;
   }
 
   /// Reading-behavior section: speed, ORP highlight, smart timing, ramp-up,
@@ -327,6 +430,16 @@ class DisplaySettingsPanel extends ConsumerWidget {
 
   /// Updates persisted settings; if [bookId] is set, also pushes the new
   /// settings to the running engine so the change is visible immediately.
+  ///
+  /// We pass the same [updater] to both the provider and the engine so
+  /// the engine state only sees the field the user touched. An earlier
+  /// version snapshotted the provider state and replaced the engine's
+  /// `displaySettings` wholesale — that worked until a user adjusted
+  /// `ttsRate` (or `wpm`) from a capsule, because those handlers only
+  /// mutate the engine state. The next time the user moved a slider,
+  /// the snapshot from the provider (still at the old rate) wiped out
+  /// the engine's value and re-issued `setSpeechRate` to the backend
+  /// mid-utterance — which silently broke flutter_tts on Android.
   static void _update(
     WidgetRef ref,
     String? bookId,
@@ -334,10 +447,9 @@ class DisplaySettingsPanel extends ConsumerWidget {
   ) {
     ref.read(displaySettingsProvider.notifier).update(updater);
     if (bookId != null) {
-      final newSettings = ref.read(displaySettingsProvider);
       ref
           .read(rsvpEngineProvider(bookId).notifier)
-          .updateDisplaySettings((_) => newSettings);
+          .updateDisplaySettings(updater);
     }
   }
 }
