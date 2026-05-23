@@ -781,6 +781,16 @@ final rsvpEngineProvider = StateNotifierProvider.autoDispose
   (ref, bookId) => RsvpEngineNotifier(ref, bookId),
 );
 
+/// Narrow view of the engine that only exposes [RsvpState.mode]. Widgets
+/// like [DisplaySettingsPanel] need to know which reading mode is active
+/// but don't care about the rest of the state — watching `rsvpEngineProvider`
+/// directly would rebuild them on every word tick. `select` keeps the
+/// rebuild scoped to actual mode changes.
+final readerModeProvider =
+    Provider.autoDispose.family<ReaderMode, String>((ref, bookId) {
+  return ref.watch(rsvpEngineProvider(bookId).select((s) => s.mode));
+});
+
 /// Returns the effective WPM during ramp-up.
 ///
 /// Starts at [AppConstants.rampUpStartFraction] of [targetWpm] and follows
