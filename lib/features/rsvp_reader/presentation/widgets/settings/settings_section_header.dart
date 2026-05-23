@@ -40,13 +40,17 @@ class SettingsSectionHeader extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          AnimatedContainer(
+          // Icon.color isn't an animatable property of AnimatedContainer, so
+          // we tween it explicitly to keep the icon in sync with the label's
+          // AnimatedDefaultTextStyle fade.
+          TweenAnimationBuilder<Color?>(
+            tween: ColorTween(end: labelColor),
             duration: AppDurations.fast,
             curve: AppCurves.standard,
-            child: Icon(
+            builder: (context, color, _) => Icon(
               iconForSettingsCategory(category),
               size: 16,
-              color: labelColor,
+              color: color,
             ),
           ),
           const SizedBox(width: 8),
@@ -60,7 +64,11 @@ class SettingsSectionHeader extends StatelessWidget {
                 fontWeight: FontWeight.w700,
                 letterSpacing: 1.5,
               ),
-              child: Text(label.toUpperCase()),
+              child: Text(
+                label.toUpperCase(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
           ),
           const SizedBox(width: 8),

@@ -69,25 +69,31 @@ class DisplaySettingsPanel extends ConsumerWidget {
     required ReaderMode? activeMode,
   }) {
     final isActive = isCategoryActiveFor(category, activeMode);
+    // ValueKey(category) makes Flutter element-match sections by identity
+    // instead of position. When the active mode changes and the sections
+    // reorder, each section's State (including the AudioSection's
+    // ttsEnginesProvider subscription and the header's animation state)
+    // moves with it instead of being torn down and rebuilt at a new index.
+    final key = ValueKey(category);
     switch (category) {
       case SettingsCategory.speedTiming:
         return SpeedTimingSection(
-            bookId: bookId, settings: settings, isActive: isActive);
+            key: key, bookId: bookId, settings: settings, isActive: isActive);
       case SettingsCategory.rsvpDisplay:
         return RsvpDisplaySection(
-            bookId: bookId, settings: settings, isActive: isActive);
+            key: key, bookId: bookId, settings: settings, isActive: isActive);
       case SettingsCategory.audio:
         return AudioSection(
-            bookId: bookId, settings: settings, isActive: isActive);
+            key: key, bookId: bookId, settings: settings, isActive: isActive);
       case SettingsCategory.readerView:
         return ReaderViewSection(
-            bookId: bookId, settings: settings, isActive: isActive);
+            key: key, bookId: bookId, settings: settings, isActive: isActive);
       case SettingsCategory.typography:
         return TypographySection(
-            bookId: bookId, settings: settings, isActive: isActive);
+            key: key, bookId: bookId, settings: settings, isActive: isActive);
       case SettingsCategory.chrome:
         return ChromeSection(
-            bookId: bookId, settings: settings, isActive: isActive);
+            key: key, bookId: bookId, settings: settings, isActive: isActive);
     }
   }
 }
