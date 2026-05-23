@@ -154,9 +154,18 @@ class RsvpParagraphView extends StatelessWidget {
         },
       ));
     }
-    // Keep the default Copy / Share / Select all entries so we don't strip
-    // a familiar OS-level capability when we add ours.
-    items.addAll(state.contextMenuButtonItems);
+    // Keep only the familiar OS-level entries (Copy, Share, Select All).
+    // Items with type == custom are injected by other installed apps via
+    // android.intent.action.PROCESS_TEXT (e.g. "Translate", "Ask Claude").
+    // Stripping them keeps our toolbar focused on the bookmark action.
+    const allowedTypes = {
+      ContextMenuButtonType.copy,
+      ContextMenuButtonType.share,
+      ContextMenuButtonType.selectAll,
+    };
+    for (final item in state.contextMenuButtonItems) {
+      if (allowedTypes.contains(item.type)) items.add(item);
+    }
     return AdaptiveTextSelectionToolbar.buttonItems(
       anchors: state.contextMenuAnchors,
       buttonItems: items,

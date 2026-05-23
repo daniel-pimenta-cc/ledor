@@ -192,6 +192,12 @@ class _RsvpReaderScreenState extends ConsumerState<RsvpReaderScreen>
 
     return Scaffold(
       backgroundColor: state.displaySettings.backgroundColor,
+      // The reader doesn't host a text field of its own — when the IME
+      // appears it's coming from the bookmark-create dialog (an Overlay),
+      // and we don't want every `SelectableText.rich` paragraph in the
+      // ScrollablePositionedList to reflow underneath it. Reflowing is
+      // expensive enough to feel like jank on Android.
+      resizeToAvoidBottomInset: false,
       body: useSidePanel
           ? Row(
               children: [
