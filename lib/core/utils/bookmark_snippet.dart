@@ -6,9 +6,9 @@ import '../../features/epub_import/domain/entities/word_token.dart';
 ///
 ///     "…brown fox jumps over [the] lazy dog and…"
 ///
-/// The leading "…" appears when [contextWords] tokens were available
-/// before the target; the trailing one appears symmetrically. Image and
-/// empty-text tokens are skipped while walking out — they aren't useful
+/// The leading "…" appears when content existed before the captured window
+/// that we couldn't include; the trailing one appears symmetrically. Image
+/// and empty-text tokens are skipped while walking out — they aren't useful
 /// as preview anchors and would render as blank cells.
 ///
 /// Returns `null` when the target word is empty or out of range.
@@ -24,7 +24,8 @@ String? buildBookmarkSnippet({
   if (targetText.isEmpty || target.isImage) return null;
 
   final before = <String>[];
-  for (int i = targetLocalIndex - 1; i >= 0 && before.length < contextWords; i--) {
+  int i = targetLocalIndex - 1;
+  for (; i >= 0 && before.length < contextWords; i--) {
     final t = tokens[i];
     if (t.isImage) continue;
     final txt = t.text.trim();
@@ -33,18 +34,22 @@ String? buildBookmarkSnippet({
   }
 
   final after = <String>[];
-  for (int i = targetLocalIndex + 1;
-      i < tokens.length && after.length < contextWords;
-      i++) {
-    final t = tokens[i];
+  int j = targetLocalIndex + 1;
+  for (; j < tokens.length && after.length < contextWords; j++) {
+    final t = tokens[j];
     if (t.isImage) continue;
     final txt = t.text.trim();
     if (txt.isEmpty) continue;
     after.add(txt);
   }
 
-  final hasMoreBefore = _hasMoreContent(tokens, targetLocalIndex - 1, -1);
-  final hasMoreAfter = _hasMoreContent(tokens, targetLocalIndex + 1, 1);
+  // `i` is one past the last index we considered going backwards (-1 when
+  // the walk reached the start of the paragraph). `_hasMoreContent` from
+  // there asks "is there still useful content we DIDN'T include?", which is
+  // the right signal for whether to add the leading ellipsis. Same on the
+  // trailing side with `j`.
+  final hasMoreBefore = i >= 0 && _hasMoreContent(tokens, i, -1);
+  final hasMoreAfter = j < tokens.length && _hasMoreContent(tokens, j, 1);
 
   final parts = <String>[];
   if (hasMoreBefore) parts.add('…');
