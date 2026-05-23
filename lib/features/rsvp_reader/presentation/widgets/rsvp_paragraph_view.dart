@@ -1,5 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../../core/utils/font_mapper.dart';
@@ -11,15 +12,17 @@ import '../../domain/entities/display_settings.dart';
 /// [ContextScrollView] so the rendering can be exercised without spinning
 /// up the engine provider in tests.
 ///
-/// When [onWordTap] is null the rendered text is non-interactive — used by
-/// the ereader mode that disables seek-on-tap. When it's non-null, both
-/// the plain word spans and the highlighted-word container forward taps
-/// to the callback.
+/// When [onWordTap] is null the rendered text is non-interactive on tap —
+/// used by the ereader mode that disables seek-on-tap. When [onWordLongPress]
+/// is non-null we switch every token to a [WidgetSpan] so each word has its
+/// own gesture detector (a single [TextSpan] only accepts one recognizer,
+/// so we can't otherwise mix tap and long-press independently).
 class RsvpParagraphView extends StatelessWidget {
   final List<WordToken> tokens;
   final int currentGlobalIndex;
   final DisplaySettings settings;
   final ValueChanged<WordToken>? onWordTap;
+  final ValueChanged<WordToken>? onWordLongPress;
 
   /// Attached to the highlighted token's render container so a parent
   /// [State] can measure its on-screen position (used by recenter). Null
@@ -31,9 +34,15 @@ class RsvpParagraphView extends StatelessWidget {
     required this.currentGlobalIndex,
     required this.settings,
     required this.onWordTap,
+    this.onWordLongPress,
     this.highlightKey,
     super.key,
   });
+
+  void _fireLongPress(WordToken token) {
+    HapticFeedback.mediumImpact();
+    onWordLongPress!(token);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -51,6 +60,8 @@ class RsvpParagraphView extends StatelessWidget {
       fontWeight: FontWeight.w600,
     );
 
+    final useWidgetSpans = onWordLongPress != null;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
       child: Text.rich(
@@ -66,6 +77,9 @@ class RsvpParagraphView extends StatelessWidget {
                 baseline: TextBaseline.alphabetic,
                 child: GestureDetector(
                   onTap: onWordTap == null ? null : () => onWordTap!(token),
+                  onLongPress: onWordLongPress == null
+                      ? null
+                      : () => _fireLongPress(token),
                   child: Container(
                     key: highlightKey,
                     padding:
@@ -87,6 +101,22 @@ class RsvpParagraphView extends StatelessWidget {
                 ),
               );
             }
+
+            if (useWidgetSpans) {
+              return WidgetSpan(
+                alignment: PlaceholderAlignment.baseline,
+                baseline: TextBaseline.alphabetic,
+                child: GestureDetector(
+                  onTap: onWordTap == null ? null : () => onWordTap!(token),
+                  onLongPress: () => _fireLongPress(token),
+                  child: Padding(
+                    padding: EdgeInsets.only(right: joinsNext ? 0 : 4),
+                    child: Text(token.text, style: baseStyle),
+                  ),
+                ),
+              );
+            }
+
             return TextSpan(
               text: joinsNext ? token.text : '${token.text} ',
               style: baseStyle,

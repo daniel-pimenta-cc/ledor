@@ -721,4 +721,49 @@ class AppLocalizationsPt extends AppLocalizations {
   @override
   String get settingsScopeControlsTooltip =>
       'Aplica-se quando os controles de leitura estão visíveis (não em e-reader)';
+
+  @override
+  String get bookmarksTitle => 'Marcadores';
+
+  @override
+  String get bookmarksTooltip => 'Marcadores';
+
+  @override
+  String get bookmarkCreateTitle => 'Salvar marcador';
+
+  @override
+  String get bookmarkEditTitle => 'Editar marcador';
+
+  @override
+  String get bookmarkLabelHint => 'Adicione uma nota (opcional)';
+
+  @override
+  String get bookmarkSave => 'Salvar';
+
+  @override
+  String get bookmarkEmptyTitle => 'Nenhum marcador ainda';
+
+  @override
+  String get bookmarkEmptySubtitle =>
+      'Mantenha pressionada uma palavra em qualquer modo de leitura para salvar este ponto.';
+
+  @override
+  String bookmarkLocationLabel(int chapter, int percent) {
+    return 'Cap. $chapter · $percent%';
+  }
+
+  @override
+  String get bookmarkActionEdit => 'Editar';
+
+  @override
+  String get bookmarkActionDelete => 'Excluir';
+
+  @override
+  String get bookmarkDeleteConfirmTitle => 'Excluir marcador?';
+
+  @override
+  String get bookmarkDeleteConfirmBody => 'Este marcador será removido.';
+
+  @override
+  String get bookmarkCreatedToast => 'Marcador salvo';
 }

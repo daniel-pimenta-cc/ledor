@@ -343,5 +343,25 @@
   "settingsScopeAudioTooltip": "Applies to audio playback (TTS)",
   "settingsScopeReaderTooltip": "Applies to RSVP, e-reader, and audio modes",
   "settingsScopeAllModesTooltip": "Applies to all reading modes",
-  "settingsScopeControlsTooltip": "Applies wherever the playback controls are visible (not e-reader)"
+  "settingsScopeControlsTooltip": "Applies wherever the playback controls are visible (not e-reader)",
+  "bookmarksTitle": "Bookmarks",
+  "bookmarksTooltip": "Bookmarks",
+  "bookmarkCreateTitle": "Save bookmark",
+  "bookmarkEditTitle": "Edit bookmark",
+  "bookmarkLabelHint": "Add a note (optional)",
+  "bookmarkSave": "Save",
+  "bookmarkEmptyTitle": "No bookmarks yet",
+  "bookmarkEmptySubtitle": "Long-press a word in any reading mode to save your spot.",
+  "bookmarkLocationLabel": "Ch. {chapter} · {percent}%",
+  "@bookmarkLocationLabel": {
+    "placeholders": {
+      "chapter": { "type": "int" },
+      "percent": { "type": "int" }
+    }
+  },
+  "bookmarkActionEdit": "Edit",
+  "bookmarkActionDelete": "Delete",
+  "bookmarkDeleteConfirmTitle": "Delete bookmark?",
+  "bookmarkDeleteConfirmBody": "This bookmark will be removed.",
+  "bookmarkCreatedToast": "Bookmark saved"
 }

@@ -8,12 +8,17 @@ import '../../../../core/routing/selected_book_provider.dart';
 import '../../../../core/theme/app_motion.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/responsive.dart';
+import '../../../../core/utils/bookmark_snippet.dart';
 import '../../../../core/utils/platform_capabilities.dart';
 import '../../../../l10n/generated/app_localizations.dart';
+import '../../../epub_import/domain/entities/word_token.dart';
 import '../../domain/entities/rsvp_state.dart';
+import '../providers/bookmarks_provider.dart';
 import '../providers/display_settings_provider.dart';
 import '../providers/reader_side_panel_provider.dart';
 import '../providers/rsvp_engine_provider.dart';
+import '../widgets/bookmark_create_dialog.dart';
+import '../widgets/bookmarks_list_sheet.dart';
 import '../widgets/context_scroll_view.dart';
 import '../widgets/reader_mode_menu.dart';
 import '../widgets/reader_settings_sheet.dart';
@@ -202,6 +207,8 @@ class _RsvpReaderScreenState extends ConsumerState<RsvpReaderScreen>
   }
 
   Widget _buildModeArea(RsvpState state, RsvpEngineNotifier engine) {
+    void onLongPress(WordToken token) =>
+        _onBookmarkLongPress(state, engine, token);
     switch (state.mode) {
       case ReaderMode.rsvp:
         return _buildRsvpArea(state, engine);
@@ -209,12 +216,14 @@ class _RsvpReaderScreenState extends ConsumerState<RsvpReaderScreen>
         return ContextScrollView(
           key: const ValueKey('scroll'),
           bookId: widget.bookId,
+          onWordLongPress: onLongPress,
         );
       case ReaderMode.ereader:
         return ContextScrollView(
           key: const ValueKey('ereader'),
           bookId: widget.bookId,
           showHighlight: false,
+          onWordLongPress: onLongPress,
         );
       case ReaderMode.tts:
         // TTS uses the same scroll-with-highlight surface as ReaderMode.scroll.
@@ -222,6 +231,7 @@ class _RsvpReaderScreenState extends ConsumerState<RsvpReaderScreen>
         return ContextScrollView(
           key: const ValueKey('tts'),
           bookId: widget.bookId,
+          onWordLongPress: onLongPress,
         );
     }
   }
@@ -243,6 +253,11 @@ class _RsvpReaderScreenState extends ConsumerState<RsvpReaderScreen>
       onTap: () {
         HapticFeedback.mediumImpact();
         engine.togglePlayPause();
+      },
+      onLongPress: () {
+        final word = state.currentWord;
+        if (word == null || word.isImage) return;
+        _onBookmarkLongPress(state, engine, word);
       },
       onHorizontalDragEnd: (details) {
         if (details.primaryVelocity == null) return;
@@ -289,6 +304,73 @@ class _RsvpReaderScreenState extends ConsumerState<RsvpReaderScreen>
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => ReaderSettingsSheet(bookId: widget.bookId),
+    );
+  }
+
+  void _openBookmarks(RsvpState state, RsvpEngineNotifier engine) {
+    if (state.isPlaying) engine.pause();
+    if (_useSidePanel(context)) {
+      final current = ref.read(readerSidePanelProvider);
+      ref.read(readerSidePanelProvider.notifier).state =
+          current == ReaderSidePanelMode.bookmarks
+              ? ReaderSidePanelMode.none
+              : ReaderSidePanelMode.bookmarks;
+      return;
+    }
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => BookmarksListSheet(bookId: widget.bookId),
+    );
+  }
+
+  /// Called when the user long-presses a word in any reader mode. Pauses
+  /// playback (so the bookmark anchors to the word the user actually
+  /// targeted, not whatever advanced under the press) and opens the
+  /// create dialog.
+  Future<void> _onBookmarkLongPress(
+    RsvpState state,
+    RsvpEngineNotifier engine,
+    WordToken token,
+  ) async {
+    if (state.isPlaying) engine.pause();
+
+    final chapterIdx = token.chapterIndex;
+    String? snippet;
+    if (chapterIdx >= 0 && chapterIdx < state.chapters.length) {
+      final chapter = state.chapters[chapterIdx];
+      final localIdx = chapter.tokens
+          .indexWhere((t) => t.globalIndex == token.globalIndex);
+      if (localIdx >= 0) {
+        snippet = buildBookmarkSnippet(
+          tokens: chapter.tokens,
+          targetLocalIndex: localIdx,
+        );
+      }
+    }
+
+    final result = await showBookmarkDialog(
+      context: context,
+      snippet: snippet,
+    );
+    if (result == null) return;
+    if (!mounted) return;
+
+    await ref.read(bookmarksControllerProvider(widget.bookId)).create(
+          globalWordIndex: token.globalIndex,
+          chapterIndex: chapterIdx,
+          label: result.label,
+          contextSnippet: snippet,
+        );
+
+    if (!mounted) return;
+    final l10n = AppLocalizations.of(context)!;
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+      SnackBar(
+        content: Text(l10n.bookmarkCreatedToast),
+        duration: const Duration(seconds: 2),
+      ),
     );
   }
 
@@ -346,6 +428,14 @@ class _RsvpReaderScreenState extends ConsumerState<RsvpReaderScreen>
             ),
           ),
           ReaderModeMenu(bookId: widget.bookId),
+          IconButton(
+            onPressed: () => _openBookmarks(state, engine),
+            tooltip: l10n.bookmarksTooltip,
+            icon: Icon(
+              Icons.bookmark_outline,
+              color: state.displaySettings.wordColor,
+            ),
+          ),
           IconButton(
             onPressed: () => _openSettings(state, engine),
             icon:

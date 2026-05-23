@@ -721,4 +721,49 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get settingsScopeControlsTooltip =>
       'Applies wherever the playback controls are visible (not e-reader)';
+
+  @override
+  String get bookmarksTitle => 'Bookmarks';
+
+  @override
+  String get bookmarksTooltip => 'Bookmarks';
+
+  @override
+  String get bookmarkCreateTitle => 'Save bookmark';
+
+  @override
+  String get bookmarkEditTitle => 'Edit bookmark';
+
+  @override
+  String get bookmarkLabelHint => 'Add a note (optional)';
+
+  @override
+  String get bookmarkSave => 'Save';
+
+  @override
+  String get bookmarkEmptyTitle => 'No bookmarks yet';
+
+  @override
+  String get bookmarkEmptySubtitle =>
+      'Long-press a word in any reading mode to save your spot.';
+
+  @override
+  String bookmarkLocationLabel(int chapter, int percent) {
+    return 'Ch. $chapter · $percent%';
+  }
+
+  @override
+  String get bookmarkActionEdit => 'Edit';
+
+  @override
+  String get bookmarkActionDelete => 'Delete';
+
+  @override
+  String get bookmarkDeleteConfirmTitle => 'Delete bookmark?';
+
+  @override
+  String get bookmarkDeleteConfirmBody => 'This bookmark will be removed.';
+
+  @override
+  String get bookmarkCreatedToast => 'Bookmark saved';
 }
