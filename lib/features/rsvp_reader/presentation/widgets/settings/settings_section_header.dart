@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../../core/theme/app_motion.dart';
 import '../../../../../l10n/generated/app_localizations.dart';
 import 'settings_category.dart';
 import 'settings_category_icons.dart';
@@ -39,21 +40,27 @@ class SettingsSectionHeader extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Icon(
-            iconForSettingsCategory(category),
-            size: 16,
-            color: labelColor,
+          AnimatedContainer(
+            duration: AppDurations.fast,
+            curve: AppCurves.standard,
+            child: Icon(
+              iconForSettingsCategory(category),
+              size: 16,
+              color: labelColor,
+            ),
           ),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(
-              label.toUpperCase(),
+            child: AnimatedDefaultTextStyle(
+              duration: AppDurations.fast,
+              curve: AppCurves.standard,
               style: TextStyle(
                 color: labelColor,
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 1.5,
               ),
+              child: Text(label.toUpperCase()),
             ),
           ),
           const SizedBox(width: 8),
@@ -122,21 +129,25 @@ class _ScopeChip extends StatelessWidget {
 
     return Tooltip(
       message: tooltip,
-      child: Container(
+      child: AnimatedContainer(
+        duration: AppDurations.fast,
+        curve: AppCurves.standard,
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
         decoration: BoxDecoration(
           color: background,
           border: Border.all(color: border, width: 1),
           borderRadius: BorderRadius.circular(999),
         ),
-        child: Text(
-          label,
+        child: AnimatedDefaultTextStyle(
+          duration: AppDurations.fast,
+          curve: AppCurves.standard,
           style: TextStyle(
             color: foreground,
             fontSize: 10,
             fontWeight: FontWeight.w600,
             letterSpacing: 0.4,
           ),
+          child: Text(label),
         ),
       ),
     );
