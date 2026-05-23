@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:rsvp_reader/core/utils/platform_capabilities.dart';
 import 'package:rsvp_reader/features/rsvp_reader/data/services/tts_backend.dart';
 import 'package:rsvp_reader/features/rsvp_reader/domain/entities/rsvp_state.dart';
 import 'package:rsvp_reader/features/rsvp_reader/presentation/providers/rsvp_engine_provider.dart';
@@ -29,6 +30,15 @@ Future<void> pumpPanel(
   String? bookId,
   ReaderMode? mode,
 }) async {
+  // Either pass both or pass neither — without an override of
+  // readerModeProvider(bookId), passing bookId alone falls through to the
+  // real provider chain (RsvpEngineNotifier → real DAOs) and crashes with
+  // an unrelated-looking Riverpod plumbing error. Fail loudly here instead.
+  assert(
+    (bookId == null) == (mode == null),
+    'pumpPanel: bookId and mode must both be provided or both be null',
+  );
+
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
@@ -89,14 +99,19 @@ void main() {
         (tester) async {
       await pumpPanel(tester);
 
-      expect(categoryOrder(tester), const [
+      // The panel filters the audio section out on platforms where
+      // PlatformCapabilities.supportsTts is false (web), so build the
+      // expected order the same way the panel does instead of asserting
+      // a fixed list that would break under `flutter test -d chrome`.
+      final expected = [
         SettingsCategory.typography,
         SettingsCategory.speedTiming,
         SettingsCategory.rsvpDisplay,
         SettingsCategory.readerView,
-        SettingsCategory.audio,
+        if (PlatformCapabilities.supportsTts) SettingsCategory.audio,
         SettingsCategory.chrome,
-      ]);
+      ];
+      expect(categoryOrder(tester), expected);
       expect(activeFlags(tester).every((a) => a == false), isTrue,
           reason: 'no active mode → no chip should light up');
     });
@@ -107,10 +122,14 @@ void main() {
       final order = categoryOrder(tester);
       expect(order.first, SettingsCategory.speedTiming);
       expect(order[1], SettingsCategory.rsvpDisplay);
-      expect(order.last, SettingsCategory.audio);
+      if (PlatformCapabilities.supportsTts) {
+        expect(order.last, SettingsCategory.audio,
+            reason: 'audio sinks to the bottom when not in TTS mode');
+      }
     });
 
     testWidgets('TTS mode floats Audio to the top', (tester) async {
+      if (!PlatformCapabilities.supportsTts) return;
       await pumpPanel(tester, bookId: 'book-1', mode: ReaderMode.tts);
 
       final order = categoryOrder(tester);
@@ -127,7 +146,9 @@ void main() {
 
       final order = categoryOrder(tester);
       expect(order.first, SettingsCategory.readerView);
-      expect(order.last, SettingsCategory.audio);
+      if (PlatformCapabilities.supportsTts) {
+        expect(order.last, SettingsCategory.audio);
+      }
     });
   });
 
