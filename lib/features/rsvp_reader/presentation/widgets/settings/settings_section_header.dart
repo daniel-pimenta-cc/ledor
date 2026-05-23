@@ -65,7 +65,6 @@ class SettingsSectionHeader extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           _ScopeChip(
-            scope: category.scope,
             wordColor: wordColor,
             orpColor: orpColor,
             filled: isActive,
@@ -109,7 +108,6 @@ class SettingsSectionHeader extends StatelessWidget {
 }
 
 class _ScopeChip extends StatelessWidget {
-  final SettingsScope scope;
   final Color wordColor;
   final Color orpColor;
   final bool filled;
@@ -117,7 +115,6 @@ class _ScopeChip extends StatelessWidget {
   final String tooltip;
 
   const _ScopeChip({
-    required this.scope,
     required this.wordColor,
     required this.orpColor,
     required this.filled,
@@ -128,7 +125,15 @@ class _ScopeChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final background = filled ? orpColor : Colors.transparent;
-    final foreground = filled ? Colors.white : wordColor.withAlpha(160);
+    // ORP colour is user-configurable — pale tones (light yellow, near
+    // white) would render white-on-pale and lose the label. Pick the
+    // foreground from the background's perceived brightness instead of
+    // hard-coding white.
+    final filledForeground =
+        ThemeData.estimateBrightnessForColor(orpColor) == Brightness.dark
+            ? Colors.white
+            : Colors.black87;
+    final foreground = filled ? filledForeground : wordColor.withAlpha(160);
     final border = filled ? orpColor : wordColor.withAlpha(60);
 
     return Tooltip(
