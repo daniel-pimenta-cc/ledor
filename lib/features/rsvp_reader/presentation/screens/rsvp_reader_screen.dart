@@ -190,15 +190,18 @@ class _RsvpReaderScreenState extends ConsumerState<RsvpReaderScreen>
 
     final useSidePanel = _useSidePanel(context);
 
-    return Scaffold(
-      backgroundColor: state.displaySettings.backgroundColor,
-      // The reader doesn't host a text field of its own — when the IME
-      // appears it's coming from the bookmark-create dialog (an Overlay),
-      // and we don't want every `SelectableText.rich` paragraph in the
-      // ScrollablePositionedList to reflow underneath it. Reflowing is
-      // expensive enough to feel like jank on Android.
-      resizeToAvoidBottomInset: false,
-      body: useSidePanel
+    // Strip viewInsets from the MediaQuery descendants see so the IME
+    // animation (driven by the bookmark-create dialog overlay) doesn't
+    // re-emit a fresh MediaQueryData on every tick. With dozens of
+    // SelectableText.rich paragraphs in the ScrollablePositionedList,
+    // re-emitting MediaQuery was forcing them all to rebuild and feel
+    // janky. Pairs with `resizeToAvoidBottomInset: false` below — the
+    // Scaffold doesn't auto-resize, *and* the rest of the tree doesn't
+    // see the IME at all.
+    final body = MediaQuery.removeViewInsets(
+      context: context,
+      removeBottom: true,
+      child: useSidePanel
           ? Row(
               children: [
                 Expanded(child: wrappedReaderBody),
@@ -209,6 +212,12 @@ class _RsvpReaderScreenState extends ConsumerState<RsvpReaderScreen>
               ],
             )
           : wrappedReaderBody,
+    );
+
+    return Scaffold(
+      backgroundColor: state.displaySettings.backgroundColor,
+      resizeToAvoidBottomInset: false,
+      body: body,
     );
   }
 

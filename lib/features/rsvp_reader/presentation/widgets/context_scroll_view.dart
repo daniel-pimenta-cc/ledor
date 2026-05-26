@@ -333,7 +333,10 @@ class _ContextScrollViewState extends ConsumerState<ContextScrollView> {
       });
     }
 
-    final screenHeight = MediaQuery.of(context).size.height;
+    // sizeOf only listens to size changes — `MediaQuery.of(context).size`
+    // would rebuild on every IME animation tick because the full
+    // MediaQueryData includes viewInsets.
+    final screenHeight = MediaQuery.sizeOf(context).height;
     final maxReadableWidth = ResponsiveDefaults.readableMaxWidth(context);
     final sidePadding = context.deviceType == DeviceType.compact ? 24.0 : 32.0;
 
