@@ -8,6 +8,8 @@ import '../../../../core/theme/responsive.dart';
 import '../../../../database/app_database.dart';
 import '../../../../features/library_sync/presentation/providers/library_sync_provider.dart';
 import '../../../../features/library_sync/presentation/providers/sync_config_provider.dart';
+import '../../../../features/rsvp_reader/presentation/providers/bookmarks_provider.dart';
+import '../../../../features/rsvp_reader/presentation/providers/reader_side_panel_provider.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../providers/book_library_provider.dart';
 import '../widgets/book_card.dart';
@@ -197,6 +199,32 @@ class LibraryList extends ConsumerWidget {
                   onTap: () {
                     Navigator.of(sheetCtx).pop();
                     context.push('/books/$bookId/completion');
+                  },
+                );
+              }),
+              // Bookmarks tile only appears when the book has at least one
+              // saved bookmark — otherwise the action would land on an
+              // empty list.
+              Consumer(builder: (ctx, ref, _) {
+                final count =
+                    ref.watch(bookmarkCountProvider(bookId)).valueOrNull ?? 0;
+                if (count == 0) return const SizedBox.shrink();
+                return ListTile(
+                  leading: const Icon(Icons.bookmark_outline),
+                  title: Text(l10n.bookmarksTitle),
+                  trailing: Text(
+                    '$count',
+                    style: Theme.of(sheetCtx).textTheme.labelMedium,
+                  ),
+                  onTap: () {
+                    Navigator.of(sheetCtx).pop();
+                    // Defer the panel/sheet open until the reader has
+                    // mounted. The reader checks this provider once when
+                    // loading completes.
+                    ref
+                        .read(readerPendingActionProvider.notifier)
+                        .state = ReaderPendingAction.openBookmarks;
+                    _openBook(context, ref, bookId);
                   },
                 );
               }),

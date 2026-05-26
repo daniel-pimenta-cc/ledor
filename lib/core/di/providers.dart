@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../../database/app_database.dart';
+import '../../database/daos/bookmarks_dao.dart';
 import '../../database/daos/books_dao.dart';
 import '../../database/daos/cached_tokens_dao.dart';
 import '../../database/daos/reading_progress_dao.dart';
@@ -32,6 +33,10 @@ final cachedTokensDaoProvider = Provider<CachedTokensDao>((ref) {
 
 final syncImportFailuresDaoProvider = Provider<SyncImportFailuresDao>((ref) {
   return ref.watch(appDatabaseProvider).syncImportFailuresDao;
+});
+
+final bookmarksDaoProvider = Provider<BookmarksDao>((ref) {
+  return ref.watch(appDatabaseProvider).bookmarksDao;
 });
 
 final appDocumentsDirProvider = FutureProvider<Directory>((ref) async {

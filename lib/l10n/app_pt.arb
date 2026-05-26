@@ -317,5 +317,25 @@
   "settingsScopeAudioTooltip": "Aplica-se à reprodução em áudio (TTS)",
   "settingsScopeReaderTooltip": "Aplica-se aos modos RSVP, e-reader e áudio",
   "settingsScopeAllModesTooltip": "Aplica-se a todos os modos de leitura",
-  "settingsScopeControlsTooltip": "Aplica-se quando os controles de leitura estão visíveis (não em e-reader)"
+  "settingsScopeControlsTooltip": "Aplica-se quando os controles de leitura estão visíveis (não em e-reader)",
+  "bookmarksTitle": "Marcadores",
+  "bookmarksTooltip": "Marcadores",
+  "bookmarkCreateTitle": "Salvar marcador",
+  "bookmarkEditTitle": "Editar marcador",
+  "bookmarkLabelHint": "Adicione uma nota (opcional)",
+  "bookmarkSave": "Salvar",
+  "bookmarkEmptyTitle": "Nenhum marcador ainda",
+  "bookmarkEmptySubtitle": "Mantenha pressionada uma palavra em qualquer modo de leitura para salvar este ponto.",
+  "bookmarkLocationLabel": "Cap. {chapter} · {percent}%",
+  "@bookmarkLocationLabel": {
+    "placeholders": {
+      "chapter": { "type": "int" },
+      "percent": { "type": "int" }
+    }
+  },
+  "bookmarkActionEdit": "Editar",
+  "bookmarkActionDelete": "Excluir",
+  "bookmarkDeleteConfirmTitle": "Excluir marcador?",
+  "bookmarkDeleteConfirmBody": "Este marcador será removido.",
+  "bookmarkCreatedToast": "Marcador salvo"
 }

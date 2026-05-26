@@ -7,6 +7,7 @@ import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../database/app_database.dart';
 import '../../../../database/tables/book_source.dart';
+import '../../../rsvp_reader/presentation/providers/bookmarks_provider.dart';
 import '../providers/book_library_provider.dart';
 import 'reading_progress_bar.dart';
 
@@ -90,7 +91,17 @@ class _BookCardState extends ConsumerState<BookCard> {
                 children: [
                   Expanded(
                     flex: 3,
-                    child: _Cover(book: widget.book),
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        _Cover(book: widget.book),
+                        Positioned(
+                          top: AppSpacing.xs,
+                          right: AppSpacing.xs,
+                          child: _BookmarkBadge(bookId: widget.book.id),
+                        ),
+                      ],
+                    ),
                   ),
                   Expanded(
                     flex: 2,
@@ -143,6 +154,50 @@ class _BookCardState extends ConsumerState<BookCard> {
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Small pill rendered on the cover when the book has saved bookmarks.
+/// Watches a live count provider so the badge appears / disappears as the
+/// user creates or deletes bookmarks anywhere in the app.
+class _BookmarkBadge extends ConsumerWidget {
+  final String bookId;
+  const _BookmarkBadge({required this.bookId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final count = ref.watch(bookmarkCountProvider(bookId)).valueOrNull ?? 0;
+    if (count == 0) return const SizedBox.shrink();
+    final scheme = Theme.of(context).colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: scheme.primary.withAlpha(220),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.bookmark,
+              size: 12,
+              color: scheme.onPrimary,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              '$count',
+              style: TextStyle(
+                color: scheme.onPrimary,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
+          ],
         ),
       ),
     );

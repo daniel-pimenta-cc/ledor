@@ -1,11 +1,13 @@
 import 'package:drift/drift.dart';
 
+import 'daos/bookmarks_dao.dart';
 import 'daos/books_dao.dart';
 import 'daos/cached_tokens_dao.dart';
 import 'daos/reading_progress_dao.dart';
 import 'daos/reading_session_dao.dart';
 import 'daos/sync_import_failures_dao.dart';
 import 'tables/book_source.dart';
+import 'tables/bookmarks_table.dart';
 import 'tables/books_table.dart';
 import 'tables/cached_tokens_table.dart';
 import 'tables/reading_progress_table.dart';
@@ -52,6 +54,7 @@ part 'app_database.g.dart';
     ReadingSessionTable,
     CachedTokensTable,
     SyncImportFailuresTable,
+    BookmarksTable,
   ],
   daos: [
     BooksDao,
@@ -59,13 +62,14 @@ part 'app_database.g.dart';
     ReadingSessionDao,
     CachedTokensDao,
     SyncImportFailuresDao,
+    BookmarksDao,
   ],
 )
 class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
 
   @override
-  int get schemaVersion => 8;
+  int get schemaVersion => 10;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -95,6 +99,14 @@ class AppDatabase extends _$AppDatabase {
           if (from < 8) {
             await m.addColumn(
                 readingProgressTable, readingProgressTable.readerMode);
+          }
+          if (from < 9) {
+            await m.createTable(bookmarksTable);
+            await m.createIndex(bookmarksBookIdIdx);
+          }
+          if (from < 10) {
+            await m.addColumn(bookmarksTable, bookmarksTable.endGlobalWordIndex);
+            await m.addColumn(bookmarksTable, bookmarksTable.endChapterIndex);
           }
         },
       );

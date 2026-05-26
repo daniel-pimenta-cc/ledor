@@ -9,8 +9,13 @@ abstract final class Breakpoints {
 enum DeviceType { compact, medium, expanded }
 
 extension ResponsiveContext on BuildContext {
-  Size get _size => MediaQuery.of(this).size;
-  Orientation get _orientation => MediaQuery.of(this).orientation;
+  // Use the granular sizeOf/orientationOf helpers instead of
+  // `MediaQuery.of(this)`. `.of` registers a dependency on the ENTIRE
+  // MediaQueryData, so a viewInsets change (e.g. IME animating up)
+  // would rebuild every widget that touches isTablet/deviceType/etc.
+  // The granular variants only listen to the aspect they read.
+  Size get _size => MediaQuery.sizeOf(this);
+  Orientation get _orientation => MediaQuery.orientationOf(this);
 
   bool get isTablet => _size.shortestSide >= Breakpoints.compact;
   bool get isLandscape => _orientation == Orientation.landscape;

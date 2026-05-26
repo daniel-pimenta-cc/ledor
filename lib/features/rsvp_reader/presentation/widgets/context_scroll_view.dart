@@ -50,9 +50,15 @@ class ContextScrollView extends ConsumerStatefulWidget {
   final String bookId;
   final bool showHighlight;
 
+  /// Invoked when the user confirms a bookmark range from the OS text
+  /// selection toolbar. [first] and [last] are equal for a single-word
+  /// pick. Null disables the gesture (e.g. tests / screenshots).
+  final void Function(WordToken first, WordToken last)? onBookmarkRange;
+
   const ContextScrollView({
     required this.bookId,
     this.showHighlight = true,
+    this.onBookmarkRange,
     super.key,
   });
 
@@ -327,7 +333,10 @@ class _ContextScrollViewState extends ConsumerState<ContextScrollView> {
       });
     }
 
-    final screenHeight = MediaQuery.of(context).size.height;
+    // sizeOf only listens to size changes — `MediaQuery.of(context).size`
+    // would rebuild on every IME animation tick because the full
+    // MediaQueryData includes viewInsets.
+    final screenHeight = MediaQuery.sizeOf(context).height;
     final maxReadableWidth = ResponsiveDefaults.readableMaxWidth(context);
     final sidePadding = context.deviceType == DeviceType.compact ? 24.0 : 32.0;
 
@@ -403,6 +412,7 @@ class _ContextScrollViewState extends ConsumerState<ContextScrollView> {
               currentGlobalIndex: -1,
               settings: settings,
               onWordTap: null,
+              onBookmarkRange: widget.onBookmarkRange,
             );
           }
 
@@ -414,6 +424,7 @@ class _ContextScrollViewState extends ConsumerState<ContextScrollView> {
                 currentGlobalIndex: currentHighlight,
                 settings: settings,
                 onWordTap: _onWordTap,
+                onBookmarkRange: widget.onBookmarkRange,
                 highlightKey: _highlightedWordKey,
               );
             },

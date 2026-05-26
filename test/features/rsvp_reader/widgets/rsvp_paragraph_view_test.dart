@@ -72,30 +72,22 @@ List<TextSpan> _collectLeafTextSpans(InlineSpan span) {
   return out;
 }
 
-/// Finds the [RichText] that belongs to the paragraph under test. The
-/// inner [Text] children inside the highlight pill also render as
-/// [RichText]s, so a global `find.byType(RichText)` is ambiguous.
-RichText _findParagraphRichText(WidgetTester tester) {
-  final candidates = tester.widgetList<RichText>(
-    find.descendant(
-      of: find.byType(RsvpParagraphView),
-      matching: find.byType(RichText),
-    ),
+/// Pulls the TextSpan the paragraph is rendering through
+/// `SelectableText.rich`. The widget now backs onto an [EditableText], so
+/// we go through its controller's `buildTextSpan` to get the actual
+/// rendered spans (recognizers, hyphenation, etc).
+TextSpan _findParagraphTextSpan(WidgetTester tester) {
+  final finder = find.descendant(
+    of: find.byType(RsvpParagraphView),
+    matching: find.byType(EditableText),
   );
-  // The outermost RichText is the one with the most direct children — the
-  // pill's Text widgets each render a RichText with a single leaf.
-  RichText? best;
-  int bestChildren = -1;
-  for (final r in candidates) {
-    final children = (r.text is TextSpan)
-        ? ((r.text as TextSpan).children?.length ?? 0)
-        : 0;
-    if (children > bestChildren) {
-      bestChildren = children;
-      best = r;
-    }
-  }
-  return best!;
+  final editable = tester.widget<EditableText>(finder);
+  final element = finder.evaluate().single;
+  return editable.controller.buildTextSpan(
+    context: element,
+    style: const TextStyle(),
+    withComposing: false,
+  ) as TextSpan;
 }
 
 void main() {
@@ -103,8 +95,7 @@ void main() {
     testWidgets('renders all tokens in order in the rich text', (tester) async {
       await _pump(tester, tokens: _sample(), currentGlobalIndex: -1);
 
-      final richText = _findParagraphRichText(tester);
-      final root = richText.text as TextSpan;
+      final root = _findParagraphTextSpan(tester);
       final concatenated = root.toPlainText();
       // Words are space-joined; the final word has no trailing space.
       expect(concatenated.trim(), 'the quick brown fox');
@@ -192,8 +183,8 @@ void main() {
           currentGlobalIndex: 2,
           onWordTap: (_) {},
         );
-        final richText = _findParagraphRichText(tester);
-        final plainSpans = _collectLeafTextSpans(richText.text);
+        final root = _findParagraphTextSpan(tester);
+        final plainSpans = _collectLeafTextSpans(root);
         expect(plainSpans, isNotEmpty);
         for (final s in plainSpans) {
           expect(s.recognizer, isA<TapGestureRecognizer>());
@@ -210,8 +201,8 @@ void main() {
           currentGlobalIndex: -1,
           onWordTap: null,
         );
-        final richText = _findParagraphRichText(tester);
-        for (final s in _collectLeafTextSpans(richText.text)) {
+        final root = _findParagraphTextSpan(tester);
+        for (final s in _collectLeafTextSpans(root)) {
           expect(s.recognizer, isNull);
         }
       },
@@ -226,9 +217,9 @@ void main() {
           _token('chuva', 1),
         ];
         await _pump(tester, tokens: tokens, currentGlobalIndex: -1);
-        final richText = _findParagraphRichText(tester);
+        final root = _findParagraphTextSpan(tester);
         // Plaintext should keep the dash flush against the next word.
-        expect(richText.text.toPlainText(), startsWith('guarda-chuva'));
+        expect(root.toPlainText(), startsWith('guarda-chuva'));
       },
     );
   });

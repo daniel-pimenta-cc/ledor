@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_spacing.dart';
+import '../../../../l10n/generated/app_localizations.dart';
 import '../../domain/entities/display_settings.dart';
 import '../providers/reader_side_panel_provider.dart';
 import '../providers/rsvp_engine_provider.dart';
+import 'bookmarks_list.dart';
 import 'display_settings_panel.dart';
 import 'finish_book_button.dart';
 
@@ -28,6 +30,7 @@ class ReaderSidePanel extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final panel = ref.watch(readerSidePanelProvider);
     if (panel == ReaderSidePanelMode.none) return const SizedBox.shrink();
+    final l10n = AppLocalizations.of(context)!;
 
     return SizedBox(
       width: width,
@@ -45,40 +48,54 @@ class ReaderSidePanel extends ConsumerWidget {
               onClose: () => ref
                   .read(readerSidePanelProvider.notifier)
                   .state = ReaderSidePanelMode.none,
-              title: panel == ReaderSidePanelMode.settings
-                  ? 'Settings'
-                  : 'Chapters',
+              title: switch (panel) {
+                ReaderSidePanelMode.settings => 'Settings',
+                ReaderSidePanelMode.chapters => 'Chapters',
+                ReaderSidePanelMode.bookmarks => l10n.bookmarksTitle,
+                ReaderSidePanelMode.none => '',
+              },
             ),
-            Expanded(
-              child: panel == ReaderSidePanelMode.settings
-                  ? SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(
-                        AppSpacing.lg,
-                        AppSpacing.base,
-                        AppSpacing.lg,
-                        AppSpacing.lg,
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          DisplaySettingsPanel(bookId: bookId),
-                          const SizedBox(height: AppSpacing.lg),
-                          FinishBookButton(
-                            bookId: bookId,
-                            settings: settings,
-                            onBeforeNavigate: () => ref
-                                .read(readerSidePanelProvider.notifier)
-                                .state = ReaderSidePanelMode.none,
-                          ),
-                        ],
-                      ),
-                    )
-                  : _ChapterList(bookId: bookId, settings: settings),
-            ),
+            Expanded(child: _bodyFor(panel)),
           ],
         ),
       ),
     );
+  }
+
+  Widget _bodyFor(ReaderSidePanelMode panel) {
+    switch (panel) {
+      case ReaderSidePanelMode.settings:
+        return Consumer(builder: (context, ref, _) {
+          return SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.lg,
+              AppSpacing.base,
+              AppSpacing.lg,
+              AppSpacing.lg,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                DisplaySettingsPanel(bookId: bookId),
+                const SizedBox(height: AppSpacing.lg),
+                FinishBookButton(
+                  bookId: bookId,
+                  settings: settings,
+                  onBeforeNavigate: () => ref
+                      .read(readerSidePanelProvider.notifier)
+                      .state = ReaderSidePanelMode.none,
+                ),
+              ],
+            ),
+          );
+        });
+      case ReaderSidePanelMode.chapters:
+        return _ChapterList(bookId: bookId, settings: settings);
+      case ReaderSidePanelMode.bookmarks:
+        return BookmarksList(bookId: bookId, settings: settings);
+      case ReaderSidePanelMode.none:
+        return const SizedBox.shrink();
+    }
   }
 }
 

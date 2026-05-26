@@ -1321,6 +1321,90 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Applies wherever the playback controls are visible (not e-reader)'**
   String get settingsScopeControlsTooltip;
+
+  /// No description provided for @bookmarksTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Bookmarks'**
+  String get bookmarksTitle;
+
+  /// No description provided for @bookmarksTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Bookmarks'**
+  String get bookmarksTooltip;
+
+  /// No description provided for @bookmarkCreateTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Save bookmark'**
+  String get bookmarkCreateTitle;
+
+  /// No description provided for @bookmarkEditTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit bookmark'**
+  String get bookmarkEditTitle;
+
+  /// No description provided for @bookmarkLabelHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a note (optional)'**
+  String get bookmarkLabelHint;
+
+  /// No description provided for @bookmarkSave.
+  ///
+  /// In en, this message translates to:
+  /// **'Save'**
+  String get bookmarkSave;
+
+  /// No description provided for @bookmarkEmptyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'No bookmarks yet'**
+  String get bookmarkEmptyTitle;
+
+  /// No description provided for @bookmarkEmptySubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Long-press a word in any reading mode to save your spot.'**
+  String get bookmarkEmptySubtitle;
+
+  /// No description provided for @bookmarkLocationLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Ch. {chapter} · {percent}%'**
+  String bookmarkLocationLabel(int chapter, int percent);
+
+  /// No description provided for @bookmarkActionEdit.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit'**
+  String get bookmarkActionEdit;
+
+  /// No description provided for @bookmarkActionDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete'**
+  String get bookmarkActionDelete;
+
+  /// No description provided for @bookmarkDeleteConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete bookmark?'**
+  String get bookmarkDeleteConfirmTitle;
+
+  /// No description provided for @bookmarkDeleteConfirmBody.
+  ///
+  /// In en, this message translates to:
+  /// **'This bookmark will be removed.'**
+  String get bookmarkDeleteConfirmBody;
+
+  /// No description provided for @bookmarkCreatedToast.
+  ///
+  /// In en, this message translates to:
+  /// **'Bookmark saved'**
+  String get bookmarkCreatedToast;
 }
 
 class _AppLocalizationsDelegate
