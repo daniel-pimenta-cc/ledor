@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:collection';
 import 'dart:io';
 
@@ -344,31 +345,17 @@ class _ContextScrollViewState extends ConsumerState<ContextScrollView> {
     if (shouldSyncHighlight) {
       final newHighlight = state.globalWordIndex;
       if (_highlightIndex.value != newHighlight) {
-        debugPrint(
-          '[ctxScroll] BUILD hi=$newHighlight tts=$_isTtsPlayback '
-          'didInit=$_didInitialScroll attached=${_scrollController.isAttached} '
-          'usrScroll=$_isUserScrolling locked=$_isLocked',
-        );
         _highlightIndex.value = newHighlight;
         if (_didInitialScroll &&
             _scrollController.isAttached &&
             !_isUserScrolling) {
-          // During TTS playback the engine streams word advances faster
-          // than a 280ms animation can complete — every new call would
-          // cancel the previous animateTo before it had a chance to move.
-          // Use jumpTo (which the SPL implements by rebuilding with a new
-          // target/alignment, not by animating its internal controller).
-          final useAnimation = !_isTtsPlayback;
+          // Always animate auto-scrolls (TTS included). The hybrid path
+          // inside _scrollToHighlight picks animateScroll for small deltas
+          // (smooth) and falls back to jumpTo when the delta is too big
+          // for the pixel-delta API's cached range.
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) {
-              debugPrint('[ctxScroll] POSTFRAME calling scrollTo $newHighlight animate=$useAnimation');
-              _scrollToHighlight(newHighlight, animate: useAnimation);
-            } else {
-              debugPrint('[ctxScroll] POSTFRAME unmounted, skipping');
-            }
+            if (mounted) _scrollToHighlight(newHighlight, animate: true);
           });
-        } else {
-          debugPrint('[ctxScroll] BUILD SKIPPED scroll: didInit=$_didInitialScroll attached=${_scrollController.isAttached} usrScroll=$_isUserScrolling');
         }
       }
     }
@@ -562,13 +549,9 @@ class _ContextScrollViewState extends ConsumerState<ContextScrollView> {
   /// the package re-target its primary item and animate the viewport for us.
   Future<void> _scrollToHighlight(int globalWordIndex,
       {required bool animate}) async {
-    if (!_scrollController.isAttached) {
-      debugPrint('[ctxScroll] _STH bail: controller not attached');
-      return;
-    }
+    if (!_scrollController.isAttached) return;
     final targetItem = _findItemIndex(globalWordIndex);
     final focus = AppConstants.contextFocusAlignment;
-    debugPrint('[ctxScroll] _STH idx=$globalWordIndex item=$targetItem animate=$animate');
 
     // Step 1: ensure the paragraph is in the render tree so we can measure
     // the highlighted word's actual position. When entering cold, use the
@@ -577,7 +560,6 @@ class _ContextScrollViewState extends ConsumerState<ContextScrollView> {
     final inTree = _positionsListener.itemPositions.value
         .any((p) => p.index == targetItem);
     if (!inTree) {
-      debugPrint('[ctxScroll] _STH bringing paragraph into tree');
       _scrollController.jumpTo(index: targetItem, alignment: focus);
       await WidgetsBinding.instance.endOfFrame;
       if (!mounted || !_scrollController.isAttached) return;
@@ -592,6 +574,7 @@ class _ContextScrollViewState extends ConsumerState<ContextScrollView> {
     // Clamping alignment back to [0,1] would defeat the whole point.
     final ctx = _highlightedWordKey.currentContext;
     double alignment = focus;
+    double? measuredDelta;
     if (ctx != null) {
       // ignore: use_build_context_synchronously
       final wordBox = ctx.findRenderObject() as RenderBox?;
@@ -610,38 +593,32 @@ class _ContextScrollViewState extends ConsumerState<ContextScrollView> {
           Offset.zero & wordBox.size,
         );
         final viewportHeight = viewport.semanticBounds.height;
-        final wordYFraction = wordRect.center.dy / viewportHeight;
+        measuredDelta = wordRect.center.dy - viewportHeight * focus;
         // Sub-pixel: already centered.
-        if ((wordYFraction - focus).abs() * viewportHeight < 1.0) {
-          debugPrint('[ctxScroll] _STH already centered, skip');
-          return;
-        }
-        final shift = focus - wordYFraction;
+        if (measuredDelta.abs() < 1.0) return;
+        final shift = focus - wordRect.center.dy / viewportHeight;
         // NOT clamped — see comment above.
         alignment = paragraphPos.itemLeadingEdge + shift;
-        debugPrint(
-          '[ctxScroll] _STH wordY=${wordRect.center.dy.toStringAsFixed(1)} '
-          'vp=${viewportHeight.toStringAsFixed(1)} '
-          'paraLeading=${paragraphPos.itemLeadingEdge.toStringAsFixed(3)} '
-          'shift=${shift.toStringAsFixed(3)} -> alignment=${alignment.toStringAsFixed(3)}',
-        );
-      } else {
-        debugPrint('[ctxScroll] _STH measurement deps missing — fallback align');
+
+        // Hybrid scroll strategy when animating:
+        //  - Small delta (line-by-line nudges, common case): animate via
+        //    ScrollOffsetController so the eye doesn't see a snap. Its
+        //    range is limited to roughly the cached buffer around the
+        //    primary item, which is plenty for line-sized movements.
+        //  - Large delta (paragraph boundary, restore): jump via the
+        //    item-based API so we actually re-seat the primary item.
+        if (animate && measuredDelta.abs() < viewportHeight * 0.5) {
+          unawaited(_scrollOffsetController.animateScroll(
+            offset: measuredDelta,
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
+          ));
+          return;
+        }
       }
     }
 
-    debugPrint('[ctxScroll] _STH jumpTo($targetItem, alignment=${alignment.toStringAsFixed(3)})');
     _scrollController.jumpTo(index: targetItem, alignment: alignment);
-    if (mounted) {
-      // Read positions next frame so we see the post-jumpTo state.
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        final after = _positionsListener.itemPositions.value
-            .map((p) => '${p.index}:${p.itemLeadingEdge.toStringAsFixed(2)}/${p.itemTrailingEdge.toStringAsFixed(2)}')
-            .join(',');
-        debugPrint('[ctxScroll] _STH post-frame positions=[$after]');
-      });
-    }
   }
 
   void _snapToEndIfAtBottom() {
