@@ -998,13 +998,19 @@ class LibrarySyncService {
 
   /// Write a tombstone to the books shard for [bookId] so other devices
   /// drop it on their next sync. Called from the delete path.
-  Future<void> pushTombstone({
+  ///
+  /// Returns true once the tombstone reached the remote shard, false when
+  /// the folder isn't readable right now. I/O errors propagate. Callers
+  /// must keep the delete queued until this succeeds — books are
+  /// hard-deleted locally, so a dropped tombstone means the next full sync
+  /// resurrects the book from the still-active remote entry.
+  Future<bool> pushTombstone({
     required SyncConfig config,
     required String bookId,
     required DateTime deletedAt,
   }) async {
     final folder = config.driveFolderId!;
-    if (!await _gateway.isReadable(folder)) return;
+    if (!await _gateway.isReadable(folder)) return false;
 
     final raw = await _gateway.readText(folder, _kBooksShardFile);
     SyncBooksShard remote = raw == null || raw.trim().isEmpty
@@ -1052,6 +1058,7 @@ class LibrarySyncService {
     if (config.syncEpubs && deletedEntry != null) {
       await _gateway.deleteFile(folder, _epubRelPath(deletedEntry));
     }
+    return true;
   }
 }
 

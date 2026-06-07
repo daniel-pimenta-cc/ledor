@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:collection';
 import 'dart:io';
 
@@ -16,6 +17,7 @@ import '../../../book_library/data/services/inline_image_storage.dart';
 import '../../../epub_import/domain/entities/chapter.dart';
 import '../../../epub_import/domain/entities/word_token.dart';
 import '../../domain/entities/display_settings.dart';
+import '../../domain/entities/rsvp_state.dart';
 import '../providers/rsvp_engine_provider.dart';
 import '../screens/fullscreen_image_screen.dart';
 import 'rsvp_paragraph_view.dart';
@@ -70,6 +72,13 @@ class _ContextScrollViewState extends ConsumerState<ContextScrollView> {
   final ItemScrollController _scrollController = ItemScrollController();
   final ItemPositionsListener _positionsListener =
       ItemPositionsListener.create();
+  // ScrollOffsetController bypasses SPL's _isTransitioning queue and lets us
+  // request a precise pixel-delta scroll. The repeated TTS word advances
+  // were having their scrollTo/jumpTo calls swallowed by SPL's setState
+  // re-entrancy; animateScroll calls primary.scrollController.animateTo
+  // directly with `current_offset + offset`.
+  final ScrollOffsetController _scrollOffsetController =
+      ScrollOffsetController();
 
   late final ValueNotifier<int> _highlightIndex;
 
@@ -84,6 +93,12 @@ class _ContextScrollViewState extends ConsumerState<ContextScrollView> {
   // the pinned word.
   bool _isLocked = false;
   bool _isHighlightVisible = true;
+
+  // True while the engine is actively reading aloud in TTS mode. Treated
+  // as an implicit lock: the engine is the authoritative source of
+  // position, so manual scroll lets the user peek but doesn't move the
+  // highlight or seek the engine. Updated each build from the engine state.
+  bool _isTtsPlayback = false;
 
   // Attached to the highlighted word's container in [_ParagraphWidget]. Used
   // by [_scrollToHighlight] to measure the word's true on-screen position and
@@ -195,7 +210,9 @@ class _ContextScrollViewState extends ConsumerState<ContextScrollView> {
     // can react even while locked (locked scrolls don't run the rest).
     _refreshHighlightVisibility();
 
-    if (_isLocked) return;
+    // TTS playback is an implicit lock — the engine drives position, so
+    // scroll-driven highlight changes would fight the speaker.
+    if (_isLocked || _isTtsPlayback) return;
     if (!_isUserScrolling || _items.isEmpty || _allTokens.isEmpty) return;
 
     // Throttle updates for smooth movement
@@ -239,7 +256,9 @@ class _ContextScrollViewState extends ConsumerState<ContextScrollView> {
   }
 
   void _syncToEngine() {
-    if (_isLocked) return;
+    // Never yank the engine during TTS playback — the speaker is mid-utterance
+    // and a release of the finger shouldn't relocate the reading position.
+    if (_isLocked || _isTtsPlayback) return;
     ref
         .read(rsvpEngineProvider(widget.bookId).notifier)
         .seekToWord(_highlightIndex.value);
@@ -303,6 +322,7 @@ class _ContextScrollViewState extends ConsumerState<ContextScrollView> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(rsvpEngineProvider(widget.bookId));
+    _isTtsPlayback = state.mode == ReaderMode.tts && state.isPlaying;
 
     // Rebuild item cache if chapters loaded or changed
     if (state.chapters.length != _lastBuiltChapterCount) {
@@ -310,14 +330,32 @@ class _ContextScrollViewState extends ConsumerState<ContextScrollView> {
       _didInitialScroll = false;
     }
 
-    // Sync highlight from engine when not scrolling. Locked state pins the
-    // visible word, so we ignore engine advances until the user unlocks.
-    if (!_isUserScrolling && !_isLocked) {
+    // Sync highlight from engine. Two paths:
+    //  - TTS playback: engine is authoritative, always update highlight (manual
+    //    lock isn't honored because the speaker keeps advancing regardless).
+    //  - Other modes: only sync when the user isn't actively scrolling and
+    //    hasn't pinned the focus via lock.
+    // Auto-scroll itself is gated on `!_isUserScrolling` so the engine never
+    // fights the finger; the recenter overlay handles catchup after release.
+    // The scroll call is deferred to post-frame so the highlightKey has time
+    // to remount onto the new word's container (it's a single shared key that
+    // moves between paragraphs each time the highlight changes).
+    final shouldSyncHighlight =
+        _isTtsPlayback || (!_isUserScrolling && !_isLocked);
+    if (shouldSyncHighlight) {
       final newHighlight = state.globalWordIndex;
       if (_highlightIndex.value != newHighlight) {
         _highlightIndex.value = newHighlight;
-        if (_didInitialScroll && _scrollController.isAttached) {
-          _scrollToHighlight(newHighlight, animate: true);
+        if (_didInitialScroll &&
+            _scrollController.isAttached &&
+            !_isUserScrolling) {
+          // Always animate auto-scrolls (TTS included). The hybrid path
+          // inside _scrollToHighlight picks animateScroll for small deltas
+          // (smooth) and falls back to jumpTo when the delta is too big
+          // for the pixel-delta API's cached range.
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _scrollToHighlight(newHighlight, animate: true);
+          });
         }
       }
     }
@@ -367,6 +405,7 @@ class _ContextScrollViewState extends ConsumerState<ContextScrollView> {
               child: ScrollablePositionedList.builder(
         itemCount: _items.length,
         itemScrollController: _scrollController,
+        scrollOffsetController: _scrollOffsetController,
         itemPositionsListener: _positionsListener,
         initialScrollIndex: _findItemIndex(state.globalWordIndex),
         initialAlignment: AppConstants.contextFocusAlignment,
@@ -423,7 +462,10 @@ class _ContextScrollViewState extends ConsumerState<ContextScrollView> {
                 tokens: item.tokens!,
                 currentGlobalIndex: currentHighlight,
                 settings: settings,
-                onWordTap: _onWordTap,
+                // During TTS playback, taps shouldn't reposition — the user
+                // is often trying to scroll and a stray tap would yank the
+                // speaker to a new word. Pause first to seek by tap.
+                onWordTap: _isTtsPlayback ? null : _onWordTap,
                 onBookmarkRange: widget.onBookmarkRange,
                 highlightKey: _highlightedWordKey,
               );
@@ -439,7 +481,8 @@ class _ContextScrollViewState extends ConsumerState<ContextScrollView> {
               bottom: 12,
               child: _LockOverlay(
                 isLocked: _isLocked,
-                showRecenter: _isLocked && !_isHighlightVisible,
+                showRecenter:
+                    (_isLocked || _isTtsPlayback) && !_isHighlightVisible,
                 wordColor: settings.wordColor,
                 backgroundColor: settings.backgroundColor,
                 onToggleLock: _toggleLock,
@@ -492,22 +535,28 @@ class _ContextScrollViewState extends ConsumerState<ContextScrollView> {
   /// Centers the highlighted word at [AppConstants.contextFocusAlignment] of
   /// the viewport.
   ///
-  /// Strategy: ensure the target paragraph is in the render tree via the
-  /// item-based scroll controller, then measure the highlighted word's
-  /// actual render-box position (via [_highlightedWordKey]) and shift the
-  /// underlying scroll offset so the word's centerline lands exactly on
-  /// [focus]. We bypass [Scrollable.ensureVisible] because [WidgetSpan]
-  /// placeholders interact unreliably with viewport reveal math — the
-  /// fraction-based estimate was off in long paragraphs, and ensureVisible
-  /// also missed the mark. Using the word's real bounds is the most direct.
+  /// Strategy: use [ItemScrollController.scrollTo] (the SPL's own API) with
+  /// a *dynamic* alignment. The vanilla alignment value positions the
+  /// paragraph's leading edge within the viewport, but we want the
+  /// highlighted *word* at the focus point, not the paragraph start. So we
+  /// measure where the word currently is via [_highlightedWordKey] and shift
+  /// the alignment by the word's offset inside the paragraph.
+  ///
+  /// Why this instead of [ScrollPosition.animateTo]: the SPL keeps min/max
+  /// scroll extents constrained to the current primary item; animateTo
+  /// requests outside that tiny window are ignored, leaving `pixels` at 0
+  /// no matter how large the requested delta. Going through scrollTo lets
+  /// the package re-target its primary item and animate the viewport for us.
   Future<void> _scrollToHighlight(int globalWordIndex,
       {required bool animate}) async {
     if (!_scrollController.isAttached) return;
     final targetItem = _findItemIndex(globalWordIndex);
     final focus = AppConstants.contextFocusAlignment;
 
-    // Step 1: bring the paragraph into the render tree if it isn't already.
-    // Aligning at `focus` keeps the visible jump small for nearby recenters.
+    // Step 1: ensure the paragraph is in the render tree so we can measure
+    // the highlighted word's actual position. When entering cold, use the
+    // SPL-level jumpTo to seat the paragraph anywhere on screen — the
+    // second pass below will refine the alignment.
     final inTree = _positionsListener.itemPositions.value
         .any((p) => p.index == targetItem);
     if (!inTree) {
@@ -516,56 +565,60 @@ class _ContextScrollViewState extends ConsumerState<ContextScrollView> {
       if (!mounted || !_scrollController.isAttached) return;
     }
 
-    // Step 2: measure the word's true on-screen position and offset the
-    // scroll by exactly the delta needed. The GlobalKey context is read
-    // fresh here (after the mounted check) — the lints below cover the
-    // async-gap analysis the analyzer can't follow.
+    // Step 2: measure the word inside the paragraph and compute an
+    // alignment that puts the *word* at the focus point. Critical
+    // detail: the SPL's jumpTo accepts alignment OUTSIDE [0,1] — passing
+    // alignment=-0.7 places the paragraph's leading edge 70% above the
+    // top of the viewport, which is exactly what we need when the focused
+    // word lives near the end of a paragraph taller than the viewport.
+    // Clamping alignment back to [0,1] would defeat the whole point.
     final ctx = _highlightedWordKey.currentContext;
+    double alignment = focus;
+    double? measuredDelta;
     if (ctx != null) {
       // ignore: use_build_context_synchronously
       final wordBox = ctx.findRenderObject() as RenderBox?;
       final viewport =
           wordBox == null ? null : RenderAbstractViewport.maybeOf(wordBox);
-      // ignore: use_build_context_synchronously
-      final scrollable = Scrollable.maybeOf(ctx);
+      final paragraphPos = _positionsListener.itemPositions.value
+          .where((p) => p.index == targetItem)
+          .firstOrNull;
       if (wordBox != null &&
           wordBox.attached &&
           viewport != null &&
-          scrollable != null) {
+          paragraphPos != null) {
         final transform = wordBox.getTransformTo(viewport);
         final wordRect = MatrixUtils.transformRect(
           transform,
           Offset.zero & wordBox.size,
         );
         final viewportHeight = viewport.semanticBounds.height;
-        final delta = wordRect.center.dy - viewportHeight * focus;
-        final position = scrollable.position;
-        final target = (position.pixels + delta)
-            .clamp(position.minScrollExtent, position.maxScrollExtent);
-        if (animate) {
-          await position.animateTo(
-            target,
-            duration: const Duration(milliseconds: 280),
-            curve: Curves.easeInOut,
-          );
-        } else {
-          position.jumpTo(target);
+        measuredDelta = wordRect.center.dy - viewportHeight * focus;
+        // Sub-pixel: already centered.
+        if (measuredDelta.abs() < 1.0) return;
+        final shift = focus - wordRect.center.dy / viewportHeight;
+        // NOT clamped — see comment above.
+        alignment = paragraphPos.itemLeadingEdge + shift;
+
+        // Hybrid scroll strategy when animating:
+        //  - Small delta (line-by-line nudges, common case): animate via
+        //    ScrollOffsetController so the eye doesn't see a snap. Its
+        //    range is limited to roughly the cached buffer around the
+        //    primary item, which is plenty for line-sized movements.
+        //  - Large delta (paragraph boundary, restore): jump via the
+        //    item-based API so we actually re-seat the primary item.
+        if (animate && measuredDelta.abs() < viewportHeight * 0.5) {
+          unawaited(_scrollOffsetController.animateScroll(
+            offset: measuredDelta,
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
+          ));
+          return;
         }
-        return;
       }
     }
 
-    // Fallback: render tree didn't yield a usable render box (rare). Plain
-    // SPL scroll to the paragraph at [focus] is "close enough".
-    if (animate) {
-      await _scrollController.scrollTo(
-        index: targetItem,
-        duration: const Duration(milliseconds: 280),
-        alignment: focus,
-      );
-    } else {
-      _scrollController.jumpTo(index: targetItem, alignment: focus);
-    }
+    _scrollController.jumpTo(index: targetItem, alignment: alignment);
   }
 
   void _snapToEndIfAtBottom() {

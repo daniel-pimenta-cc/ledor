@@ -43,7 +43,19 @@ class SpeechdSocketBackend implements TtsBackend {
   // Periodic word-boundary emitter for the active utterance.
   Timer? _wordTimer;
   List<int> _currentWordOffsets = const [];
+  // Per-word delay multipliers — words ending in punctuation get extra
+  // dwell time so the highlight doesn't run ahead of the TTS, which
+  // pauses naturally at commas / full stops.
+  List<double> _currentWordMultipliers = const [];
   int _currentWordCursor = 0;
+  int _currentBasePeriodMs = 200;
+  // Empirical WPM baseline for the current backend+voice, measured from
+  // the previous utterance's BEGIN-to-END elapsed time / word count.
+  // Per-voice cache so switching voices doesn't carry over a stale rate.
+  // Null until we've completed at least one utterance, falling back to a
+  // conservative neural-TTS-friendly default (~150 WPM at rate=1.0).
+  final Map<String, double> _empiricalWpmPerVoice = {};
+  DateTime? _utteranceStartedAt;
 
   // Latest settings; applied before each speak() so a settings change
   // reaches the daemon without us having to track dirty flags.
@@ -96,6 +108,11 @@ class SpeechdSocketBackend implements TtsBackend {
     final user =
         Platform.environment['USER'] ?? Platform.environment['USERNAME'] ?? 'user';
     await _send('SET SELF CLIENT_NAME $user:rsvp_reader:default');
+
+    // Subscribe to 700-range events. Without this opt-in the daemon never
+    // emits BEGIN/END/INDEX_MARK to this connection, so the word timer
+    // wouldn't start and highlights would freeze the whole utterance.
+    await _send('SET SELF NOTIFICATION ALL ON');
 
     _initialised = true;
   }
@@ -196,6 +213,7 @@ class SpeechdSocketBackend implements TtsBackend {
 
     // Pre-compute the word offsets for the timer-based progress callback.
     _currentWordOffsets = wordCharOffsets(text);
+    _currentWordMultipliers = _computeWordMultipliers(text);
     _currentWordCursor = 0;
 
     // SSIP SPEAK takes the text as a "data block" terminated by a single "."
@@ -331,7 +349,13 @@ class SpeechdSocketBackend implements TtsBackend {
     final body = line.length > 4 ? line.substring(4) : '';
 
     if (code >= 700 && code < 800) {
-      _handleEvent(code, body);
+      // 700-range events arrive as a multi-line block: leading lines carry
+      // metadata (msg_id, client_id) with the `-` continuation separator,
+      // then a single terminal line (` ` separator) holds the human label
+      // (BEGIN/END/...). Acting on the metadata lines would fire the
+      // handler three times per event and start the word timer twice
+      // before the real BEGIN arrives.
+      if (separator == ' ') _handleEvent(code, body);
       return;
     }
 
@@ -350,10 +374,12 @@ class SpeechdSocketBackend implements TtsBackend {
   void _handleEvent(int code, String body) {
     switch (code) {
       case 701: // BEGIN
+        _utteranceStartedAt = DateTime.now();
         _startWordTimer();
         _onStart?.call();
         break;
       case 702: // END
+        _captureEmpiricalWpm();
         _stopWordTimer();
         _flushRemainingWordCallbacks();
         _onCompletion?.call();
@@ -375,22 +401,64 @@ class SpeechdSocketBackend implements TtsBackend {
   void _startWordTimer() {
     _wordTimer?.cancel();
     if (_currentWordOffsets.isEmpty) return;
-    final effectiveWpm = (200 * _rate).clamp(60, 800);
-    final periodMs = (60000.0 / effectiveWpm).clamp(80, 2000).round();
-    _wordTimer = Timer.periodic(Duration(milliseconds: periodMs), (t) {
+    // Baseline derived from the last measured utterance for this voice.
+    // Falls back to 150 WPM — closer to neural backends (Piper, RHVoice)
+    // than the 200 WPM that flutter_tts averages, so the very first
+    // utterance doesn't run badly ahead of the audio.
+    final voiceKey = _voice?.name ?? '';
+    final baselineAtRateOne = _empiricalWpmPerVoice[voiceKey] ?? 150.0;
+    final effectiveWpm = (baselineAtRateOne * _rate).clamp(60, 800);
+    _currentBasePeriodMs = (60000.0 / effectiveWpm).clamp(80, 2000).round();
+    _scheduleNextWord();
+  }
+
+  void _scheduleNextWord() {
+    if (_currentWordCursor >= _currentWordOffsets.length) {
+      _wordTimer = null;
+      return;
+    }
+    final mult = _currentWordCursor < _currentWordMultipliers.length
+        ? _currentWordMultipliers[_currentWordCursor]
+        : 1.0;
+    final delayMs = (_currentBasePeriodMs * mult).round();
+    _wordTimer = Timer(Duration(milliseconds: delayMs), () {
       if (_currentWordCursor >= _currentWordOffsets.length) {
-        t.cancel();
+        _wordTimer = null;
         return;
       }
       final offset = _currentWordOffsets[_currentWordCursor];
       _onProgress?.call(offset, offset, '');
       _currentWordCursor++;
+      _scheduleNextWord();
     });
   }
 
   void _stopWordTimer() {
     _wordTimer?.cancel();
     _wordTimer = null;
+  }
+
+  /// Updates the per-voice WPM cache from the just-ended utterance. We
+  /// divide back out the current rate so the cached value is comparable
+  /// across rate changes (cache holds the baseline at rate=1.0).
+  void _captureEmpiricalWpm() {
+    final started = _utteranceStartedAt;
+    _utteranceStartedAt = null;
+    if (started == null) return;
+    final wordCount = _currentWordOffsets.length;
+    if (wordCount < 5) return; // too few words to be statistically useful
+    final elapsedMs = DateTime.now().difference(started).inMilliseconds;
+    if (elapsedMs < 500) return; // implausibly fast — likely a cancel race
+    final wpm = (wordCount * 60000.0) / elapsedMs;
+    if (_rate <= 0) return;
+    final baseline = wpm / _rate;
+    final voiceKey = _voice?.name ?? '';
+    // Light low-pass: 70% old, 30% new. Smooths out one-off noise (e.g. a
+    // single short utterance with long initial silence) without losing
+    // responsiveness when the user actually switches voices.
+    final prev = _empiricalWpmPerVoice[voiceKey];
+    final smoothed = prev == null ? baseline : (prev * 0.7 + baseline * 0.3);
+    _empiricalWpmPerVoice[voiceKey] = smoothed.clamp(60.0, 800.0);
   }
 
   void _flushRemainingWordCallbacks() {
@@ -406,7 +474,54 @@ class SpeechdSocketBackend implements TtsBackend {
   void _resetWordTimerState() {
     _stopWordTimer();
     _currentWordOffsets = const [];
+    _currentWordMultipliers = const [];
     _currentWordCursor = 0;
+  }
+
+  /// Computes a per-word dwell multiplier from the utterance text. Words
+  /// ending in punctuation get a longer dwell so the highlight tracks the
+  /// natural pause the TTS produces. Order matches [wordCharOffsets] so
+  /// the cursor index can index either list directly.
+  static List<double> _computeWordMultipliers(String text) {
+    final mult = <double>[];
+    bool inWord = false;
+    int? lastNonSpaceIdx;
+    for (var i = 0; i < text.length; i++) {
+      final ch = text[i];
+      final isSpace = ch == ' ' || ch == '\n' || ch == '\t';
+      if (!isSpace) {
+        if (!inWord) inWord = true;
+        lastNonSpaceIdx = i;
+      } else if (inWord) {
+        mult.add(_dwellMultiplierForLastChar(text[lastNonSpaceIdx!]));
+        inWord = false;
+      }
+    }
+    if (inWord && lastNonSpaceIdx != null) {
+      mult.add(_dwellMultiplierForLastChar(text[lastNonSpaceIdx]));
+    }
+    return mult;
+  }
+
+  static double _dwellMultiplierForLastChar(String ch) {
+    switch (ch) {
+      case ',':
+        return 1.6;
+      case ';':
+      case ':':
+        return 1.9;
+      case '.':
+      case '!':
+      case '?':
+        return 2.4;
+      case ')':
+      case ']':
+      case '"':
+      case '”': // right double quote
+        return 1.3;
+      default:
+        return 1.0;
+    }
   }
 
   void _onSocketError(Object error) {

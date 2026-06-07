@@ -46,6 +46,8 @@ String humaniseSpeechdModuleId(String id) {
       return 'RHVoice';
     case 'pico':
       return 'Pico';
+    case 'piper':
+      return 'Piper TTS';
     default:
       return id;
   }
