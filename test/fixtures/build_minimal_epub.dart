@@ -13,10 +13,18 @@ import 'package:archive/archive.dart';
 ///
 /// Returns the EPUB bytes. The caller writes them to a temp file and
 /// feeds the path to the import notifier.
+///
+/// [bodyIsRawHtml] injects each chapter body verbatim inside `<body>`
+/// (no escaping, no `<p>` wrapper) so tests can exercise markup like
+/// `<img>` tags. [images] adds binary entries under `OEBPS/images/` and
+/// registers them in the OPF manifest so epub_pro exposes them via
+/// `content.images`.
 Uint8List buildMinimalEpub({
   required String title,
   required String author,
   required List<({String title, String body})> chapters,
+  bool bodyIsRawHtml = false,
+  List<({String name, List<int> bytes})> images = const [],
 }) {
   final archive = Archive();
 
@@ -53,6 +61,16 @@ Uint8List buildMinimalEpub({
       '<item id="$id" href="$id.xhtml" media-type="application/xhtml+xml"/>',
     );
     spineEntries.add('<itemref idref="$id"/>');
+  }
+  for (var i = 0; i < images.length; i++) {
+    // The manifest href is percent-encoded like a well-formed EPUB would
+    // ship it. Note that epub_pro keys `content.images` by this RAW
+    // (still-encoded) href — it only percent-decodes the internal fileName
+    // used to locate the zip entry.
+    manifestEntries.add(
+      '<item id="img$i" href="images/${_xmlEscape(Uri.encodeFull(images[i].name))}" '
+      'media-type="image/png"/>',
+    );
   }
 
   archive.addFile(
@@ -105,6 +123,8 @@ ${navPoints.toString()}  </navMap>
 
   for (var i = 0; i < chapters.length; i++) {
     final ch = chapters[i];
+    final bodyMarkup =
+        bodyIsRawHtml ? ch.body : '<p>${_xmlEscape(ch.body)}</p>';
     archive.addFile(
       ArchiveFile.string(
         'OEBPS/ch$i.xhtml',
@@ -115,9 +135,19 @@ ${navPoints.toString()}  </navMap>
 <head><title>${_xmlEscape(ch.title)}</title></head>
 <body>
   <h1>${_xmlEscape(ch.title)}</h1>
-  <p>${_xmlEscape(ch.body)}</p>
+  $bodyMarkup
 </body>
 </html>''',
+      ),
+    );
+  }
+
+  for (var i = 0; i < images.length; i++) {
+    archive.addFile(
+      ArchiveFile(
+        'OEBPS/images/${images[i].name}',
+        images[i].bytes.length,
+        images[i].bytes,
       ),
     );
   }

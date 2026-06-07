@@ -110,29 +110,51 @@ class EpubExtractionService {
 
     return (src) {
       if (src.isEmpty) return null;
-      // Strip fragments and query strings, decode percent escapes.
-      final cleaned = Uri.decodeFull(src.split('#').first.split('?').first);
+      // Strip fragments and query strings.
+      final rawPath = src.split('#').first.split('?').first;
 
-      // 1. Direct hit on the manifest key.
-      var file = lookup(cleaned);
-
-      // 2. Drop any number of leading `./` or `../` segments.
-      if (file == null) {
-        final stripped = cleaned.replaceAll(RegExp(r'^(\.{1,2}/)+'), '');
-        if (stripped != cleaned) file = lookup(stripped);
+      // The manifest map is keyed by the href exactly as the OPF spells it,
+      // but `<img src>` doesn't have to match that spelling: either side may
+      // be percent-encoded while the other is raw. Try the spellings that
+      // cover all combinations, same-spelling first (the common case).
+      // A literal `%` not followed by two hex digits (legal in zip entry
+      // names) makes decodeFull throw — skip that candidate instead of
+      // aborting the whole import.
+      String? decoded;
+      try {
+        decoded = Uri.decodeFull(rawPath);
+      } on ArgumentError {
+        decoded = null;
       }
+      final encoded = Uri.encodeFull(decoded ?? rawPath);
+      final candidates = <String>{
+        rawPath, // src and manifest agree (raw or escaped)
+        ?decoded, // src escaped, manifest raw
+        encoded, // src raw, manifest escaped
+      };
 
-      // 3. Basename fallback — handles cross-directory references.
-      if (file == null) {
-        final base = cleaned.split('/').last.toLowerCase();
-        file = byBasename[base];
+      for (final cleaned in candidates) {
+        // 1. Direct hit on the manifest key.
+        var file = lookup(cleaned);
+
+        // 2. Drop any number of leading `./` or `../` segments.
+        if (file == null) {
+          final stripped = cleaned.replaceAll(RegExp(r'^(\.{1,2}/)+'), '');
+          if (stripped != cleaned) file = lookup(stripped);
+        }
+
+        // 3. Basename fallback — handles cross-directory references.
+        if (file == null) {
+          final base = cleaned.split('/').last.toLowerCase();
+          file = byBasename[base];
+        }
+
+        if (file == null) continue;
+        final content = file.content;
+        if (content == null || content.isEmpty) return null;
+        return ResolvedImage(bytes: Uint8List.fromList(content));
       }
-
-      if (file == null) return null;
-      final content = file.content;
-      if (content == null || content.isEmpty) return null;
-
-      return ResolvedImage(bytes: Uint8List.fromList(content));
+      return null;
     };
   }
 }
