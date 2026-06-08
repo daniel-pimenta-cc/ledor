@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,7 +12,6 @@ import 'package:rsvp_reader/features/library_sync/data/auth/drive_auth_backend.d
 import 'package:rsvp_reader/features/library_sync/data/services/library_sync_service.dart';
 import 'package:rsvp_reader/features/library_sync/domain/entities/sync_config.dart';
 import 'package:rsvp_reader/features/library_sync/domain/entities/sync_library.dart';
-import 'package:rsvp_reader/features/library_sync/domain/repositories/sync_folder_gateway.dart';
 import 'package:rsvp_reader/features/library_sync/presentation/providers/drive_auth_provider.dart';
 import 'package:rsvp_reader/features/library_sync/presentation/providers/library_sync_provider.dart';
 import 'package:rsvp_reader/features/library_sync/presentation/providers/sync_config_provider.dart';
@@ -21,73 +19,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
+import '../../fixtures/fake_path_provider.dart';
+import '../../fixtures/fake_sync_folder_gateway.dart';
+
 const _kBooksShard = 'library/books.json';
 const _kPendingDeletesKey = 'sync_pendingDeletes';
-
-/// In-memory [SyncFolderGateway] for driving the sync service in tests.
-/// Flip [readable] to simulate the folder being unreachable (offline,
-/// revoked permissions); set [writeError] to make every write throw.
-class FakeSyncFolderGateway implements SyncFolderGateway {
-  final Map<String, String> textFiles = {};
-  final Map<String, Uint8List> binFiles = {};
-  bool readable = true;
-  Object? writeError;
-
-  @override
-  Future<bool> isReadable(String folderPath) async => readable;
-
-  @override
-  Future<String?> readText(String folderPath, String relativePath) async =>
-      textFiles[relativePath];
-
-  @override
-  Future<void> writeText(
-      String folderPath, String relativePath, String content) async {
-    final err = writeError;
-    if (err != null) throw err;
-    textFiles[relativePath] = content;
-  }
-
-  @override
-  Future<Uint8List?> readBytes(String folderPath, String relativePath) async =>
-      binFiles[relativePath];
-
-  @override
-  Future<void> writeBytes(
-      String folderPath, String relativePath, Uint8List bytes) async {
-    final err = writeError;
-    if (err != null) throw err;
-    binFiles[relativePath] = bytes;
-  }
-
-  @override
-  Future<bool> fileExists(String folderPath, String relativePath) async =>
-      textFiles.containsKey(relativePath) || binFiles.containsKey(relativePath);
-
-  @override
-  Future<void> deleteFile(String folderPath, String relativePath) async {
-    textFiles.remove(relativePath);
-    binFiles.remove(relativePath);
-  }
-
-  @override
-  Future<List<String>> listFiles(
-          String folderPath, String relativePath) async =>
-      const [];
-}
-
-/// Routes every path_provider call to a tearDown-cleaned temp dir so the
-/// sync apply path (inline image cleanup) never touches the real platform.
-class _FakePathProvider extends PathProviderPlatform {
-  _FakePathProvider(this.docs);
-  final Directory docs;
-
-  @override
-  Future<String?> getApplicationDocumentsPath() async => docs.path;
-
-  @override
-  Future<String?> getTemporaryPath() async => docs.path;
-}
 
 /// Signed-in (or signed-out, with null email) auth backend stub.
 class _FakeAuthBackend implements DriveAuthBackend {
@@ -136,7 +72,7 @@ void main() {
 
   setUp(() async {
     tmp = await Directory.systemTemp.createTemp('rsvp_pending_deletes_');
-    PathProviderPlatform.instance = _FakePathProvider(tmp);
+    PathProviderPlatform.instance = FakePathProvider(tmp);
     SharedPreferencesAsyncPlatform.instance =
         InMemorySharedPreferencesAsync.empty();
     // Mark sync as configured so pushDelete/triggerSync don't bail early.
