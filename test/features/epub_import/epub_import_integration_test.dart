@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
 import 'package:rsvp_reader/core/di/providers.dart';
+import 'package:rsvp_reader/core/utils/token_codec.dart';
 import 'package:rsvp_reader/database/app_database.dart';
 import 'package:rsvp_reader/database/tables/book_source.dart';
 import 'package:rsvp_reader/features/epub_import/presentation/providers/epub_import_provider.dart';
@@ -213,9 +214,14 @@ void main() {
       expect(ch1, isNotNull);
       expect(ch0!.chapterTitle, 'A');
       expect(ch1!.chapterTitle, 'B');
-      // tokensJson must be non-empty JSON arrays with one entry per word.
-      expect(ch0.tokensJson, startsWith('['));
-      expect(ch0.tokensJson, endsWith(']'));
+      // tokensJson é gravado no formato compacto v2 e decodifica de volta
+      // pros mesmos tokens (texto + posições estruturais).
+      expect(TokenCodec.isCompact(ch0.tokensJson), isTrue);
+      final tokens0 = TokenCodec.decode(ch0.tokensJson, chapterIndex: 0);
+      // O fixture renderiza o título do capítulo como <h1> no body, então
+      // ele aparece como primeiro token.
+      expect(tokens0.map((t) => t.text), ['A', 'one', 'two', 'three.']);
+      expect(tokens0.first.isChapterStart, isTrue);
       expect(ch0.wordCount, greaterThan(0));
     });
 

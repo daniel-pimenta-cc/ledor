@@ -1,8 +1,7 @@
-import 'dart:convert';
-
 import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../../core/utils/token_codec.dart';
 import '../../../../database/app_database.dart';
 import '../../../../database/daos/books_dao.dart';
 import '../../../../database/daos/cached_tokens_dao.dart';
@@ -97,9 +96,7 @@ Future<void> persistChaptersWithImages({
         persistedTokens.add(token);
       }
     }
-    final tokensJson = jsonEncode(
-      persistedTokens.map((t) => t.toJson()).toList(),
-    );
+    final tokensJson = TokenCodec.encode(persistedTokens);
     await tokensDao.insertChapterTokens(CachedTokensTableCompanion.insert(
       bookId: bookId,
       chapterIndex: i,

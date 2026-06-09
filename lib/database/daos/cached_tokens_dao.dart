@@ -34,6 +34,22 @@ class CachedTokensDao extends DatabaseAccessor<AppDatabase>
     return into(cachedTokensTable).insert(tokens);
   }
 
+  /// Replaces the serialized token payload of one chapter. Used by the
+  /// lazy v1→v2 token-format upgrade after a legacy book is opened.
+  Future<void> updateChapterTokensJson({
+    required String bookId,
+    required int chapterIndex,
+    required String tokensJson,
+  }) {
+    return (update(cachedTokensTable)
+          ..where(
+            (t) =>
+                t.bookId.equals(bookId) &
+                t.chapterIndex.equals(chapterIndex),
+          ))
+        .write(CachedTokensTableCompanion(tokensJson: Value(tokensJson)));
+  }
+
   Future<int> deleteTokensForBook(String bookId) {
     return (delete(cachedTokensTable)
           ..where((t) => t.bookId.equals(bookId)))

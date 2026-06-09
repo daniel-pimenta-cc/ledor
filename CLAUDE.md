@@ -39,6 +39,7 @@ lib/
     constants/    # app_constants, responsive_defaults (font scale + margins por device)
     widgets/      # section_card, skeleton_loader (shimmer com AnimationController compartilhado)
     utils/        # orp_calculator, word_timing, html_stripper, text_tokenizer,
+                  # token_codec (serialização compacta do tokensJson),
                   # readability_extractor, url_utils, sync_file_name, font_mapper,
                   # image_export_service (RepaintBoundary -> PNG -> share_plus),
                   # platform_capabilities (supportsShareIntent/supportsDriveSync/isDesktop),
@@ -146,6 +147,8 @@ lib/
 - Apos alterar tables do Drift ou classes com `@freezed`: rodar `build_runner`.
 - Apos alterar ARB files: rodar `flutter gen-l10n` (l10n.yaml ja configurado).
 - **Persistir livros/artigos**: sempre via `persistParsedBook` (em `lib/features/book_library/data/services/book_persistence.dart`). Nunca duplicar o fluxo insert-book + fan-out de tokens.
+- **Serializar/desserializar `tokensJson`**: sempre via `TokenCodec` (`lib/core/utils/token_codec.dart`) — nunca `jsonEncode(t.toJson())` direto. O formato v2 compacto (`{"v":2,"g":...,"p":[...]}`) deriva `globalIndex`/`paragraphIndex`/`isParagraphStart`/`isChapterStart` da estrutura (JSON ~8-10x menor, abertura de livro proporcionalmente mais rápida); o encode valida essas invariantes e cai no formato v1 (lista de maps) quando não valem. Livros antigos em v1 continuam legíveis e são re-encodados pra v2 em background na primeira abertura (`_upgradeTokenCache` no engine). Se mudar a estrutura do `WordToken`, atualizar codec + testes em `test/core/utils/token_codec_test.dart`.
+- **Queries em `cached_tokens` que não precisam do blob** (`getAllChapterWordCounts` etc.) devem selecionar apenas colunas cobertas pelo índice `cached_tokens_book_id_idx` (bookId, chapterIndex, wordCount) — `wordCount` vem DEPOIS de `tokensJson` no record do SQLite, então ler a coluna direto da tabela força a leitura das overflow pages do blob de cada capítulo.
 - **Comparar `source`**: usar as constantes de `BookSource` (`lib/database/tables/book_source.dart`), nunca literais `'epub'`/`'article'`.
 - **URLs**: usar `UrlUtils.extractHttpUrl` / `parseWithHttpsFallback` em `lib/core/utils/url_utils.dart` — nao reimplementar parsing ad-hoc.
 - **Font mapping**: usar `mapFontFamily()` de `lib/core/utils/font_mapper.dart` — nao reimplementar switch de nomes em cada widget.

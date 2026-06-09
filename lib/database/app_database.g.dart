@@ -3393,6 +3393,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'reading_session_book_id_idx',
     'CREATE INDEX reading_session_book_id_idx ON reading_session_table (book_id)',
   );
+  late final Index cachedTokensBookIdIdx = Index(
+    'cached_tokens_book_id_idx',
+    'CREATE INDEX cached_tokens_book_id_idx ON cached_tokens_table (book_id, chapter_index, word_count)',
+  );
   late final Index bookmarksBookIdIdx = Index(
     'bookmarks_book_id_idx',
     'CREATE INDEX bookmarks_book_id_idx ON bookmarks_table (book_id)',
@@ -3423,6 +3427,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     bookmarksTable,
     readingSessionStartedAtIdx,
     readingSessionBookIdIdx,
+    cachedTokensBookIdIdx,
     bookmarksBookIdIdx,
   ];
 }
