@@ -48,9 +48,13 @@ void main() async {
   // audio. The handler is a long-lived singleton — engines bind/unbind
   // themselves as the user navigates between books. Linux / Web skip this
   // (audio_service has no implementation there).
-  TtsAudioHandler? audioHandler;
+  //
+  // Intencionalmente NÃO aguardado: o init faz IPC com o MediaSession do
+  // Android e segurava o primeiro frame do app. Engines aguardam o future
+  // só na hora do bind (entrada em modo TTS), bem depois do startup.
+  Future<TtsAudioHandler?> audioHandlerFuture = Future.value(null);
   if (PlatformCapabilities.supportsBackgroundAudio) {
-    audioHandler = await AudioService.init(
+    audioHandlerFuture = AudioService.init(
       builder: () => TtsAudioHandler(),
       config: const AudioServiceConfig(
         androidNotificationChannelId: 'cc.danielpimenta.rsvp_reader.tts',
@@ -61,14 +65,13 @@ void main() async {
         androidStopForegroundOnPause: true,
         notificationColor: Color(0xFFE55324),
       ),
-    );
+    ).then<TtsAudioHandler?>((h) => h).catchError((Object _) => null);
   }
 
   final container = ProviderContainer(
     overrides: [
       appDatabaseProvider.overrideWithValue(database),
-      if (audioHandler != null)
-        ttsAudioHandlerProvider.overrideWithValue(audioHandler),
+      ttsAudioHandlerProvider.overrideWithValue(audioHandlerFuture),
     ],
   );
 

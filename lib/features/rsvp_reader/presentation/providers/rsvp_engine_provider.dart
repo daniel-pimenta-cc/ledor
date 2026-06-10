@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
@@ -11,7 +10,9 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../../core/di/providers.dart';
 import '../../../../core/utils/platform_capabilities.dart';
 import '../../../../core/utils/sentence_boundary.dart';
+import '../../../../core/utils/token_codec.dart';
 import '../../../../database/app_database.dart';
+import '../../../../database/daos/cached_tokens_dao.dart';
 import '../../../epub_import/domain/entities/chapter.dart';
 import '../../../epub_import/domain/entities/word_token.dart';
 import '../../../library_sync/presentation/providers/library_sync_provider.dart';
@@ -114,7 +115,10 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
 
     final chapters = await compute(
       _decodeChapters,
-      [for (final r in cachedRows) (r.chapterTitle, r.tokensJson)],
+      [
+        for (final r in cachedRows)
+          (r.chapterTitle, r.chapterIndex, r.tokensJson),
+      ],
     );
     if (!mounted) return;
     if (chapters.isEmpty) return;
@@ -154,10 +158,49 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
       displaySettings: displaySettings,
     );
 
+    // Rows ainda no formato v1 (lista de maps) são re-encodadas pro formato
+    // compacto v2 em background — a próxima abertura deste livro decodifica
+    // ~10x menos JSON. Kickoff depois do state pra não competir com a
+    // primeira renderização; não toca em state/_ref depois dos awaits,
+    // então não depende do notifier continuar montado.
+    final legacyChapters = <(int, List<WordToken>)>[
+      for (var i = 0; i < cachedRows.length; i++)
+        if (!TokenCodec.isCompact(cachedRows[i].tokensJson))
+          (cachedRows[i].chapterIndex, chapters[i].tokens),
+    ];
+    if (legacyChapters.isNotEmpty) {
+      unawaited(_upgradeTokenCache(tokensDao, state.bookId, legacyChapters));
+    }
+
     if (restoringTts) {
       await enterTtsMode();
       if (!mounted) return;
       state = state.copyWith(isLoading: false);
+    }
+  }
+
+  /// Reescreve em background os capítulos que ainda estavam no formato v1.
+  /// Estático em espírito: recebe tudo por parâmetro e nunca lê `_ref`
+  /// nem `state`, então é seguro continuar após o dispose do notifier.
+  Future<void> _upgradeTokenCache(
+    CachedTokensDao tokensDao,
+    String bookId,
+    List<(int, List<WordToken>)> legacyChapters,
+  ) async {
+    try {
+      final encoded = await compute(_encodeChapters, legacyChapters);
+      for (final (chapterIndex, tokensJson) in encoded) {
+        // Se o encode caiu no fallback v1 (invariante violada), não grava —
+        // reescrever o mesmo formato seria churn de DB a cada abertura.
+        if (!TokenCodec.isCompact(tokensJson)) continue;
+        await tokensDao.updateChapterTokensJson(
+          bookId: bookId,
+          chapterIndex: chapterIndex,
+          tokensJson: tokensJson,
+        );
+      }
+    } catch (_) {
+      // Upgrade é oportunista; o formato v1 continua legível pra sempre.
     }
   }
 
@@ -381,7 +424,7 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
     // start with the user's chosen voice / rate / language without waiting
     // for the speak() call to apply them.
     unawaited(player.applySettings());
-    _bindAudioHandler();
+    unawaited(_bindAudioHandler());
     // Save the mode (skipped when called from _loadBook auto-restore — the
     // _lastSavedReaderMode there already equals 'tts').
     unawaited(_saveProgress());
@@ -578,8 +621,15 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
 
   // ---------- Audio handler wiring ----------
 
-  void _bindAudioHandler() {
-    final handler = _ref.read(ttsAudioHandlerProvider);
+  Future<void> _bindAudioHandler() async {
+    // O provider expõe um Future: o AudioService.init roda em paralelo com
+    // o startup do app. Na prática já resolveu quando o usuário entra em
+    // TTS; o await só importa num cold start direto pra um livro em TTS.
+    final handler = await _ref.read(ttsAudioHandlerProvider);
+    // O usuário pode ter saído do TTS enquanto o init não terminava —
+    // bindar agora ressuscitaria a notificação de lockscreen de uma
+    // sessão já abandonada.
+    if (!mounted || state.mode != ReaderMode.tts) return;
     if (handler == null) return;
     final source = TtsAudioSource(
       play: play,
@@ -874,17 +924,25 @@ int? computeSessionAvgWpm(int durationMs, int wordsRead) {
   return (wordsRead * 60000 / durationMs).round();
 }
 
-/// Runs in a background isolate. Each record is `(chapterTitle, tokensJson)`.
-/// For a 100k-word book the synchronous version of this blocked the UI
-/// thread for hundreds of milliseconds; offloading it keeps the reader's
-/// entry animation smooth.
-List<Chapter> _decodeChapters(List<(String, String)> rows) {
-  final chapters = <Chapter>[];
-  for (final (title, json) in rows) {
-    final tokens = (jsonDecode(json) as List)
-        .map((j) => WordToken.fromJson(j as Map<String, dynamic>))
-        .toList(growable: false);
-    chapters.add(Chapter(title: title, tokens: tokens));
-  }
-  return chapters;
+/// Runs in a background isolate. Each record is
+/// `(chapterTitle, chapterIndex, tokensJson)`. For a 100k-word book the
+/// synchronous version of this blocked the UI thread for hundreds of
+/// milliseconds; offloading it keeps the reader's entry animation smooth.
+List<Chapter> _decodeChapters(List<(String, int, String)> rows) {
+  return [
+    for (final (title, chapterIndex, json) in rows)
+      Chapter(
+        title: title,
+        tokens: TokenCodec.decode(json, chapterIndex: chapterIndex),
+      ),
+  ];
+}
+
+/// Runs in a background isolate: re-encodes legacy v1 chapters into the
+/// compact v2 format for [RsvpEngineNotifier._upgradeTokenCache].
+List<(int, String)> _encodeChapters(List<(int, List<WordToken>)> chapters) {
+  return [
+    for (final (chapterIndex, tokens) in chapters)
+      (chapterIndex, TokenCodec.encode(tokens)),
+  ];
 }
