@@ -182,10 +182,19 @@ class LibrarySyncService {
   }) async {
     final folder = config.driveFolderId!;
 
-    // 1. Fire off every independent Drive read in parallel. Each await
+    // 1. Probe the folder first. isReadable retries transient blips and, on a
+    // hard failure, throws the underlying cause (token expired / network /
+    // rate-limit) rather than collapsing it into "folder not readable". We
+    // await it before firing the parallel batch below so a thrown error
+    // doesn't orphan those reads as unhandled async rejections. A `false`
+    // here means a genuine 404 — the folder is really gone/invisible.
+    if (!await _gateway.isReadable(folder)) {
+      throw StateError('Sync folder is not readable: $folder');
+    }
+
+    // 2. Fire off every independent Drive read in parallel. Each await
     // afterwards is for the one we need next; wall-clock cost is whichever
     // of these finishes last.
-    final isReadableF = _gateway.isReadable(folder);
     final legacyManifestF = _gateway.readText(folder, _kLegacyLibraryFile);
     final booksShardF = _gateway.readText(folder, _kBooksShardFile);
     final settingsShardF = _gateway.readText(folder, _kSettingsShardFile);
@@ -197,11 +206,7 @@ class LibrarySyncService {
             )
         : Future<List<String>>.value(const []);
 
-    if (!await isReadableF) {
-      throw StateError('Sync folder is not readable: $folder');
-    }
-
-    // 2. Decode remote shards. If the new shards are absent we look for a
+    // 3. Decode remote shards. If the new shards are absent we look for a
     // legacy `library.json` and migrate its contents into shard memory; the
     // file itself is removed at push time so other devices can also adopt
     // the new layout without seeing it again.
@@ -214,7 +219,7 @@ class LibrarySyncService {
       deviceId: config.deviceId,
     );
 
-    // 3. Inventory the books folder + auto-import orphans (only when EPUB
+    // 4. Inventory the books folder + auto-import orphans (only when EPUB
     // sync is enabled).
     Set<String> remoteEpubFiles = const {};
     if (config.syncEpubs) {
@@ -227,7 +232,7 @@ class LibrarySyncService {
       );
     }
 
-    // 4. Build local shard snapshots (now possibly augmented with the
+    // 5. Build local shard snapshots (now possibly augmented with the
     // freshly auto-imported books). Reuse the remote settings timestamp
     // when the user didn't touch settings this session so the skip-write
     // check fires.
@@ -240,7 +245,7 @@ class LibrarySyncService {
       localSettingsUpdatedAt: settingsTs,
     );
 
-    // 5. Merge each shard, then compact zombie tombstones (see docs).
+    // 6. Merge each shard, then compact zombie tombstones (see docs).
     final mergedBooks = _compactZombieTombstones(
       mergeBooksShard(local.books, remoteShards.books, config.deviceId),
       config.deviceId,
@@ -252,7 +257,7 @@ class LibrarySyncService {
     final mergedBookmarks =
         mergeBookmarksShard(local.bookmarks, remoteShards.bookmarks, config.deviceId);
 
-    // 6. Apply remote → local where remote won.
+    // 7. Apply remote → local where remote won.
     await _applyShardsToLocal(
       merged: _MergedShards(
         books: mergedBooks,
@@ -265,7 +270,7 @@ class LibrarySyncService {
       applySettings: applySettings,
     );
 
-    // 7. Push each shard only if its content actually changed. The legacy
+    // 8. Push each shard only if its content actually changed. The legacy
     // monolith is deleted on first sync after upgrade.
     if (remoteShards.legacyPresent) {
       try {
@@ -291,7 +296,7 @@ class LibrarySyncService {
     }
     await Future.wait(pushes);
 
-    // 8. Upload any local EPUBs the folder is missing (when EPUB sync on).
+    // 9. Upload any local EPUBs the folder is missing (when EPUB sync on).
     if (config.syncEpubs) {
       await _uploadMissingEpubs(
         folder: folder,

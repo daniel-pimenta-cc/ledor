@@ -12,7 +12,11 @@ import 'drive_auth_backend.dart';
 
 /// OAuth credentials are loaded from `.env` (bundled as an asset). They
 /// must come from a "Web application" client in Google Cloud Console with
-/// `http://127.0.0.1` listed as an authorized redirect URI. The same
+/// BOTH `http://localhost` and `http://127.0.0.1` listed as authorized
+/// redirect URIs. googleapis_auth's loopback sends `http://localhost:<port>`,
+/// so the `localhost` entry is the one that actually matches; a Web client
+/// exact-matches the host (unlike a Desktop client, which accepts any
+/// loopback port without registration). The same
 /// client_id is reused by the Android backend (via google_sign_in's
 /// `serverClientId`) so Drive's `drive.file` scope sees the same folder
 /// on both platforms.

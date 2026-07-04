@@ -56,6 +56,12 @@ class GoogleSignInDriveAuthBackend implements DriveAuthBackend {
       // code to the Web client_id; without it, tokens are minted for the
       // Android client and Drive treats this device as a different app.
       serverClientId: _clientId.isNotEmpty ? _clientId : null,
+      // Force a fresh, offline-exchangeable serverAuthCode on every
+      // interactive sign-in. Without it Android can return a code that's
+      // only good for an access token — or a cached, already-consumed one —
+      // so the serverAuthCode → refresh-token exchange fails with
+      // invalid_grant.
+      forceCodeForRefreshToken: true,
     );
   }
 
@@ -107,6 +113,15 @@ class GoogleSignInDriveAuthBackend implements DriveAuthBackend {
         'client_id from Google Cloud Console) and RSVP_OAUTH_CLIENT_SECRET.',
       );
     }
+    // Clear any cached google_sign_in session first. A cached account hands
+    // back its original serverAuthCode — single-use and ~10 min-lived, so by
+    // now expired/consumed — and any grant minted while the OAuth consent
+    // screen was in "Testing" is revoked once it moves to "Production". Both
+    // surface as invalid_grant in the exchange below. Signing out forces
+    // signIn() to mint a brand-new code (and re-consent if the grant is gone).
+    try {
+      await _google.signOut();
+    } catch (_) {/* nothing cached — fine */}
     final account = await _google.signIn();
     if (account == null) return null;
     return _exchangeAndStore(account);

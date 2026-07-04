@@ -62,7 +62,7 @@ O sync usa o mesmo `DriveSyncFolderGateway` do Android — só a auth muda. No L
 
 ### Setup das credenciais
 
-Crie um OAuth Client ID **type "Web application"** no [Google Cloud Console](https://console.cloud.google.com/apis/credentials), no mesmo projeto/consent screen do Android. Em **Authorized redirect URIs** adicione `http://127.0.0.1` (sem porta — pra loopback IPs o Google ignora a porta).
+Crie um OAuth Client ID **type "Web application"** no [Google Cloud Console](https://console.cloud.google.com/apis/credentials), no mesmo projeto/consent screen do Android. Em **Authorized redirect URIs** adicione **`http://localhost` E `http://127.0.0.1`** (ambos sem porta — pro host de loopback "pelado" o Google ignora a porta). O `googleapis_auth` abre o loopback em `http://localhost:<porta-aleatória>`, então o **`http://localhost` é o que realmente casa**; o `127.0.0.1` fica por garantia. Cadastrar só `127.0.0.1` (ou só com porta) causa `redirect_uri_mismatch`: client "Web" faz match exato de host, diferente de client "Desktop" que aceita qualquer porta de loopback sem registro.
 
 > Por que "Web application" e não "Desktop"? O scope `drive.file` filtra visibilidade de arquivos **por OAuth client_id**. Pra Android e desktop verem a mesma pasta `RSVP Reader/` no Drive, ambos passam pelo mesmo client_id — Android usa `serverClientId` em `google_sign_in` apontando pra esse Web client. Clients "Desktop application" não funcionam como `serverClientId`.
 
