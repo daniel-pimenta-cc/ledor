@@ -91,5 +91,5 @@ flutter build linux --release  # bundle final
 ## Limitações conhecidas
 
 - **Share-sheet do sistema**: `receive_sharing_intent` não tem binding Linux. Sem registro de URL/MIME handler — pra importar artigo, abra o app e use o dialog "Importar URL" (ou arraste a URL na janela).
-- **Packaging**: ainda não há AppImage/Flatpak/Snap; o build produz só o bundle bruto em `build/linux/x64/release/bundle/`.
+- **Packaging**: ainda não há AppImage/Flatpak/Snap; o build produz o bundle bruto em `build/linux/x64/release/bundle/`. Releases oficiais publicam esse bundle como `ledor-linux-x64-vX.Y.Z.tar.gz` via GitHub Actions (`.github/workflows/release.yml`, disparado por tag `v*`).
 - **Storage**: `getApplicationDocumentsDirectory()` resolve para `~/Documents` em Linux (XDG) — o DB (`rsvp_reader.db`, nome mantido pré-rename) e os EPUBs ficam lá, independentes do `APPLICATION_ID`. Só as SharedPreferences vivem em `~/.local/share/com.pimenta.ledor/` e resetam se o app id mudar (o Drive sync restaura as settings).
