@@ -1,0 +1,84 @@
+name: Release
+
+# Cut a release by pushing a tag:
+#   git tag v0.1.0 && git push --tags
+# Builds a signed Android APK + Linux x64 bundle and attaches both to a
+# GitHub release with auto-generated notes.
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      # .env is a declared asset (flutter_dotenv) but is gitignored. Public
+      # builds ship it empty: Drive sync UI stays hidden (PlatformCapabilities
+      # .supportsDriveSync) instead of baking OAuth credentials into the APK.
+      - name: Create empty .env
+        run: touch .env
+      - name: Decode upload keystore
+        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/upload.jks"
+      - run: flutter pub get
+      - name: Build signed APK
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/upload.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: flutter build apk --release
+      - name: Rename artifact
+        run: mv build/app/outputs/flutter-apk/app-release.apk "ledor-${{ github.ref_name }}.apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: ledor-*.apk
+
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Install Linux build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config \
+            libgtk-3-dev libsecret-1-dev libjsoncpp-dev liblzma-dev
+      - name: Create empty .env
+        run: touch .env
+      - run: flutter pub get
+      - run: flutter build linux --release
+      - name: Pack bundle
+        run: tar -czf "ledor-linux-x64-${{ github.ref_name }}.tar.gz" -C build/linux/x64/release/bundle .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: ledor-linux-*.tar.gz
+
+  release:
+    needs: [android, linux]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" ledor-* --repo "$GITHUB_REPOSITORY" --generate-notes
