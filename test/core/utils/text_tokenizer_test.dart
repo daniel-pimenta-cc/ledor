@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rsvp_reader/core/utils/text_tokenizer.dart';
+import 'package:ledor/core/utils/text_tokenizer.dart';
 
 void main() {
   group('TextTokenizer', () {

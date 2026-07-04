@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rsvp_reader/features/epub_import/domain/entities/chapter.dart';
-import 'package:rsvp_reader/features/epub_import/domain/entities/word_token.dart';
-import 'package:rsvp_reader/features/rsvp_reader/domain/utils/sentence_extractor.dart';
+import 'package:ledor/features/epub_import/domain/entities/chapter.dart';
+import 'package:ledor/features/epub_import/domain/entities/word_token.dart';
+import 'package:ledor/features/rsvp_reader/domain/utils/sentence_extractor.dart';
 
 void main() {
   group('extractSentenceFrom', () {

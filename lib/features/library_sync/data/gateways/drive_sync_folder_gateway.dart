@@ -285,6 +285,12 @@ class DriveSyncFolderGateway implements SyncFolderGateway {
   /// With the `drive.file` scope we only see folders created by this app,
   /// so the lookup is safe even if the user also has unrelated folders
   /// with the same name.
+  ///
+  /// The folder name predates the Ledor rename. Kept as-is on purpose:
+  /// devices already syncing look this folder up by name when their cached
+  /// [SyncConfig] id is lost, and a renamed default would create a second,
+  /// empty root folder (split-brain). If this ever needs to change, add a
+  /// lookup-by-old-name fallback that renames the folder via the Drive API.
   Future<String> ensureRootFolder({String name = 'RSVP Reader'}) async {
     final api = await _api();
     if (api == null) {

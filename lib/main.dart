@@ -39,6 +39,8 @@ void main() async {
   }
 
   final dbDir = await getApplicationDocumentsDirectory();
+  // Filename predates the Ledor rename. Kept as-is on purpose: on Linux this
+  // lives in ~/Documents and renaming it would orphan existing databases.
   final dbFile = File('${dbDir.path}/rsvp_reader.db');
   final database = AppDatabase(
     NativeDatabase.createInBackground(dbFile),
@@ -57,7 +59,7 @@ void main() async {
     audioHandlerFuture = AudioService.init(
       builder: () => TtsAudioHandler(),
       config: const AudioServiceConfig(
-        androidNotificationChannelId: 'cc.danielpimenta.rsvp_reader.tts',
+        androidNotificationChannelId: 'com.pimenta.ledor.tts',
         androidNotificationChannelName: 'TTS playback',
         androidNotificationChannelDescription:
             'Controls for the TTS narration',

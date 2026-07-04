@@ -1,14 +1,14 @@
-name: rsvp_reader
+name: ledor
 description: >-
-  Open-source Flutter EPUB reader with RSVP (Rapid Serial Visual Presentation)
-  for speed reading. Features ORP highlighting, smart timing, ramp-up, three
-  reading modes (RSVP, scroll, ereader), chapter-aware progress, velocity-based
-  scroll tracking, fully customizable theme, and offline-first storage.
+  Ledor — open-source Flutter speed reader. Words come to you: RSVP (Rapid
+  Serial Visual Presentation) with ORP highlighting, smart timing, ramp-up,
+  four reading modes (RSVP, scroll, ereader, TTS), EPUB + web articles,
+  reading stats, and offline-first storage with optional Drive sync.
 publish_to: 'none'
 version: 0.1.0
-repository: https://github.com/daniel-pimenta-cc/rsvp_reader
-homepage: https://github.com/daniel-pimenta-cc/rsvp_reader
-issue_tracker: https://github.com/daniel-pimenta-cc/rsvp_reader/issues
+repository: https://github.com/daniel-pimenta-cc/ledor
+homepage: https://github.com/daniel-pimenta-cc/ledor
+issue_tracker: https://github.com/daniel-pimenta-cc/ledor/issues
 
 environment:
   sdk: ^3.10.1

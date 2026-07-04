@@ -34,7 +34,7 @@ Xcode — isso só pode ser feito num Mac com Xcode aberto.
 
 1. `flutter run` num device iOS (simulator share-sheet não mostra extensões
    de terceiros — precisa ser aparelho físico ou TestFlight).
-2. Abrir o Safari, compartilhar uma página → o app RSVP Reader deve aparecer
+2. Abrir o Safari, compartilhar uma página → o app Ledor deve aparecer
    na lista de destinos.
 3. Selecionar → app abre, snackbar "Importando artigo…" aparece, reader
    abre quando termina.

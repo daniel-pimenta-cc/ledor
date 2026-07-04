@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rsvp_reader/features/rsvp_reader/data/services/speech_dispatcher_backend.dart';
+import 'package:ledor/features/rsvp_reader/data/services/speech_dispatcher_backend.dart';
 
 void main() {
   group('SpeechDispatcherBackend.wordCharOffsetsForTest', () {

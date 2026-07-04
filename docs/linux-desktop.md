@@ -1,6 +1,6 @@
 # Linux desktop
 
-Versão desktop GTK do RSVP Reader. Compartilha 100% do código Dart com Android/iOS — só o shell nativo (CMake + GTK em `linux/`) e alguns guards de plataforma são específicos.
+Versão desktop GTK do Ledor. Compartilha 100% do código Dart com Android/iOS — só o shell nativo (CMake + GTK em `linux/`) e alguns guards de plataforma são específicos.
 
 ## Pré-requisitos
 
@@ -14,7 +14,7 @@ sudo apt install clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev lib
 
 ```bash
 flutter run -d linux                  # debug
-flutter build linux --release         # bundle em build/linux/x64/release/bundle/rsvp_reader
+flutter build linux --release         # bundle em build/linux/x64/release/bundle/ledor
 ```
 
 A janela abre em 1280×800 (mínimo 800×600). Título e tamanho são definidos em `linux/runner/my_application.cc`.
@@ -92,4 +92,4 @@ flutter build linux --release  # bundle final
 
 - **Share-sheet do sistema**: `receive_sharing_intent` não tem binding Linux. Sem registro de URL/MIME handler — pra importar artigo, abra o app e use o dialog "Importar URL" (ou arraste a URL na janela).
 - **Packaging**: ainda não há AppImage/Flatpak/Snap; o build produz só o bundle bruto em `build/linux/x64/release/bundle/`.
-- **Storage**: `path_provider` resolve para `~/.local/share/rsvp_reader/` em Linux (XDG). O DB e os EPUBs ficam lá.
+- **Storage**: `getApplicationDocumentsDirectory()` resolve para `~/Documents` em Linux (XDG) — o DB (`rsvp_reader.db`, nome mantido pré-rename) e os EPUBs ficam lá, independentes do `APPLICATION_ID`. Só as SharedPreferences vivem em `~/.local/share/com.pimenta.ledor/` e resetam se o app id mudar (o Drive sync restaura as settings).

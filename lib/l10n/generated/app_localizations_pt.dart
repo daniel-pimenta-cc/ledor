@@ -9,7 +9,7 @@ class AppLocalizationsPt extends AppLocalizations {
   AppLocalizationsPt([String locale = 'pt']) : super(locale);
 
   @override
-  String get appTitle => 'RSVP Reader';
+  String get appTitle => 'Ledor';
 
   @override
   String get library => 'Biblioteca';
@@ -500,7 +500,7 @@ class AppLocalizationsPt extends AppLocalizations {
   }
 
   @override
-  String get recapWordmark => 'RSVP Reader';
+  String get recapWordmark => 'Ledor';
 
   @override
   String recapMonthHeadline(String month, int year) {
@@ -509,7 +509,7 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String recapShareText(String month) {
-    return 'Meu recap de leitura de $month no RSVP Reader.';
+    return 'Meu recap de leitura de $month no Ledor.';
   }
 
   @override
@@ -568,7 +568,7 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String completionShareText(String title) {
-    return 'Acabei de terminar \"$title\" no RSVP Reader.';
+    return 'Acabei de terminar \"$title\" no Ledor.';
   }
 
   @override

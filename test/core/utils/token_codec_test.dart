@@ -1,9 +1,9 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rsvp_reader/core/utils/text_tokenizer.dart';
-import 'package:rsvp_reader/core/utils/token_codec.dart';
-import 'package:rsvp_reader/features/epub_import/domain/entities/word_token.dart';
+import 'package:ledor/core/utils/text_tokenizer.dart';
+import 'package:ledor/core/utils/token_codec.dart';
+import 'package:ledor/features/epub_import/domain/entities/word_token.dart';
 
 void main() {
   group('TokenCodec', () {

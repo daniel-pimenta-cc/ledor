@@ -1,6 +1,8 @@
-# RSVP Reader
+# Ledor
 
-An open-source EPUB and web-article speed reader built with Flutter, running on **Android, iOS, and Linux desktop**.
+**Words come to you.** *Ledor* is Portuguese for someone who reads aloud to another person — and that's what this app does: instead of your eyes chasing the words, the words come to your eyes.
+
+An open-source EPUB and web-article speed reader built with Flutter, running on **Android, iOS, and Linux desktop**. Formerly known as *RSVP Reader*.
 
 Words are displayed one at a time at a configurable WPM, with the **Optimal Recognition Point (ORP)** highlighted so your eye doesn't need to saccade — letting you read faster while preserving comprehension.
 
@@ -84,7 +86,7 @@ provisioning your own OAuth client:
    Android passes to `google_sign_in` as `serverClientId` so both platforms see
    the same Drive folder.
 4. **Credentials → Create OAuth 2.0 Client ID → Android** (in the same project):
-   - Package name: `com.pimenta.rsvp_reader` (or your fork's `applicationId`
+   - Package name: `com.pimenta.ledor` (or your fork's `applicationId`
      from `android/app/build.gradle.kts`).
    - SHA-1: your debug keystore fingerprint. Get it with:
      ```bash

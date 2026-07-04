@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rsvp_reader/core/utils/bookmark_snippet.dart';
-import 'package:rsvp_reader/features/epub_import/domain/entities/word_token.dart';
+import 'package:ledor/core/utils/bookmark_snippet.dart';
+import 'package:ledor/features/epub_import/domain/entities/word_token.dart';
 
 WordToken _t(String text, int globalIndex, {bool isImage = false}) => WordToken(
       text: text,
