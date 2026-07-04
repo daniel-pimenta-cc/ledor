@@ -73,44 +73,112 @@ class AppDatabase extends _$AppDatabase {
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
+        // Every step is idempotent: it skips work whose table/index/column is
+        // already present. This is essential because a *prior aborted upgrade*
+        // can leave the DB partially migrated. sqlite auto-commits each DDL
+        // statement, but drift only bumps `user_version` after the whole
+        // callback succeeds — so if any step throws, every object created
+        // before it stays committed while the version stays put. On the next
+        // open the migration re-runs from the same low version and, without
+        // these guards, crashes on the first `CREATE`/`ADD COLUMN` whose
+        // object already exists ("index ... already exists", "duplicate
+        // column name"). A real device (a Galaxy Tab on a v4 build) hit this:
+        // the first run created reading_session, its indexes and bookmarks
+        // before aborting on the old double-add of the v10 columns. Guarding
+        // every operation lets such a wedged DB roll all the way to the
+        // current schema instead of crash-looping.
         onUpgrade: (m, from, to) async {
+          Future<void> addColumnIfMissing(
+              TableInfo table, GeneratedColumn column) async {
+            if (!await _columnExists(table.actualTableName, column.name)) {
+              await m.addColumn(table, column);
+            }
+          }
+
+          Future<void> createTableIfMissing(TableInfo table) async {
+            if (!await _tableExists(table.actualTableName)) {
+              await m.createTable(table);
+            }
+          }
+
+          Future<void> createIndexIfMissing(Index index) async {
+            if (!await _indexExists(index.entityName)) {
+              await m.createIndex(index);
+            }
+          }
+
           if (from < 2) {
-            await m.addColumn(booksTable, booksTable.syncFileName);
+            await addColumnIfMissing(booksTable, booksTable.syncFileName);
           }
           if (from < 3) {
-            await m.createTable(syncImportFailuresTable);
+            await createTableIfMissing(syncImportFailuresTable);
           }
           if (from < 4) {
-            await m.addColumn(booksTable, booksTable.source);
-            await m.addColumn(booksTable, booksTable.sourceUrl);
-            await m.addColumn(booksTable, booksTable.siteName);
+            await addColumnIfMissing(booksTable, booksTable.source);
+            await addColumnIfMissing(booksTable, booksTable.sourceUrl);
+            await addColumnIfMissing(booksTable, booksTable.siteName);
           }
           if (from < 5) {
-            await m.createTable(readingSessionTable);
-            await m.createIndex(readingSessionStartedAtIdx);
-            await m.createIndex(readingSessionBookIdIdx);
+            await createTableIfMissing(readingSessionTable);
+            await createIndexIfMissing(readingSessionStartedAtIdx);
+            await createIndexIfMissing(readingSessionBookIdIdx);
           }
           if (from < 6) {
-            await m.addColumn(booksTable, booksTable.rating);
+            await addColumnIfMissing(booksTable, booksTable.rating);
           }
           if (from < 7) {
-            await m.addColumn(booksTable, booksTable.ratingUpdatedAt);
+            await addColumnIfMissing(booksTable, booksTable.ratingUpdatedAt);
           }
           if (from < 8) {
-            await m.addColumn(
+            await addColumnIfMissing(
                 readingProgressTable, readingProgressTable.readerMode);
           }
           if (from < 9) {
-            await m.createTable(bookmarksTable);
-            await m.createIndex(bookmarksBookIdIdx);
+            // createTable materialises the *current* BookmarksTable, which
+            // already carries the v10 endGlobalWordIndex/endChapterIndex
+            // columns. So a DB from < 9 gets them here, and the addColumn
+            // step below sees them present and skips — no double-add.
+            await createTableIfMissing(bookmarksTable);
+            await createIndexIfMissing(bookmarksBookIdIdx);
           }
           if (from < 10) {
-            await m.addColumn(bookmarksTable, bookmarksTable.endGlobalWordIndex);
-            await m.addColumn(bookmarksTable, bookmarksTable.endChapterIndex);
+            // Adds the end-anchor columns for DBs created at the v9 shape;
+            // a no-op for DBs from < 9 that already got them via createTable.
+            await addColumnIfMissing(
+                bookmarksTable, bookmarksTable.endGlobalWordIndex);
+            await addColumnIfMissing(
+                bookmarksTable, bookmarksTable.endChapterIndex);
           }
           if (from < 11) {
-            await m.createIndex(cachedTokensBookIdIdx);
+            await createIndexIfMissing(cachedTokensBookIdIdx);
           }
         },
       );
+
+  /// Whether a table named [name] exists. Used to keep the migration
+  /// idempotent across partially-applied upgrades (see [migration]).
+  Future<bool> _tableExists(String name) async {
+    final rows = await customSelect(
+      "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+      variables: [Variable.withString(name)],
+    ).get();
+    return rows.isNotEmpty;
+  }
+
+  /// Whether an index named [name] exists.
+  Future<bool> _indexExists(String name) async {
+    final rows = await customSelect(
+      "SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = ?",
+      variables: [Variable.withString(name)],
+    ).get();
+    return rows.isNotEmpty;
+  }
+
+  /// Whether [table] has a column named [column]. The table name is a trusted
+  /// schema constant, so interpolating it into the PRAGMA is safe (PRAGMA
+  /// doesn't accept bound parameters for its argument).
+  Future<bool> _columnExists(String table, String column) async {
+    final rows = await customSelect("PRAGMA table_info('$table')").get();
+    return rows.any((r) => r.data['name'] == column);
+  }
 }
