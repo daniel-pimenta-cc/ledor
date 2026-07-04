@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:googleapis/drive/v3.dart' as drive;
 import 'package:googleapis_auth/googleapis_auth.dart' as ga;
 
@@ -40,6 +41,18 @@ class DriveSyncFolderGateway implements SyncFolderGateway {
   /// Escape single quotes for Drive query strings.
   String _esc(String v) => v.replaceAll("'", r"\'");
 
+  /// Pick one match deterministically when a name collision produced
+  /// duplicates — e.g. two devices each created `library/` (or `books.json`)
+  /// on their first sharded sync before either had pushed, which actually
+  /// happened in this app's history. Sorting by id means every device and
+  /// every call converges on the *same* copy instead of whatever order Drive
+  /// returns, so reads and writes can't split-brain across the duplicates.
+  /// The losing copy just sits unused until cleaned up.
+  drive.File _pickStable(List<drive.File> files) {
+    files.sort((a, b) => (a.id ?? '').compareTo(b.id ?? ''));
+    return files.first;
+  }
+
   /// Walk [segments] starting at [rootId], resolving each folder. When
   /// [create] is true, missing folders are created; otherwise returns null
   /// as soon as a segment isn't found. Results are cached by the full
@@ -65,7 +78,7 @@ class DriveSyncFolderGateway implements SyncFolderGateway {
           await api.files.list(q: q, $fields: 'files(id,name)');
       final files = res.files ?? <drive.File>[];
       if (files.isNotEmpty) {
-        parentId = files.first.id!;
+        parentId = _pickStable(files).id!;
       } else if (create) {
         final created = await api.files.create(drive.File()
           ..name = seg
@@ -92,7 +105,7 @@ class DriveSyncFolderGateway implements SyncFolderGateway {
         await api.files.list(q: q, $fields: 'files(id,name,mimeType)');
     final files = res.files ?? <drive.File>[];
     if (files.isEmpty) return null;
-    final found = files.first;
+    final found = _pickStable(files);
     if (found.id != null) {
       _fileIdCache[_fileKey(parentId, name)] = found.id!;
     }
@@ -101,14 +114,33 @@ class DriveSyncFolderGateway implements SyncFolderGateway {
 
   @override
   Future<bool> isReadable(String folderPath) async {
-    try {
-      final api = await _api();
-      if (api == null) return false;
-      await api.files.get(folderPath, $fields: 'id');
-      return true;
-    } catch (_) {
-      return false;
+    final api = await _api();
+    if (api == null) return false;
+    // Only a genuine 404 means the folder is gone/invisible — a real "not
+    // readable". Everything else (401 token expired, 403 rate-limit, 5xx,
+    // socket/TLS hiccups) is transient or an auth problem: retry briefly,
+    // then rethrow the *real* cause so the sync surfaces "couldn't reach
+    // Drive / reconnect needed" instead of a misleading "folder not
+    // readable" (which sends users on a pointless Disconnect→Connect dance).
+    const maxAttempts = 3;
+    Object? lastError;
+    for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        await api.files.get(folderPath, $fields: 'id');
+        return true;
+      } on drive.DetailedApiRequestError catch (e) {
+        if (e.status == 404) return false;
+        lastError = e;
+      } catch (e) {
+        lastError = e;
+      }
+      if (attempt < maxAttempts) {
+        await Future<void>.delayed(Duration(milliseconds: 250 * attempt));
+      }
     }
+    debugPrint('[sync] isReadable($folderPath) failed after '
+        '$maxAttempts attempts: $lastError');
+    throw lastError!;
   }
 
   @override
@@ -302,7 +334,7 @@ class DriveSyncFolderGateway implements SyncFolderGateway {
         "and 'root' in parents";
     final res = await api.files.list(q: q, $fields: 'files(id,name)');
     final files = res.files ?? <drive.File>[];
-    if (files.isNotEmpty) return files.first.id!;
+    if (files.isNotEmpty) return _pickStable(files).id!;
     final created = await api.files.create(drive.File()
       ..name = name
       ..mimeType = _folderMime
