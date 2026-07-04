@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rsvp_reader/core/utils/voice_label_formatter.dart';
-import 'package:rsvp_reader/features/rsvp_reader/data/services/tts_backend.dart';
+import 'package:ledor/core/utils/voice_label_formatter.dart';
+import 'package:ledor/features/rsvp_reader/data/services/tts_backend.dart';
 
 TtsVoice _voice({
   required String name,

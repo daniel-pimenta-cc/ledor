@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rsvp_reader/features/epub_import/data/services/epub_extraction_service.dart';
+import 'package:ledor/features/epub_import/data/services/epub_extraction_service.dart';
 
 import '../../fixtures/build_minimal_epub.dart';
 

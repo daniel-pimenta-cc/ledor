@@ -24,7 +24,7 @@ class RsvpReaderApp extends ConsumerWidget {
     return ShareIntentHandler(
       child: _ArticleImportCoordinator(
         child: MaterialApp.router(
-          title: 'RSVP Reader',
+          title: 'Ledor',
           debugShowCheckedModeBanner: false,
           scaffoldMessengerKey: rootMessengerKey,
           theme: AppTheme.build(brightness: Brightness.light),

@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rsvp_reader/core/utils/orp_calculator.dart';
+import 'package:ledor/core/utils/orp_calculator.dart';
 
 void main() {
   group('OrpCalculator', () {

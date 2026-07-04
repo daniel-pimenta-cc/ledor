@@ -1,6 +1,6 @@
 {
   "@@locale": "pt",
-  "appTitle": "RSVP Reader",
+  "appTitle": "Ledor",
   "library": "Biblioteca",
   "settings": "Configurações",
   "importBook": "Importar Livro",
@@ -204,7 +204,7 @@
       "minutes": { "type": "int" }
     }
   },
-  "recapWordmark": "RSVP Reader",
+  "recapWordmark": "Ledor",
   "recapMonthHeadline": "{month} {year}",
   "@recapMonthHeadline": {
     "placeholders": {
@@ -212,7 +212,7 @@
       "year": { "type": "int" }
     }
   },
-  "recapShareText": "Meu recap de leitura de {month} no RSVP Reader.",
+  "recapShareText": "Meu recap de leitura de {month} no Ledor.",
   "@recapShareText": {
     "placeholders": {
       "month": { "type": "String" }
@@ -247,7 +247,7 @@
       "sessions": { "type": "int" }
     }
   },
-  "completionShareText": "Acabei de terminar \"{title}\" no RSVP Reader.",
+  "completionShareText": "Acabei de terminar \"{title}\" no Ledor.",
   "@completionShareText": {
     "placeholders": {
       "title": { "type": "String" }

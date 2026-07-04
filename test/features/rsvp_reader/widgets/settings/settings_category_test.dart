@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rsvp_reader/features/rsvp_reader/domain/entities/rsvp_state.dart';
-import 'package:rsvp_reader/features/rsvp_reader/presentation/widgets/settings/settings_category.dart';
+import 'package:ledor/features/rsvp_reader/domain/entities/rsvp_state.dart';
+import 'package:ledor/features/rsvp_reader/presentation/widgets/settings/settings_category.dart';
 
 void main() {
   group('SettingsCategoryScope.scope', () {

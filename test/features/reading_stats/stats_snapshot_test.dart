@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rsvp_reader/database/app_database.dart';
-import 'package:rsvp_reader/features/reading_stats/domain/entities/stats_range.dart';
-import 'package:rsvp_reader/features/reading_stats/presentation/providers/reading_stats_provider.dart';
+import 'package:ledor/database/app_database.dart';
+import 'package:ledor/features/reading_stats/domain/entities/stats_range.dart';
+import 'package:ledor/features/reading_stats/presentation/providers/reading_stats_provider.dart';
 
 ReadingSessionTableData _session({
   required String id,

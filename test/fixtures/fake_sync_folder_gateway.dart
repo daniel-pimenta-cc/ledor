@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import 'package:rsvp_reader/features/library_sync/domain/repositories/sync_folder_gateway.dart';
+import 'package:ledor/features/library_sync/domain/repositories/sync_folder_gateway.dart';
 
 /// In-memory [SyncFolderGateway] for driving the sync service in tests.
 ///

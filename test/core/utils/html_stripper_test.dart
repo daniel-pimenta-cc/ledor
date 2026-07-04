@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rsvp_reader/core/utils/html_stripper.dart';
+import 'package:ledor/core/utils/html_stripper.dart';
 
 void main() {
   group('HtmlStripper', () {

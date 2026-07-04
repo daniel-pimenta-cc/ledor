@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rsvp_reader/database/app_database.dart';
-import 'package:rsvp_reader/features/reading_stats/presentation/providers/book_completion_provider.dart';
+import 'package:ledor/database/app_database.dart';
+import 'package:ledor/features/reading_stats/presentation/providers/book_completion_provider.dart';
 
 BooksTableData _book(
   String id,

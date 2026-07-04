@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rsvp_reader/features/rsvp_reader/presentation/providers/rsvp_engine_provider.dart';
+import 'package:ledor/features/rsvp_reader/presentation/providers/rsvp_engine_provider.dart';
 
 void main() {
   group('computeSessionAvgWpm', () {

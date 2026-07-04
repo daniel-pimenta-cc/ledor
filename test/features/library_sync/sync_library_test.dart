@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rsvp_reader/features/library_sync/domain/entities/sync_library.dart';
+import 'package:ledor/features/library_sync/domain/entities/sync_library.dart';
 
 DateTime _t(int offsetSec) =>
     DateTime.utc(2026, 1, 1).add(Duration(seconds: offsetSec));

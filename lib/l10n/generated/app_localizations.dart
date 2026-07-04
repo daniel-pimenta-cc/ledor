@@ -101,7 +101,7 @@ abstract class AppLocalizations {
   /// No description provided for @appTitle.
   ///
   /// In en, this message translates to:
-  /// **'RSVP Reader'**
+  /// **'Ledor'**
   String get appTitle;
 
   /// No description provided for @library.
@@ -959,7 +959,7 @@ abstract class AppLocalizations {
   /// No description provided for @recapWordmark.
   ///
   /// In en, this message translates to:
-  /// **'RSVP Reader'**
+  /// **'Ledor'**
   String get recapWordmark;
 
   /// No description provided for @recapMonthHeadline.
@@ -971,7 +971,7 @@ abstract class AppLocalizations {
   /// No description provided for @recapShareText.
   ///
   /// In en, this message translates to:
-  /// **'My {month} reading recap from RSVP Reader.'**
+  /// **'My {month} reading recap from Ledor.'**
   String recapShareText(String month);
 
   /// No description provided for @recapBookProgress.
@@ -1049,7 +1049,7 @@ abstract class AppLocalizations {
   /// No description provided for @completionShareText.
   ///
   /// In en, this message translates to:
-  /// **'I just finished \"{title}\" on RSVP Reader.'**
+  /// **'I just finished \"{title}\" on Ledor.'**
   String completionShareText(String title);
 
   /// No description provided for @completionIncludeStats.

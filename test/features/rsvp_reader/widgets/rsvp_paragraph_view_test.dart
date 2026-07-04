@@ -1,9 +1,9 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rsvp_reader/features/epub_import/domain/entities/word_token.dart';
-import 'package:rsvp_reader/features/rsvp_reader/domain/entities/display_settings.dart';
-import 'package:rsvp_reader/features/rsvp_reader/presentation/widgets/rsvp_paragraph_view.dart';
+import 'package:ledor/features/epub_import/domain/entities/word_token.dart';
+import 'package:ledor/features/rsvp_reader/domain/entities/display_settings.dart';
+import 'package:ledor/features/rsvp_reader/presentation/widgets/rsvp_paragraph_view.dart';
 
 WordToken _token(String text, int globalIndex) => WordToken(
       text: text,

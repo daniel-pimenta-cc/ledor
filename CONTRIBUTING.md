@@ -1,4 +1,4 @@
-# Contributing to RSVP Reader
+# Contributing to Ledor
 
 Thanks for your interest in contributing. This document explains how to set up the project, the conventions the codebase follows, and the PR workflow.
 
@@ -13,8 +13,8 @@ Thanks for your interest in contributing. This document explains how to set up t
 ### First-time setup
 
 ```bash
-git clone https://github.com/<your-fork>/rsvp_reader.git  # replace <your-fork> with your GitHub username
-cd rsvp_reader
+git clone https://github.com/<your-fork>/ledor.git  # replace <your-fork> with your GitHub username
+cd ledor
 flutter pub get
 dart run build_runner build --delete-conflicting-outputs
 flutter gen-l10n

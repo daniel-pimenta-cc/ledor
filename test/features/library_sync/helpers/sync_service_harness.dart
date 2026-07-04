@@ -2,13 +2,13 @@ import 'dart:io';
 
 import 'package:drift/drift.dart' hide isNull;
 import 'package:drift/native.dart';
+import 'package:ledor/database/app_database.dart';
+import 'package:ledor/features/epub_import/data/services/epub_extraction_service.dart';
+import 'package:ledor/features/library_sync/data/services/library_sync_service.dart';
+import 'package:ledor/features/library_sync/domain/entities/sync_config.dart';
+import 'package:ledor/features/library_sync/domain/entities/sync_library.dart';
+import 'package:ledor/features/rsvp_reader/domain/entities/display_settings.dart';
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
-import 'package:rsvp_reader/database/app_database.dart';
-import 'package:rsvp_reader/features/epub_import/data/services/epub_extraction_service.dart';
-import 'package:rsvp_reader/features/library_sync/data/services/library_sync_service.dart';
-import 'package:rsvp_reader/features/library_sync/domain/entities/sync_config.dart';
-import 'package:rsvp_reader/features/library_sync/domain/entities/sync_library.dart';
-import 'package:rsvp_reader/features/rsvp_reader/domain/entities/display_settings.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
@@ -17,10 +17,10 @@ import '../../../fixtures/fake_path_provider.dart';
 import '../../../fixtures/fake_sync_folder_gateway.dart';
 
 export 'package:drift/drift.dart' show TableUpdate, TableUpdateQuery, Value;
-export 'package:rsvp_reader/database/app_database.dart';
-export 'package:rsvp_reader/features/library_sync/domain/entities/sync_config.dart';
-export 'package:rsvp_reader/features/library_sync/domain/entities/sync_library.dart';
-export 'package:rsvp_reader/features/rsvp_reader/domain/entities/display_settings.dart';
+export 'package:ledor/database/app_database.dart';
+export 'package:ledor/features/library_sync/domain/entities/sync_config.dart';
+export 'package:ledor/features/library_sync/domain/entities/sync_library.dart';
+export 'package:ledor/features/rsvp_reader/domain/entities/display_settings.dart';
 
 export '../../../fixtures/build_minimal_epub.dart';
 export '../../../fixtures/fake_sync_folder_gateway.dart';

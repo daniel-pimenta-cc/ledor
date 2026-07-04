@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rsvp_reader/core/utils/readability_extractor.dart';
+import 'package:ledor/core/utils/readability_extractor.dart';
 
 void main() {
   group('ReadabilityExtractor', () {

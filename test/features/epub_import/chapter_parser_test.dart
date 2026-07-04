@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rsvp_reader/features/epub_import/data/services/chapter_parser.dart';
+import 'package:ledor/features/epub_import/data/services/chapter_parser.dart';
 
 void main() {
   // Tiny PNG-like blob; bytes content doesn't matter for parsing — the

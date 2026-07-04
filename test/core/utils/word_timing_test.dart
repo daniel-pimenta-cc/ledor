@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rsvp_reader/core/utils/word_timing.dart';
+import 'package:ledor/core/utils/word_timing.dart';
 
 void main() {
   group('WordTiming', () {

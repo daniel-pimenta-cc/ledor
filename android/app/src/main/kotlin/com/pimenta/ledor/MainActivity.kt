@@ -1,4 +1,4 @@
-package com.pimenta.rsvp_reader
+package com.pimenta.ledor
 
 import com.ryanheise.audioservice.AudioServiceActivity
 

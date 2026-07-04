@@ -1,4 +1,4 @@
-# RSVP Reader
+# Ledor
 
 Leitor de livros (EPUB) e artigos web em Flutter com RSVP (Rapid Serial Visual Presentation), para Android/iOS/tablet/Linux desktop.
 
