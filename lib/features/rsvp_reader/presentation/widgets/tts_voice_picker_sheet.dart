@@ -43,18 +43,23 @@ class _TtsVoicePickerSheetState extends ConsumerState<TtsVoicePickerSheet> {
 
   late final TextEditingController _searchController;
 
+  // Cached in initState: Riverpod forbids `ref` inside dispose(), and the
+  // backend provider is a non-autoDispose singleton so the reference stays
+  // valid for the sheet's whole life.
+  late final TtsBackend _backend;
+
   @override
   void initState() {
     super.initState();
     _searchController = TextEditingController();
+    _backend = ref.read(ttsBackendProvider);
   }
 
   @override
   void dispose() {
     // If the user closed without committing, stop any in-flight preview so
     // the speech doesn't leak past the sheet's life.
-    final backend = ref.read(ttsBackendProvider);
-    backend.stop();
+    _backend.stop();
     _searchController.dispose();
     super.dispose();
   }

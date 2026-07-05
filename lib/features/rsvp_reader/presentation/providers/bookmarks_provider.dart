@@ -97,11 +97,7 @@ class BookmarksController {
     final dao = _ref.read(bookmarksDaoProvider);
     final trimmed = label?.trim();
     final cleaned = (trimmed == null || trimmed.isEmpty) ? null : trimmed;
-    await dao.upsert(BookmarksTableCompanion(
-      id: Value(id),
-      label: Value(cleaned),
-      updatedAt: Value(DateTime.now()),
-    ));
+    await dao.updateLabel(id, cleaned);
     _ref.read(librarySyncProvider.notifier).schedulePush();
   }
 
