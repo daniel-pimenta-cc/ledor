@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      # lld: required by flutter test on Linux; libsqlite3-dev: drift
+      # NativeDatabase dlopens libsqlite3.so in unit tests.
+      - name: Install test deps
+        run: sudo apt-get update && sudo apt-get install -y lld libsqlite3-dev
+      - name: Create empty .env
+        run: touch .env
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test --coverage test/
+      - name: Coverage gate
+        run: python3 tool/check_coverage.py --min 72
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lcov
+          path: coverage/lcov.info

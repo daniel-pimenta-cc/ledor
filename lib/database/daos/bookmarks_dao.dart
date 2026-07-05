@@ -44,6 +44,19 @@ class BookmarksDao extends DatabaseAccessor<AppDatabase>
     return into(bookmarksTable).insertOnConflictUpdate(entry);
   }
 
+  /// Partial update: rename (or clear) the label and bump [updatedAt] so
+  /// sync ships the change with the correct LWW timestamp. A partial
+  /// UPDATE, not [upsert] — insertOnConflictUpdate validates as an INSERT
+  /// and rejects a companion missing the required columns.
+  Future<int> updateLabel(String id, String? label, {DateTime? when}) {
+    return (update(bookmarksTable)..where((t) => t.id.equals(id))).write(
+      BookmarksTableCompanion(
+        label: Value(label),
+        updatedAt: Value(when ?? DateTime.now()),
+      ),
+    );
+  }
+
   /// Soft-delete: stamp [deletedAt] and bump [updatedAt] so sync can ship
   /// the tombstone with the correct LWW timestamp.
   Future<int> softDelete(String id, {DateTime? when}) {
