@@ -22,6 +22,15 @@ import 'tts_backend.dart';
 /// ±200ms across a long sentence, indistinguishable from the spd-say
 /// backend.
 class SpeechdSocketBackend implements TtsBackend {
+  /// [socketPathOverride] bypasses [_resolveSocketPath] (which reads
+  /// `Platform.environment` and fixed system paths) so tests can point the
+  /// backend at a fake SSIP server socket. Production callers use the
+  /// default.
+  SpeechdSocketBackend({String? socketPathOverride})
+      : _socketPathOverride = socketPathOverride;
+
+  final String? _socketPathOverride;
+
   @override
   bool get canPipeline => true;
 
@@ -76,7 +85,7 @@ class SpeechdSocketBackend implements TtsBackend {
   @override
   Future<void> init() async {
     if (_initialised) return;
-    final socketPath = _resolveSocketPath();
+    final socketPath = _socketPathOverride ?? _resolveSocketPath();
     if (socketPath == null) {
       throw const TtsUnavailableException(
         'speech-dispatcher socket not found. Install and start the '

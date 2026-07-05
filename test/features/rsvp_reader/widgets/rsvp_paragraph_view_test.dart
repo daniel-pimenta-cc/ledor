@@ -87,7 +87,7 @@ TextSpan _findParagraphTextSpan(WidgetTester tester) {
     context: element,
     style: const TextStyle(),
     withComposing: false,
-  ) as TextSpan;
+  );
 }
 
 void main() {
