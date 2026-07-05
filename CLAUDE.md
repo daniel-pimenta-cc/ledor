@@ -10,6 +10,7 @@ dart run build_runner build --delete-conflicting-outputs  # gerar codigo (drift,
 flutter gen-l10n                                   # gerar strings i18n
 flutter analyze                                    # verificar erros
 flutter test test/                                 # rodar testes (requer lld instalado)
+flutter test --coverage test/ && python3 tool/check_coverage.py  # cobertura (gate do CI: --min 72)
 flutter run                                        # rodar no device/emulador
 ```
 
