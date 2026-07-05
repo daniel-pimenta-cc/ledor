@@ -11,6 +11,8 @@ flutter gen-l10n                                   # gerar strings i18n
 flutter analyze                                    # verificar erros
 flutter test test/                                 # rodar testes (requer lld instalado)
 flutter run                                        # rodar no device/emulador
+git tag vX.Y.Z && git push --tags                  # cortar release: CI builda APK assinado + tar.gz Linux
+                                                   # (bumpar version: no pubspec com +buildNumber ANTES da tag)
 ```
 
 ## Arquitetura
