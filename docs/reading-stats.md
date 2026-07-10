@@ -9,10 +9,21 @@ no Drift. Alimenta tres surfaces user-facing:
 
 ## Modelo de sessao
 
-Uma **sessao** e um trecho continuo de `isPlaying=true`. Comeca em `play()`,
-termina em `pause()` / fim-do-livro / `enterEreaderMode()` / dispose do engine.
-`seekToWord` durante play **nao** divide a sessao — palavras puladas pelo seek
-nao contam (`_wordsInSession` so incrementa em `_onTick`).
+Uma **sessao** e um trecho continuo de leitura. Dois sabores:
+
+- **Playback** (RSVP ou TTS): trecho continuo de `isPlaying=true`. Comeca em
+  `play()`, termina em `pause()` / fim-do-livro / troca de modo / dispose do
+  engine. `seekToWord` durante play **nao** divide a sessao — palavras puladas
+  pelo seek nao contam (`_wordsInSession` so incrementa em `_onTick` no RSVP e
+  em `_onPlayerWordAdvance` no TTS).
+- **Manual (ereader)**: abre em `enterEreaderMode()` (ou no auto-restore do
+  modo em `_loadBook`) e fecha em `exitEreaderMode()` / troca de modo / play /
+  dispose. As palavras vem dos seeks disparados pelo sync de posicao do scroll
+  (`ContextScrollView` -> `seekToWord`): deltas positivos ate
+  `_maxManualReadDelta` (500) contam como lidos; deltas maiores sao navegacao
+  (capitulo/slider) e nao contam; scroll pra tras nao subtrai. Sessoes manuais
+  com `avgWpm > 700` sao descartadas como skimming (`computeSessionAvgWpm`
+  com `manual: true`).
 
 Schema (`lib/database/tables/reading_session_table.dart`):
 
@@ -77,7 +88,7 @@ Acessado pelo botao `recapGenerateCta` no topo da aba Monthly.
 
 A tela preview (`MonthlyRecapScreen`) envelopa o `MonthlyRecapCard` num
 `RepaintBoundary` com `GlobalKey` + `FittedBox(BoxFit.contain)`. Share chama
-`ImageExportService.shareWidgetAsPng()`.
+a função top-level `shareWidgetAsPng()` (em `image_export_service.dart`).
 
 ## Book completion
 
@@ -140,5 +151,5 @@ Pontos nao-obvios:
 
 - **Ao adicionar schema Drift**: bump `schemaVersion` em `app_database.dart`, adicionar bloco `if (from < N)` na `onUpgrade`. Rodar `dart run build_runner build --delete-conflicting-outputs`.
 - **Ao adicionar i18n no recap/completion cards**: strings tem que resolver sem `Navigator`/theme especifico (o card e capturado fora do fluxo normal de navegacao).
-- **Ao mexer no engine**: qualquer ponto novo de "saida do isPlaying=true" (nao so pause/end/ereader/dispose) deve chamar `_flushSession()` antes de zerar contadores.
+- **Ao mexer no engine**: qualquer ponto novo de "saida do isPlaying=true" (nao so pause/end/ereader/dispose) deve chamar `_flushSession()` antes de zerar contadores. Idem pra qualquer saida nova do modo ereader (sessao manual aberta) — e o flush deve rodar **antes** de mutar `state.mode`, porque `_flushSession` le `state.mode` pra decidir se aplica o cap de skimming manual.
 - **Testes prioritarios**: `computeSessionAvgWpm` (threshold/arredondamento), `buildSnapshot` (bucketing + avgWpm ponderado), `buildMonthlyRecap` (classificacao finished/reading), `buildCompletionSummary` (totais + firstSessionAt/lastSessionAt).

@@ -6,9 +6,11 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/voice_label_formatter.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../data/services/tts_backend.dart';
+import '../../domain/entities/display_settings.dart';
 import '../providers/display_settings_provider.dart';
 import '../providers/tts_backend_provider.dart';
 import '../providers/tts_voices_provider.dart';
+import 'reader_sheet_shell.dart';
 
 /// Bottom sheet that lists every voice the TTS backend reports.
 ///
@@ -48,6 +50,10 @@ class _TtsVoicePickerSheetState extends ConsumerState<TtsVoicePickerSheet> {
   // valid for the sheet's whole life.
   late final TtsBackend _backend;
 
+  // Last settings snapshot seen in build; dispose() can't read providers,
+  // and the voice restore below needs the committed voice/language.
+  DisplaySettings? _lastSettings;
+
   @override
   void initState() {
     super.initState();
@@ -57,9 +63,21 @@ class _TtsVoicePickerSheetState extends ConsumerState<TtsVoicePickerSheet> {
 
   @override
   void dispose() {
-    // If the user closed without committing, stop any in-flight preview so
-    // the speech doesn't leak past the sheet's life.
-    _backend.stop();
+    // Previews re-point the shared backend at an uncommitted voice/language.
+    // The TtsPlayer's dedup snapshot doesn't know that, so put the committed
+    // pair back — otherwise the next play() would skip re-applying them and
+    // keep speaking with the previewed voice. Fire-and-forget; the backend's
+    // serialising queue keeps the order sane. No preview → touch nothing
+    // (an unconditional stop() here used to kill in-flight book playback).
+    final s = _lastSettings;
+    if (_previewing != null && s != null) {
+      _backend.stop();
+      _backend.setLanguage(s.ttsLanguage);
+      final name = s.ttsVoiceName;
+      _backend.setVoice(
+        name == null ? null : TtsVoice(name: name, locale: s.ttsLanguage),
+      );
+    }
     _searchController.dispose();
     super.dispose();
   }
@@ -68,6 +86,7 @@ class _TtsVoicePickerSheetState extends ConsumerState<TtsVoicePickerSheet> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final settings = ref.watch(displaySettingsProvider);
+    _lastSettings = settings;
     final voicesAsync = ref.watch(ttsVoicesProvider);
     final uiLanguage = Localizations.localeOf(context).languageCode;
     final currentVoiceName = settings.ttsVoiceName;
@@ -76,96 +95,80 @@ class _TtsVoicePickerSheetState extends ConsumerState<TtsVoicePickerSheet> {
         .first
         .toLowerCase();
 
-    return DraggableScrollableSheet(
+    return ReaderSheetShell(
+      settings: settings,
       initialChildSize: 0.7,
       minChildSize: 0.4,
       maxChildSize: 0.95,
-      expand: false,
-      builder: (ctx, scrollController) {
-        return Container(
-          decoration: BoxDecoration(
-            color: Color.lerp(settings.backgroundColor, Colors.white, 0.08),
-            borderRadius:
-                const BorderRadius.vertical(top: Radius.circular(16)),
-          ),
-          child: Column(
-            children: [
-              _DragHandle(color: settings.wordColor),
-              _SheetHeader(
-                title: l10n.ttsVoicePickerTitle,
+      title: l10n.ttsVoicePickerTitle,
+      headerExtras: [
+        _ScopeAndSearch(
+          scope: _scope,
+          searchController: _searchController,
+          hasQuery: _query.isNotEmpty,
+          hintText: l10n.ttsVoicePickerSearchHint,
+          currentScopeLabel: l10n.ttsVoicePickerScopeCurrent,
+          allScopeLabel: l10n.ttsVoicePickerScopeAll,
+          wordColor: settings.wordColor,
+          orpColor: settings.orpColor,
+          onScopeChanged: (s) => setState(() => _scope = s),
+          onQueryChanged: (q) => setState(() => _query = q.trim()),
+        ),
+      ],
+      bodyBuilder: (ctx, scrollController) => Expanded(
+        child: voicesAsync.when(
+          loading: () => _Loading(color: settings.wordColor),
+          error: (err, _) =>
+              _ErrorState(error: err.toString(), settings: settings),
+          data: (voices) {
+            if (voices.isEmpty) {
+              return _EmptyState(
+                message: l10n.ttsNoVoicesAvailable,
                 color: settings.wordColor,
-              ),
-              _ScopeAndSearch(
-                scope: _scope,
-                searchController: _searchController,
-                hasQuery: _query.isNotEmpty,
-                hintText: l10n.ttsVoicePickerSearchHint,
-                currentScopeLabel: l10n.ttsVoicePickerScopeCurrent,
-                allScopeLabel: l10n.ttsVoicePickerScopeAll,
-                wordColor: settings.wordColor,
-                orpColor: settings.orpColor,
-                onScopeChanged: (s) => setState(() => _scope = s),
-                onQueryChanged: (q) => setState(() => _query = q.trim()),
-              ),
-              const Divider(height: 1),
-              Expanded(
-                child: voicesAsync.when(
-                  loading: () => _Loading(color: settings.wordColor),
-                  error: (err, _) =>
-                      _ErrorState(error: err.toString(), settings: settings),
-                  data: (voices) {
-                    if (voices.isEmpty) {
-                      return _EmptyState(
-                        message: l10n.ttsNoVoicesAvailable,
-                        color: settings.wordColor,
-                      );
-                    }
+              );
+            }
 
-                    final enriched = enrichVoices(voices, uiLanguage);
-                    final filtered = _filter(
-                      enriched,
-                      scope: _scope,
-                      query: _query,
-                      currentLanguage: currentLanguage,
-                    );
+            final enriched = enrichVoices(voices, uiLanguage);
+            final filtered = _filter(
+              enriched,
+              scope: _scope,
+              query: _query,
+              currentLanguage: currentLanguage,
+            );
 
-                    if (filtered.isEmpty) {
-                      final friendlyLang = localeDisplayName(
-                          settings.ttsLanguage, uiLanguage);
-                      final message = _query.isNotEmpty
-                          ? l10n.ttsVoicePickerNoMatches
-                          : (_scope == _VoiceScope.current
-                              ? l10n.ttsVoicePickerNoCurrentVoices(friendlyLang)
-                              : l10n.ttsNoVoicesAvailable);
-                      return _EmptyState(
-                        message: message,
-                        color: settings.wordColor,
-                        actionLabel: _scope == _VoiceScope.current
-                            ? l10n.ttsVoicePickerScopeAll
-                            : null,
-                        onAction: _scope == _VoiceScope.current
-                            ? () => setState(() => _scope = _VoiceScope.all)
-                            : null,
-                      );
-                    }
+            if (filtered.isEmpty) {
+              final friendlyLang =
+                  localeDisplayName(settings.ttsLanguage, uiLanguage);
+              final message = _query.isNotEmpty
+                  ? l10n.ttsVoicePickerNoMatches
+                  : (_scope == _VoiceScope.current
+                      ? l10n.ttsVoicePickerNoCurrentVoices(friendlyLang)
+                      : l10n.ttsNoVoicesAvailable);
+              return _EmptyState(
+                message: message,
+                color: settings.wordColor,
+                actionLabel: _scope == _VoiceScope.current
+                    ? l10n.ttsVoicePickerScopeAll
+                    : null,
+                onAction: _scope == _VoiceScope.current
+                    ? () => setState(() => _scope = _VoiceScope.all)
+                    : null,
+              );
+            }
 
-                    return _VoiceList(
-                      enriched: filtered,
-                      scrollController: scrollController,
-                      currentVoiceName: currentVoiceName,
-                      previewingName: _previewing?.name,
-                      wordColor: settings.wordColor,
-                      orpColor: settings.orpColor,
-                      onPreview: (voice) => _previewVoice(voice, l10n),
-                      onSelect: _selectVoice,
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        );
-      },
+            return _VoiceList(
+              enriched: filtered,
+              scrollController: scrollController,
+              currentVoiceName: currentVoiceName,
+              previewingName: _previewing?.name,
+              wordColor: settings.wordColor,
+              orpColor: settings.orpColor,
+              onPreview: (voice) => _previewVoice(voice, l10n),
+              onSelect: _selectVoice,
+            );
+          },
+        ),
+      ),
     );
   }
 
@@ -208,51 +211,6 @@ class _TtsVoicePickerSheetState extends ConsumerState<TtsVoicePickerSheet> {
       it = it.where((v) => v.searchHaystack.contains(q));
     }
     return it.toList();
-  }
-}
-
-class _DragHandle extends StatelessWidget {
-  final Color color;
-  const _DragHandle({required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 12, bottom: 8),
-      child: Container(
-        width: 36,
-        height: 4,
-        decoration: BoxDecoration(
-          color: color.withAlpha(60),
-          borderRadius: BorderRadius.circular(2),
-        ),
-      ),
-    );
-  }
-}
-
-class _SheetHeader extends StatelessWidget {
-  final String title;
-  final Color color;
-
-  const _SheetHeader({required this.title, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: Text(
-          title,
-          style: TextStyle(
-            color: color,
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ),
-    );
   }
 }
 

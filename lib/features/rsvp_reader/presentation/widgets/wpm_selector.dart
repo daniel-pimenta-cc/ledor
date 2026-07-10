@@ -12,6 +12,9 @@ import '../../domain/entities/display_settings.dart';
 /// reasonable target in a single glance.
 const int _defaultPresetRadius = 6;
 
+/// WPM step between adjacent chips in the preset drawer.
+const int _presetStep = 50;
+
 /// Build the inline preset row dynamically around [currentWpm]. The current
 /// value itself is always at the centre of the row; chips on either side step
 /// by [step] WPM relative to it, so the user can shift from any starting
@@ -41,22 +44,12 @@ List<int> buildWpmPresets(
 class WpmSelector extends StatefulWidget {
   final DisplaySettings settings;
   final int currentWpm;
-  final int min;
-  final int max;
-  final int smallStep;
-  final int presetStep;
-  final int presetRadius;
   final ValueChanged<int> onChanged;
   final String Function(int) labelFormatter;
 
   const WpmSelector({
     required this.settings,
     required this.currentWpm,
-    this.min = AppConstants.minWpm,
-    this.max = AppConstants.maxWpm,
-    this.smallStep = AppConstants.wpmStep,
-    this.presetStep = 50,
-    this.presetRadius = _defaultPresetRadius,
     required this.onChanged,
     required this.labelFormatter,
     super.key,
@@ -70,7 +63,8 @@ class _WpmSelectorState extends State<WpmSelector> {
   bool _open = false;
 
   void _step(int delta) {
-    final next = (widget.currentWpm + delta).clamp(widget.min, widget.max);
+    final next = (widget.currentWpm + delta)
+        .clamp(AppConstants.minWpm, AppConstants.maxWpm);
     if (next != widget.currentWpm) {
       HapticFeedback.selectionClick();
       widget.onChanged(next);
@@ -92,8 +86,8 @@ class _WpmSelectorState extends State<WpmSelector> {
           settings: widget.settings,
           label: widget.labelFormatter(widget.currentWpm),
           isOpen: _open,
-          onDown: () => _step(-widget.smallStep),
-          onUp: () => _step(widget.smallStep),
+          onDown: () => _step(-AppConstants.wpmStep),
+          onUp: () => _step(AppConstants.wpmStep),
           onLabelTap: _toggle,
         ),
         AnimatedSize(
@@ -108,10 +102,8 @@ class _WpmSelectorState extends State<WpmSelector> {
                     currentWpm: widget.currentWpm,
                     presets: buildWpmPresets(
                       widget.currentWpm,
-                      step: widget.presetStep,
-                      radius: widget.presetRadius,
-                      min: widget.min,
-                      max: widget.max,
+                      step: _presetStep,
+                      radius: _defaultPresetRadius,
                     ),
                     formatLabel: widget.labelFormatter,
                     onSelect: (value) {
@@ -289,7 +281,7 @@ class _WpmPresetRowState extends State<WpmPresetRow> {
         itemBuilder: (context, i) {
           final value = widget.presets[i];
           final selected = value == widget.currentWpm;
-          return _PresetChip(
+          return PresetChip(
             key: i == targetIndex ? _selectedKey : null,
             settings: widget.settings,
             label: widget.formatLabel(value),
@@ -302,13 +294,15 @@ class _WpmPresetRowState extends State<WpmPresetRow> {
   }
 }
 
-class _PresetChip extends StatelessWidget {
+/// Rounded pill for a single speed preset. Shared by [WpmPresetRow] and the
+/// TTS rate drawer. Colours come from [settings] for live-preview parity.
+class PresetChip extends StatelessWidget {
   final DisplaySettings settings;
   final String label;
   final bool selected;
   final VoidCallback onTap;
 
-  const _PresetChip({
+  const PresetChip({
     super.key,
     required this.settings,
     required this.label,

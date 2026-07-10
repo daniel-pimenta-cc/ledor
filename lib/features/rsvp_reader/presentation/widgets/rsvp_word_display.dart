@@ -190,11 +190,16 @@ class RsvpWordDisplay extends StatelessWidget {
                     right: 0,
                     top: focusLineTop,
                     height: focusLineHeight,
-                    child: _FocusLine(
-                      progress: progress,
-                      showProgress: settings.focusLineShowsProgress,
-                      filledColor: settings.orpColor,
-                      restColor: settings.wordColor.withAlpha(60),
+                    // Thin line below the word. When progress display is on it
+                    // fills to `progress` in the accent; otherwise value 0 keeps
+                    // the whole track in restColor as a plain focus aid.
+                    child: LinearProgressIndicator(
+                      value: settings.focusLineShowsProgress
+                          ? progress.clamp(0.0, 1.0)
+                          : 0.0,
+                      minHeight: focusLineHeight,
+                      color: settings.orpColor,
+                      backgroundColor: settings.wordColor.withAlpha(60),
                     ),
                   ),
               ],
@@ -305,48 +310,4 @@ class _OrpLinePainter extends CustomPainter {
   @override
   bool shouldRepaint(_OrpLinePainter oldDelegate) =>
       oldDelegate.color != color;
-}
-
-/// Thin horizontal line below the word.
-///
-/// When [showProgress] is true, fills from left up to [progress] in
-/// [filledColor] and shows the remaining track in [restColor]. Otherwise
-/// the entire line is rendered in [restColor] as a focus aid only.
-class _FocusLine extends StatelessWidget {
-  final double progress;
-  final bool showProgress;
-  final Color filledColor;
-  final Color restColor;
-
-  const _FocusLine({
-    required this.progress,
-    required this.showProgress,
-    required this.filledColor,
-    required this.restColor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    if (!showProgress) {
-      return ColoredBox(color: restColor);
-    }
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final p = progress.clamp(0.0, 1.0);
-        return Stack(
-          children: [
-            Positioned.fill(child: ColoredBox(color: restColor)),
-            Positioned(
-              left: 0,
-              top: 0,
-              bottom: 0,
-              width: constraints.maxWidth * p,
-              child: ColoredBox(color: filledColor),
-            ),
-          ],
-        );
-      },
-    );
-  }
 }

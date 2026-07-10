@@ -16,23 +16,19 @@ enum ArticleImportStatus { idle, fetching, processing, done, error }
 
 class ArticleImportState {
   final ArticleImportStatus status;
-  final String? errorMessage;
   final String? importedBookId;
 
   const ArticleImportState({
     this.status = ArticleImportStatus.idle,
-    this.errorMessage,
     this.importedBookId,
   });
 
   ArticleImportState copyWith({
     ArticleImportStatus? status,
-    String? errorMessage,
     String? importedBookId,
   }) {
     return ArticleImportState(
       status: status ?? this.status,
-      errorMessage: errorMessage ?? this.errorMessage,
       importedBookId: importedBookId ?? this.importedBookId,
     );
   }
@@ -57,10 +53,7 @@ class ArticleImportNotifier extends StateNotifier<ArticleImportState> {
 
       final parsed = result.book;
       if (parsed.chapters.isEmpty) {
-        state = state.copyWith(
-          status: ArticleImportStatus.error,
-          errorMessage: 'No readable content found',
-        );
+        state = state.copyWith(status: ArticleImportStatus.error);
         return;
       }
 
@@ -77,11 +70,8 @@ class ArticleImportNotifier extends StateNotifier<ArticleImportState> {
         status: ArticleImportStatus.done,
         importedBookId: bookId,
       );
-    } catch (e) {
-      state = state.copyWith(
-        status: ArticleImportStatus.error,
-        errorMessage: e.toString(),
-      );
+    } catch (_) {
+      state = state.copyWith(status: ArticleImportStatus.error);
     }
   }
 

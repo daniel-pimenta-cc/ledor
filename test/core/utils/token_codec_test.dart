@@ -48,8 +48,6 @@ void main() {
         isChapterStart: true,
         isImage: true,
         imageRelativePath: 'book_images/abc/0.png',
-        imageWidth: 300,
-        imageHeight: 200,
       );
       final words = TextTokenizer.tokenize(
         'Texto depois da imagem.',

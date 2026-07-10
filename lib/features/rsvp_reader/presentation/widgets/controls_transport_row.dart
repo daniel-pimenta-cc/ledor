@@ -11,9 +11,8 @@ class ControlsTransportRow extends StatelessWidget {
   final AppLocalizations l10n;
 
   /// Capsule rendered on the right (or below, on narrow widths). Owned by
-  /// the parent so RSVP/scroll/ereader can pass a [WpmCapsule] while TTS
-  /// passes a [TtsRateCapsule] — both speak the same role from this
-  /// widget's point of view: "the speed control".
+  /// the parent — a [WpmCapsule] labelled either in WPM (RSVP/scroll/ereader)
+  /// or in playback rate (TTS). Either way it's just "the speed control".
   final Widget speedControl;
 
   final VoidCallback onPlayPause;

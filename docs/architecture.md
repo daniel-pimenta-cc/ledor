@@ -3,7 +3,7 @@
 ## Pattern
 
 Feature-based Clean Architecture with internal layers per feature:
-- `domain/entities/` — pure models (freezed or plain Dart)
+- `domain/entities/` — pure models (plain Dart)
 - `data/` — services, repository implementations
 - `presentation/` — providers (Riverpod), screens, widgets
 
@@ -12,19 +12,17 @@ Feature-based Clean Architecture with internal layers per feature:
 Editorial palette with warm tones in two modes (light and dark). Orange accent #E55324 preserved in both.
 
 **Tokens** in `lib/core/theme/`:
-- `app_colors.dart` — `AppPalette.light` / `AppPalette.dark` (full palettes with `toColorScheme()`) plus `AppColors` for back-compat.
+- `app_colors.dart` — `AppPalette.light` / `AppPalette.dark` (full palettes with `toColorScheme()`).
 - `app_theme.dart` — `AppTheme.build(brightness:)` produces a complete `ThemeData` covering AppBar, Card, Button (filled/text/outlined/icon), Slider, BottomSheet, Dialog, Input, SnackBar, Divider, ListTile, FAB, TabBar, pageTransitions. Applies `AppTypography.build(colorScheme)`.
 - `app_typography.dart` — Lora (serif) for display/headline/title; Inter (sans) for body/label. `sectionHeader()` for uppercase tracked dividers.
 - `app_spacing.dart` — scale xs(4)/sm(8)/md(12)/base(16)/lg(24)/xl(32)/xxl(48).
 - `app_radius.dart` — sm(6)/md(10)/lg(16)/xl(24) plus `BorderRadius` const helpers and `borderTopXl`.
-- `app_elevations.dart` — `AppShadows.level1..4` adapted by brightness (deeper in dark mode).
-- `app_motion.dart` — `AppDurations` (fast/base/slow/page) plus `AppCurves` (standard/emphasized/decelerate).
-- `responsive.dart` — `Breakpoints` (compact 600 / medium 840 / expanded 1200), `DeviceType` enum, extensions `context.isTablet`/`isLandscape`/`deviceType`, helpers `gridCrossAxisCount()` and `gridAspectRatio()`.
+- `app_motion.dart` — `AppDurations` (fast/base/slow) plus `AppCurves` (standard/emphasized).
+- `responsive.dart` — `Breakpoints` (compact 600 / medium 840), `DeviceType` enum, extensions `context.isTablet`/`isLandscape`/`deviceType`.
 
 **Color usage rules**:
 - Library, chrome, dialogs: `Theme.of(context).colorScheme.*`
 - Inside the reader and DisplaySettings panel: `DisplaySettings.wordColor` / `.backgroundColor` etc. (live preview)
-- Never `AppColors.*` directly in new widgets (back-compat only)
 
 **Light/dark theme**: `ThemeModeNotifier` persists to SharedPreferences. When the effective brightness changes, it calls `DisplaySettingsNotifier.applyBrightness(newBrightness)` which flips wordColor + backgroundColor to the matching palette. ORP and highlight stay intact.
 
@@ -63,7 +61,7 @@ The manifest is sharded into three files (`library/books.json` + `library/settin
 `LibrarySyncService.sync()` pipeline:
 1. 3 parallel reads: `isReadable` + `readManifest` + `listFiles(books/)` — these used to run serially; now they only pay the `max()` of their latencies (~1.5s instead of ~4.5s).
 2. `_autoImportOrphanFiles` — EPUBs dropped directly into the Drive folder become new local books (respecting tombstones so deletes don't resurrect).
-3. Local snapshot + `mergeLibraries` LWW.
+3. Local snapshot + per-shard LWW merge (`mergeBooksShard` etc.).
 4. **Zombie tombstone compaction**: if a tombstone shares `syncFileName` with an active row in merged, the tombstone is dropped — prevents the flip-flop where the tombstone's delete would clobber the active row's file.
 5. `_applyToLocal` — applies progress + lastReadAt + tombstone deletes. **DateTime compare via `isAtSameMomentAs`** to normalise TZ (local comes from Drift with `isUtc=false`, remote comes from UTC JSON; default `==` would always say `!=`).
 6. `_libraryContentEquals(merged, remote)` — if identical ignoring meta `updatedAt`/`updatedBy`, **skip the write** (saves ~2-3s on an idle sync).

@@ -1,7 +1,9 @@
+import 'package:collection/collection.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
 import '../../domain/entities/stats_snapshot.dart';
+import 'stats_chart_titles.dart';
 import 'stats_color_palette.dart';
 
 /// Stacked bar chart: one bar per day, colored slices per book.
@@ -97,10 +99,7 @@ class StatsWordsPerDayChart extends StatelessWidget {
   }
 
   double _computeMaxY(StatsSnapshot snap) {
-    final max = snap.dailyBuckets.fold<int>(
-      0,
-      (acc, b) => b.totalWords > acc ? b.totalWords : acc,
-    );
+    final max = snap.dailyBuckets.map((b) => b.totalWords).maxOrNull ?? 0;
     if (max == 0) return 10;
     // Round up to a nice-ish number for grid lines.
     final magnitude = _niceStep(max.toDouble());
@@ -143,35 +142,7 @@ class StatsWordsPerDayChart extends StatelessWidget {
           },
         ),
       ),
-      bottomTitles: AxisTitles(
-        sideTitles: SideTitles(
-          showTitles: true,
-          reservedSize: 24,
-          getTitlesWidget: (value, meta) {
-            final idx = value.toInt();
-            if (idx < 0 || idx >= snap.dailyBuckets.length) {
-              return const SizedBox.shrink();
-            }
-            // Show labels for first, last, and a few in between.
-            final n = snap.dailyBuckets.length;
-            final step = n <= 7 ? 1 : (n ~/ 5);
-            if (idx != 0 && idx != n - 1 && idx % step != 0) {
-              return const SizedBox.shrink();
-            }
-            final day = snap.dailyBuckets[idx].day;
-            return Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text(
-                '${day.day}/${day.month}',
-                style: TextStyle(
-                  color: scheme.onSurfaceVariant,
-                  fontSize: 10,
-                ),
-              ),
-            );
-          },
-        ),
-      ),
+      bottomTitles: dayAxisTitles(snap.dailyBuckets, scheme),
     );
   }
 

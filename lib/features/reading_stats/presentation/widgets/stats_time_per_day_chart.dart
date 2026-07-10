@@ -1,7 +1,9 @@
+import 'package:collection/collection.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
 import '../../domain/entities/stats_snapshot.dart';
+import 'stats_chart_titles.dart';
 
 /// Simple bar chart: minutes read per day. Primary-color single bars.
 class StatsTimePerDayChart extends StatelessWidget {
@@ -14,10 +16,7 @@ class StatsTimePerDayChart extends StatelessWidget {
     final minutesByDay = snapshot.dailyBuckets
         .map((b) => b.totalDurationMs / 60000)
         .toList(growable: false);
-    final maxMinutes = minutesByDay.fold<double>(
-      0,
-      (acc, v) => v > acc ? v : acc,
-    );
+    final maxMinutes = minutesByDay.maxOrNull ?? 0;
     final maxY = maxMinutes <= 0 ? 10.0 : _roundUp(maxMinutes);
 
     return AspectRatio(
@@ -89,31 +88,7 @@ class StatsTimePerDayChart extends StatelessWidget {
           },
         ),
       ),
-      bottomTitles: AxisTitles(
-        sideTitles: SideTitles(
-          showTitles: true,
-          reservedSize: 24,
-          getTitlesWidget: (value, meta) {
-            final idx = value.toInt();
-            if (idx < 0 || idx >= snap.dailyBuckets.length) {
-              return const SizedBox.shrink();
-            }
-            final n = snap.dailyBuckets.length;
-            final step = n <= 7 ? 1 : (n ~/ 5);
-            if (idx != 0 && idx != n - 1 && idx % step != 0) {
-              return const SizedBox.shrink();
-            }
-            final day = snap.dailyBuckets[idx].day;
-            return Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text(
-                '${day.day}/${day.month}',
-                style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 10),
-              ),
-            );
-          },
-        ),
-      ),
+      bottomTitles: dayAxisTitles(snap.dailyBuckets, scheme),
     );
   }
 }

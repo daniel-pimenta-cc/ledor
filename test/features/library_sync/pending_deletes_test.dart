@@ -26,16 +26,15 @@ const _kBooksShard = 'library/books.json';
 const _kPendingDeletesKey = 'sync_pendingDeletes';
 
 /// Signed-in (or signed-out, with null email) auth backend stub.
-class _FakeAuthBackend implements DriveAuthBackend {
+class _FakeAuthBackend extends DriveAuthBackend {
   final String? email;
-  _FakeAuthBackend(this.email);
+  _FakeAuthBackend(this.email) : super(clientId: '', clientSecret: '');
 
   @override
-  Future<DriveSignInResult?> trySilentSignIn() async =>
-      email == null ? null : DriveSignInResult(email!);
+  Future<String?> trySilentSignIn() async => email;
 
   @override
-  Future<DriveSignInResult?> signIn() => trySilentSignIn();
+  Future<String?> signIn() => trySilentSignIn();
 
   @override
   Future<void> signOut() async {}

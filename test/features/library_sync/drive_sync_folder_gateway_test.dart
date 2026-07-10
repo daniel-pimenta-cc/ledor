@@ -214,11 +214,10 @@ void main() {
       noAuth = DriveSyncFolderGateway(() async => null);
     });
 
-    test('reads/lists/exists return empty, delete is a no-op', () async {
+    test('reads/lists return empty, delete is a no-op', () async {
       expect(await noAuth.readBytes('root', 'books.json'), isNull);
       expect(await noAuth.readText('root', 'books.json'), isNull);
       expect(await noAuth.listFiles('root', 'library'), isEmpty);
-      expect(await noAuth.fileExists('root', 'books.json'), isFalse);
       expect(await noAuth.isReadable('root'), isFalse);
       await noAuth.deleteFile('root', 'books.json'); // must not throw
       expect(offline.requests, isEmpty);
@@ -311,7 +310,7 @@ void main() {
     });
   });
 
-  group('listFiles / fileExists', () {
+  group('listFiles', () {
     test('lists file names, excluding folders', () async {
       drive.addFile(drive.rootId, 'a.json', const [1]);
       drive.addFile(drive.rootId, 'b.epub', const [2]);
@@ -320,13 +319,6 @@ void main() {
       final names = await gateway.listFiles(drive.rootId, '');
 
       expect(names, unorderedEquals(['a.json', 'b.epub']));
-    });
-
-    test('fileExists true/false', () async {
-      drive.addFile(drive.rootId, 'a.json', const [1]);
-
-      expect(await gateway.fileExists(drive.rootId, 'a.json'), isTrue);
-      expect(await gateway.fileExists(drive.rootId, 'b.json'), isFalse);
     });
   });
 

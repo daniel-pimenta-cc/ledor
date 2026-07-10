@@ -145,11 +145,4 @@ class TtsAudioHandler extends BaseAudioHandler {
   Future<void> rewind() async {
     _source?.skipBackward();
   }
-
-  @override
-  Future<void> seek(Duration position) async {
-    // No seek support: TTS position is in words, not Duration. The fast-
-    // forward / rewind buttons are the primitive instead. We accept the
-    // call to satisfy the AudioHandler contract but no-op it.
-  }
 }

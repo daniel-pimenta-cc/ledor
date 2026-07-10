@@ -19,11 +19,9 @@ tracks the spoken word so users see what they hear.
         ├── FlutterTtsBackend       ← Android / iOS / macOS / Windows / Web
         │    (flutter_tts package, setQueueMode(1) for pipelined chunks)
         │
-        ├── SpeechdSocketBackend    ← Linux desktop (preferred)
-        │    (persistent Unix socket to speech-dispatcher; daemon queues)
-        │
-        └── SpeechDispatcherBackend ← Linux fallback
-             (Process.start('spd-say', …) — used when the socket is absent)
+        └── SpeechdSocketBackend    ← Linux desktop
+             (persistent Unix socket to speech-dispatcher; daemon queues.
+              Autospawns the daemon when the socket is absent)
 
   TtsAudioHandler                  ← lib/features/rsvp_reader/data/services/tts_audio_handler.dart
         (audio_service bridge — foreground service + lockscreen controls)
@@ -31,8 +29,8 @@ tracks the spoken word so users see what they hear.
 
 Backend selection happens in `ttsBackendProvider`
 (`lib/features/rsvp_reader/presentation/providers/tts_backend_provider.dart`):
-- Linux with a running `speech-dispatcher` socket → `SpeechdSocketBackend`
-- Linux without the socket → `SpeechDispatcherBackend` (spd-say CLI)
+- Linux → `SpeechdSocketBackend` (when the socket isn't up yet, `init()`
+  runs `speech-dispatcher --spawn` and polls briefly for it to appear)
 - Everywhere else → `FlutterTtsBackend`
 
 `TtsPlayer` is the new orchestration layer. It owns a small queue of
@@ -71,19 +69,11 @@ Key methods:
 
 ### TtsPlayer pipeline
 
-The player extracts up to `_effectiveLookahead` segments (2 when the
-backend can pipeline, 1 otherwise) and pushes them onto the backend
-with `TtsQueueMode.add`. While segment N plays, segment N+1 is already
-queued — the platform engine plays them back to back with no audible
-gap.
-
-Backends declare their capability via `TtsBackend.canPipeline`:
-
-- `flutter_tts` → true (`setQueueMode(1)`).
-- `SpeechdSocketBackend` → true (daemon queues utterances).
-- `SpeechDispatcherBackend` (`spd-say` CLI fallback) → false (each
-  speak spawns its own process and a second concurrent call would
-  cancel the first).
+The player keeps a fixed lookahead of 2 segments and pushes them onto
+the backend with `TtsQueueMode.add`. While segment N plays, segment
+N+1 is already queued — the platform engine plays them back to back
+with no audible gap. Both backends queue natively: `flutter_tts` via
+`setQueueMode(1)`, `SpeechdSocketBackend` via the daemon.
 
 Race safety: a `_generation` counter is bumped on every action that
 should invalidate in-flight callbacks (`pause`, `seek`, `dispose`).
@@ -140,51 +130,48 @@ rate = DisplaySettings.ttsRate, clamped to [0.5, 3.0]
 The engine forwards this directly to `TtsBackend.setRate(rate)` on every
 `speak()` call. Backends translate to native units:
 
-- `flutter_tts.setSpeechRate(rate)` — clamped to `[0.1, 2.0]` internally
-  (some platforms cap below 3.0; rates above the cap saturate).
-- `spd-say -r <int>` — `((rate - 1.0) * 50).clamp(-100, +100)`.
+- `flutter_tts.setSpeechRate(rate * 0.5)` — the plugin's scale treats
+  **0.5 as normal speed** (Android multiplies by 2 before
+  `TextToSpeech.setSpeechRate`; iOS maps 0.5 to
+  `AVSpeechUtteranceDefaultSpeechRate`), so `flutterTtsRate()` halves our
+  audiobook value and clamps to the plugin band `[0.1, 1.5]`. Passing the
+  audiobook value through unconverted made every Android install speak at
+  2× — don't "simplify" the conversion away.
+- `SET SELF RATE <int>` (SSIP) — `((rate - 1.0) * 50).clamp(-100, +100)`.
 
-The transport row swaps the `WpmCapsule` (RSVP/scroll modes) for the
-`TtsRateCapsule` (TTS mode) so the speed control always shows the
-appropriate scale. Preset chips: `0.5 / 0.75 / 1.0 / 1.25 / 1.5 / 1.75
-/ 2.0 / 2.5 / 3.0`. The `WpmCapsule` step (+/- 25 WPM) becomes 0.25x for
-the rate capsule.
+The transport row reuses the `WpmCapsule` in TTS mode with a rate label
+(`formatTtsRate`) so the speed control always shows the appropriate
+scale. Preset chips: `0.5 / 0.75 / 1.0 / 1.25 / 1.5 / 1.75 / 2.0 / 2.5
+/ 3.0`. The capsule step (+/- 25 WPM) becomes 0.25x for the rate.
 
 `setWpm` does **not** propagate to the TTS backend — only `setTtsRate`
 does. Switching modes preserves both settings independently.
 
-## Linux backend (`SpeechDispatcherBackend`)
+## Linux backend (`SpeechdSocketBackend`)
 
-Uses the `spd-say` CLI that ships with `speech-dispatcher` (default on
-almost every Linux desktop distro). Each `speak()` spawns a process:
+Talks SSIP over the persistent Unix socket that `speech-dispatcher`
+(default on almost every Linux desktop distro) exposes at
+`$XDG_RUNTIME_DIR/speech-dispatcher/speechd.sock`. One connection is
+opened in `init()` and reused for every command; the daemon queues
+utterances, so pipelined segments play gap-free.
 
-```
-spd-say -w -r <int -100..+100> -p <int -100..+100> -l <iso> [-y <voice>] "text"
-```
+### Autospawn
 
-`-w` keeps the process alive until the audio finishes; we await its
-`exitCode` to detect completion. Rate and pitch are mapped from the
-engine-agnostic `[0.3, 2.5]` and `[0.5, 2.0]` ranges respectively.
+When the socket is absent (daemon not yet started), `init()` runs
+`speech-dispatcher --spawn` and polls briefly (50→200 ms) for the socket
+to appear — the same implicit start `spd-say` used to do. If the daemon
+never comes up, `init()` throws `TtsUnavailableException` and the reader
+surfaces a localised snackbar pointing the user to
+`sudo apt install speech-dispatcher` (or the distro equivalent).
 
 ### Emulated word boundaries
 
-`spd-say` does not expose progress callbacks. We approximate them with a
-`Timer.periodic` running at the cadence implied by the configured WPM:
-
-```
-periodMs = 60000 / (200 * rate)
-```
-
-For a target of 300 WPM (rate ≈ 1.5), the timer fires every ~133 ms.
-Drift accumulates ±200 ms across long sentences — acceptable for a
-visual highlight, audible side-by-side comparison shows reasonable sync.
-
-### Detection
-
-`init()` calls `which spd-say` and throws `TtsUnavailableException` when
-the binary is missing. The reader surfaces this via a localised snackbar
-pointing the user to `sudo apt install speech-dispatcher` (or the
-equivalent on their distro).
+SSIP's `INDEX_MARK` events only fire for explicitly marked text, so word
+boundaries are approximated with a periodic timer started on the `701
+BEGIN` event and stopped on `702 END`, at the cadence implied by the
+configured rate. Drift accumulates ±200 ms across long sentences —
+acceptable for a visual highlight; audible side-by-side comparison shows
+reasonable sync.
 
 ## UI summary
 
@@ -192,7 +179,7 @@ equivalent on their distro).
 |---|---|---|
 | Top-bar mode toggle | `ReaderModeMenu` | `PopupMenuButton` with radio-list of three options (RSVP / E-reader / TTS). `ReaderMode.scroll` collapses under "RSVP" since it's just the paused state of the RSVP reading experience. |
 | Mode area in TTS | `ContextScrollView(showHighlight: true)` | Same surface used by `ReaderMode.scroll`; the engine's progress callback drives the highlight. |
-| Transport row | `RsvpControls` | `ControlsTransportRow` takes a `speedControl` widget; the parent swaps `WpmCapsule` for `TtsRateCapsule` based on `state.mode`. |
+| Transport row | `RsvpControls` | `ControlsTransportRow` takes a `speedControl` widget; the parent feeds the `WpmCapsule` a WPM or TTS-rate label based on `state.mode`. |
 | Settings sheet | `DisplaySettingsPanel._buildTtsSection` | Voice picker (opens `TtsVoicePickerSheet`) and pitch slider. (The rate lives in the transport row, not here — same as the WPM selector.) |
 | Voice picker | `TtsVoicePickerSheet` | `DraggableScrollableSheet` listing voices grouped by locale; each row has a preview button that speaks `ttsVoicePreviewSample` through the backend without committing. |
 
@@ -261,9 +248,9 @@ knows about; `setEngine(id)` switches which one new utterances use:
 
 - **Android**: `flutter_tts.getEngines` enumerates installed
   `TTS_SERVICE` providers (Google TTS, Samsung TTS, Pico, …).
-- **Linux**: `LIST OUTPUT_MODULES` via the SSIP socket (or `spd-say -O`
-  on the legacy backend) — these are speech-dispatcher's output modules
-  (`espeak-ng`, `festival`, `flite`, `rhvoice`).
+- **Linux**: `LIST OUTPUT_MODULES` via the SSIP socket — these are
+  speech-dispatcher's output modules (`espeak-ng`, `festival`, `flite`,
+  `rhvoice`).
 - **iOS / macOS / Windows / Web**: returns an empty list — the OS
   bundles a single synthesiser.
 
@@ -279,6 +266,31 @@ backend ignores an unknown id (falls back to the system default)
 without losing the stored value, so a round-trip to the original
 device restores it.
 
+### Engine switching is serialised inside `FlutterTtsBackend`
+
+`flutter_tts`'s Android side keeps a **single** pending `Result` slot for
+`setEngine` and drains queued method calls against a half-initialised
+client when two `setEngine`s overlap — one caller's `await` hangs
+forever, the other gets its `Result` answered prematurely, and the
+plugin's own `onInit` then clobbers language/voice with the new engine's
+defaults. It also never stops/shuts down the outgoing native client, so
+audio from the old engine plays over the new one and its late completion
+callbacks pop the `TtsPlayer` queue.
+
+`FlutterTtsBackend` defends against all of this without forking the
+plugin: every operation goes through an internal serialising queue
+(`_enqueue`), `setEngine` dedups by the currently-active id, calls
+`stop()` on the outgoing client first, and wraps the plugin call in an
+8 s timeout so a wedged engine init can't freeze the player. This is why
+`ttsVoicesProvider` can safely call `setEngine` before listing voices
+while the player applies settings concurrently.
+
+Settings flow: the picker sheets write only to the global
+`displaySettingsProvider` (they have no bookId); `RsvpEngineNotifier`
+mirrors the provider into its own snapshot via a constructor-time
+`ref.listen` (preserving the per-book WPM), so the player sees fresh
+engine/voice on the next play without reopening the book.
+
 ## Limitations and follow-ups
 
 - **Sentence-level skip controls** are out of scope; the existing
@@ -293,3 +305,24 @@ device restores it.
 - **SSML index marks on Linux**: word-boundary callbacks are still
   timer-emulated. Future work: insert `<mark name="wN"/>` between
   tokens and listen for `703 INDEX_MARK` events for true accuracy.
+- **Word-level highlight is effectively Google-TTS-only on Android.**
+  The highlight depends on the engine emitting
+  `UtteranceProgressListener.onRangeStart`, which is optional — an
+  engine only fires it if its synthesis pipeline calls
+  `SynthesisCallback.rangeStart`. The stock Google TTS engine does;
+  most third-party engines (SherpaTTS included) don't. On those, the
+  highlight only advances at sentence completions. Verified on-device
+  2026-07-07: Google TTS highlights per word, SherpaTTS per sentence.
+  There's no capability query for this; a future improvement could
+  fall back to a timer-estimated highlight (like the Linux backend)
+  when no `onRangeStart` arrives within the first utterance.
+- **SherpaTTS (Android, `org.woheller69.ttsengine`)** — structural
+  limits of that engine, not bugs on our side: no `rangeStart` (see
+  above); it exposes no named voices (selection is per downloaded
+  language model — `setVoice` is a silent no-op there); it ignores the
+  system/app speech rate unless its own "apply system speed" toggle is
+  on (our rate slider does nothing otherwise); and its neural synthesis
+  is blocking, so utterances start with a noticeable delay (seconds on
+  a cold start while the model loads). Verdict from manual testing:
+  usable but not the default recommendation — the stock Google engine
+  with a well-chosen voice is the better experience.

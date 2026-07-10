@@ -15,16 +15,10 @@ import 'package:shared_preferences_platform_interface/shared_preferences_async_p
 /// path never touch the real platform TTS stack in tests.
 class _FakeTtsBackend implements TtsBackend {
   @override
-  bool get canPipeline => true;
-
-  @override
   Future<void> init() async {}
 
   @override
   Future<List<TtsVoice>> getVoices() async => const [];
-
-  @override
-  Future<List<String>> getLanguages() async => const [];
 
   @override
   Future<List<TtsEngine>> getEngines() async => const [];
@@ -62,9 +56,6 @@ class _FakeTtsBackend implements TtsBackend {
 
   @override
   set onError(void Function(String error)? cb) {}
-
-  @override
-  set onStart(VoidCallback? cb) {}
 }
 
 /// Android-style technical voice ids across three locales. With the default

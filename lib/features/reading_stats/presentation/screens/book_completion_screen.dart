@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
 import '../../../../core/di/providers.dart';
 import '../../../../core/theme/app_radius.dart';
@@ -10,6 +11,7 @@ import '../../domain/entities/book_completion_summary.dart';
 import '../providers/book_completion_provider.dart';
 import '../widgets/book_completion_card.dart';
 import '../widgets/star_rating_picker.dart';
+import '../widgets/stats_duration_label.dart';
 
 class BookCompletionScreen extends ConsumerStatefulWidget {
   final String bookId;
@@ -22,7 +24,6 @@ class BookCompletionScreen extends ConsumerStatefulWidget {
 
 class _BookCompletionScreenState extends ConsumerState<BookCompletionScreen> {
   final GlobalKey _boundaryKey = GlobalKey();
-  final _exportService = ImageExportService();
   bool _sharing = false;
   bool _includeStats = true;
 
@@ -64,7 +65,7 @@ class _BookCompletionScreenState extends ConsumerState<BookCompletionScreen> {
     setState(() => _sharing = true);
     final l10n = AppLocalizations.of(context)!;
     try {
-      await _exportService.shareWidgetAsPng(
+      await shareWidgetAsPng(
         boundaryKey: _boundaryKey,
         filename: 'rsvp-finished-${summary.bookId}',
         shareText: l10n.completionShareText(summary.title),
@@ -97,12 +98,7 @@ class _CompletionBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final totalMinutes = (summary.totalDurationMs / 60000).round();
-    final hours = totalMinutes ~/ 60;
-    final minutes = totalMinutes % 60;
-    final timeLabel = hours > 0
-        ? l10n.statsDurationHoursMinutes(hours, minutes)
-        : l10n.statsDurationMinutes(totalMinutes);
+    final timeLabel = formatDuration(l10n, summary.totalDurationMs);
 
     return SafeArea(
       child: SingleChildScrollView(
@@ -222,7 +218,8 @@ class _StatsBlock extends StatelessWidget {
             const Divider(height: AppSpacing.lg),
             _StatRow(
               label: l10n.completionStatWords,
-              value: _formatWithThousands(summary.totalWords),
+              value: NumberFormat.decimalPattern(l10n.localeName)
+                  .format(summary.totalWords),
             ),
             const Divider(height: AppSpacing.lg),
             _StatRow(
@@ -238,16 +235,6 @@ class _StatsBlock extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  static String _formatWithThousands(int n) {
-    final s = n.toString();
-    final buf = StringBuffer();
-    for (var i = 0; i < s.length; i++) {
-      if (i > 0 && (s.length - i) % 3 == 0) buf.write(',');
-      buf.write(s[i]);
-    }
-    return buf.toString();
   }
 }
 

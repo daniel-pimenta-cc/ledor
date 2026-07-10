@@ -94,14 +94,3 @@ class AppPalette {
     );
   }
 }
-
-/// Back-compat surface. New code should prefer `Theme.of(context).colorScheme`
-/// or `AppPalette.dark`/`AppPalette.light` directly.
-abstract final class AppColors {
-  static const Color primary = Color(0xFFE55324);
-  static const Color surface = Color(0xFF15120F);
-  static const Color surfaceVariant = Color(0xFF241E19);
-  static const Color onSurface = Color(0xFFEDE6DB);
-  static const Color onSurfaceVariant = Color(0xFFA69B8A);
-  static const Color highlight = Color(0x40FFAB00);
-}

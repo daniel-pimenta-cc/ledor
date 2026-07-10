@@ -8,16 +8,10 @@ class TtsVoice {
   final String locale;
   final String? gender;
 
-  /// Optional opaque ID the backend can use to round-trip selection through
-  /// its own APIs. Not persisted — `ttsVoiceName` from `DisplaySettings`
-  /// is the source of truth for what voice the user picked.
-  final String? engineId;
-
   const TtsVoice({
     required this.name,
     required this.locale,
     this.gender,
-    this.engineId,
   });
 }
 
@@ -53,8 +47,9 @@ enum TtsQueueMode {
 }
 
 /// Thrown by `TtsBackend.init` when the platform's TTS stack is missing or
-/// not configured (e.g. `spd-say` not on PATH on Linux). The reader UI
-/// catches this to show a user-actionable message rather than crashing.
+/// not configured (e.g. `speech-dispatcher` not installed on Linux). The
+/// reader UI catches this to show a user-actionable message rather than
+/// crashing.
 class TtsUnavailableException implements Exception {
   final String message;
   const TtsUnavailableException(this.message);
@@ -81,20 +76,6 @@ typedef TtsProgressHandler = void Function(
 /// for the whole life of the engine notifier and disposed when the
 /// notifier disposes.
 abstract class TtsBackend {
-  /// Whether this backend can sequence consecutive `speak()` calls into
-  /// a gap-free stream — i.e. whether [TtsQueueMode.add] truly enqueues
-  /// instead of degrading to flush.
-  ///
-  /// - `flutter_tts` (mobile/desktop) → true (`setQueueMode(1)`).
-  /// - `speech-dispatcher` daemon socket → true (daemon queues).
-  /// - `spd-say` CLI fallback → false (each speak spawns its own
-  ///   process; a second concurrent speak would have to cancel the
-  ///   first).
-  ///
-  /// `TtsPlayer` uses this to decide whether to pre-queue a lookahead
-  /// segment or play strictly one at a time.
-  bool get canPipeline;
-
   /// Lazily wires up the underlying engine. Safe to call multiple times.
   /// Throws [TtsUnavailableException] when the platform stack isn't ready.
   Future<void> init();
@@ -102,9 +83,6 @@ abstract class TtsBackend {
   /// Returns the voices the engine knows about. May be empty (degraded
   /// path) — UI shows a "no voices available" message.
   Future<List<TtsVoice>> getVoices();
-
-  /// Returns the locales the engine claims to support. May be empty.
-  Future<List<String>> getLanguages();
 
   /// Returns the TTS engines the user can switch between. Empty when the
   /// platform has only one engine (iOS / macOS / Windows).
@@ -121,9 +99,10 @@ abstract class TtsBackend {
   /// Sets the BCP-47 / ISO locale.
   Future<void> setLanguage(String iso);
 
-  /// Speech rate. Caller passes the engine-agnostic value in `[0.3, 2.5]`
-  /// (relative to a nominal 200 WPM). Implementations map to platform-
-  /// specific units (e.g. `spd-say -r` is in `[-100, +100]`).
+  /// Speech rate on the audiobook scale: 1.0 = normal, range `[0.5, 3.0]`
+  /// (`DisplaySettings.ttsRate`). Implementations map to platform-specific
+  /// units — `flutter_tts` treats 0.5 as normal so [FlutterTtsBackend]
+  /// halves the value; the Linux backend maps to SSIP's `[-100, +100]`.
   Future<void> setRate(double rate);
 
   /// Voice pitch. Caller passes `[0.5, 2.0]`.
@@ -133,7 +112,7 @@ abstract class TtsBackend {
   ///
   /// Returns once the request has been accepted; emission of the audio
   /// happens asynchronously and is observable through [onCompletion] /
-  /// [onError] / [onProgress] / [onStart].
+  /// [onError] / [onProgress].
   Future<void> speak(String text, {TtsQueueMode mode = TtsQueueMode.flush});
 
   /// Cancels any in-flight speech AND drops every queued utterance from
@@ -151,5 +130,4 @@ abstract class TtsBackend {
   set onProgress(TtsProgressHandler? cb);
   set onCompletion(VoidCallback? cb);
   set onError(void Function(String error)? cb);
-  set onStart(VoidCallback? cb);
 }

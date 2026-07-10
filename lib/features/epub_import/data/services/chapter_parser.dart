@@ -8,14 +8,12 @@ import '../../../../core/utils/text_tokenizer.dart';
 import '../../../../core/utils/word_timing.dart';
 import '../../domain/entities/word_token.dart';
 
-/// Bytes + optional dimensions returned by [ImageResolver] for an inline
-/// `<img src>` reference inside an EPUB chapter.
+/// Bytes returned by [ImageResolver] for an inline `<img src>` reference
+/// inside an EPUB chapter.
 class ResolvedImage {
   final Uint8List bytes;
-  final int? width;
-  final int? height;
 
-  const ResolvedImage({required this.bytes, this.width, this.height});
+  const ResolvedImage({required this.bytes});
 }
 
 /// Maps an `<img src>` (raw attribute value, can be relative) to the bytes
@@ -191,8 +189,6 @@ class _ParseState {
       isImage: true,
       isParagraphStart: paraStart,
       isChapterStart: chapStart,
-      imageWidth: image.width,
-      imageHeight: image.height,
       pendingImageBytes: image.bytes,
     ));
 

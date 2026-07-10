@@ -45,9 +45,9 @@ class _RsvpControlsState extends ConsumerState<RsvpControls> {
     final isTts = state.mode == ReaderMode.tts;
 
     final Widget speedControl = isTts
-        ? TtsRateCapsule(
+        ? WpmCapsule(
             settings: settings,
-            rate: settings.ttsRate,
+            label: formatTtsRate(settings.ttsRate),
             isOpen: _speedPickerOpen,
             onDown: () {
               HapticFeedback.selectionClick();

@@ -3,20 +3,16 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_spacing.dart';
 
 /// Editorial empty state — icon nested in a soft circle, serif title,
-/// muted subtitle, and an optional CTA.
+/// muted subtitle.
 class LibraryEmptyState extends StatelessWidget {
   final IconData icon;
   final String title;
   final String subtitle;
-  final String? ctaLabel;
-  final VoidCallback? onCta;
 
   const LibraryEmptyState({
     required this.icon,
     required this.title,
     required this.subtitle,
-    this.ctaLabel,
-    this.onCta,
     super.key,
   });
 
@@ -59,13 +55,6 @@ class LibraryEmptyState extends StatelessWidget {
               ),
               textAlign: TextAlign.center,
             ),
-            if (ctaLabel != null && onCta != null) ...[
-              const SizedBox(height: AppSpacing.lg),
-              FilledButton(
-                onPressed: onCta,
-                child: Text(ctaLabel!),
-              ),
-            ],
           ],
         ),
       ),

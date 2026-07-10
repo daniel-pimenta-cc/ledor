@@ -87,21 +87,11 @@ class DisplaySettingsNotifier extends StateNotifier<DisplaySettings> {
     );
   }
 
-  static OrpIndicatorStyle _parseOrpIndicator(String? raw) {
-    if (raw == null) return OrpIndicatorStyle.notch;
-    for (final s in OrpIndicatorStyle.values) {
-      if (s.name == raw) return s;
-    }
-    return OrpIndicatorStyle.notch;
-  }
+  static OrpIndicatorStyle _parseOrpIndicator(String? raw) =>
+      OrpIndicatorStyle.values.asNameMap()[raw] ?? OrpIndicatorStyle.notch;
 
-  static TimeRemainingMode _parseTimeRemainingMode(String? raw) {
-    if (raw == null) return TimeRemainingMode.total;
-    for (final m in TimeRemainingMode.values) {
-      if (m.name == raw) return m;
-    }
-    return TimeRemainingMode.total;
-  }
+  static TimeRemainingMode _parseTimeRemainingMode(String? raw) =>
+      TimeRemainingMode.values.asNameMap()[raw] ?? TimeRemainingMode.total;
 
   Future<void> update(DisplaySettings Function(DisplaySettings) updater) async {
     state = updater(state);

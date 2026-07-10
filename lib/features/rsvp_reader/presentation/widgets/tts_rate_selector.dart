@@ -1,116 +1,15 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/constants/app_constants.dart';
-import '../../../../core/theme/app_motion.dart';
-import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../domain/entities/display_settings.dart';
+import 'wpm_selector.dart';
 
 /// Audiobook-style speech-rate selector for the TTS transport row.
 ///
-/// Mirrors `WpmCapsule` / `WpmPresetRow` shape so the muscle memory is
-/// identical to the RSVP speed picker, but talks in "1.0x / 1.25x / 1.5x"
-/// rates instead of WPM. The engine drives playback off
-/// `DisplaySettings.ttsRate` directly — no WPM → rate mapping involved.
-class TtsRateCapsule extends StatelessWidget {
-  final DisplaySettings settings;
-  final double rate;
-  final bool isOpen;
-  final VoidCallback onDown;
-  final VoidCallback onUp;
-  final VoidCallback onLabelTap;
-
-  const TtsRateCapsule({
-    required this.settings,
-    required this.rate,
-    required this.isOpen,
-    required this.onDown,
-    required this.onUp,
-    required this.onLabelTap,
-    super.key,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final border = isOpen
-        ? settings.orpColor.withAlpha(180)
-        : settings.wordColor.withAlpha(50);
-    final body = isOpen
-        ? settings.orpColor.withAlpha(28)
-        : settings.wordColor.withAlpha(14);
-    return AnimatedContainer(
-      duration: AppDurations.fast,
-      curve: AppCurves.standard,
-      decoration: BoxDecoration(
-        color: body,
-        border: Border.all(color: border),
-        borderRadius: BorderRadius.circular(22),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _StepIcon(
-            icon: Icons.remove,
-            color: settings.wordColor,
-            onTap: onDown,
-          ),
-          InkWell(
-            onTap: onLabelTap,
-            borderRadius: BorderRadius.circular(16),
-            child: SizedBox(
-              width: 72,
-              height: 32,
-              child: Center(
-                child: Text(
-                  formatTtsRate(rate),
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: settings.wordColor,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0.2,
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
-                ),
-              ),
-            ),
-          ),
-          _StepIcon(
-            icon: Icons.add,
-            color: settings.wordColor,
-            onTap: onUp,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StepIcon extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-  final VoidCallback onTap;
-
-  const _StepIcon({
-    required this.icon,
-    required this.color,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      customBorder: const CircleBorder(),
-      onTap: onTap,
-      child: SizedBox(
-        width: 32,
-        height: 32,
-        child: Icon(icon, size: 18, color: color.withAlpha(200)),
-      ),
-    );
-  }
-}
+/// The capsule itself is a plain [WpmCapsule] fed `formatTtsRate(rate)` as its
+/// label — same muscle memory as the RSVP speed picker. Only the preset drawer
+/// differs (fixed rate ladder + nearest-match snapping), so it lives here. The
+/// engine drives playback off `DisplaySettings.ttsRate` directly.
 
 /// Horizontal scrollable row of preset rate chips. The current chip
 /// auto-centers on open so the user lands on their selection.
@@ -176,7 +75,7 @@ class _TtsRatePresetRowState extends State<TtsRatePresetRow> {
         itemBuilder: (context, i) {
           final value = TtsRatePresetRow._presets[i];
           final selected = i == selectedIndex;
-          return _PresetChip(
+          return PresetChip(
             key: selected ? _selectedKey : null,
             settings: widget.settings,
             label: formatTtsRate(value),
@@ -202,56 +101,6 @@ class _TtsRatePresetRowState extends State<TtsRatePresetRow> {
   }
 }
 
-class _PresetChip extends StatelessWidget {
-  final DisplaySettings settings;
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _PresetChip({
-    super.key,
-    required this.settings,
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final fg = selected ? Colors.white : settings.wordColor;
-    final bg =
-        selected ? settings.orpColor : settings.wordColor.withAlpha(14);
-    final border =
-        selected ? settings.orpColor : settings.wordColor.withAlpha(55);
-    return Material(
-      color: bg,
-      shape: RoundedRectangleBorder(
-        borderRadius: AppRadius.borderMd,
-        side: BorderSide(color: border),
-      ),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: AppRadius.borderMd,
-        child: Container(
-          alignment: Alignment.center,
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.base),
-          constraints: const BoxConstraints(minWidth: 72),
-          child: Text(
-            label,
-            style: TextStyle(
-              color: fg,
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.2,
-              fontFeatures: const [FontFeature.tabularFigures()],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 /// "1x", "1.25x", "0.75x". Drops the trailing zero on .0 values so the
 /// label stays a single glyph at the canonical 1.0x.
 String formatTtsRate(double rate) {
@@ -265,8 +114,3 @@ String formatTtsRate(double rate) {
   }
   return '${s}x';
 }
-
-/// Clamps an arbitrary rate to the engine-accepted range. Exposed so the
-/// engine doesn't duplicate the bounds when re-applying a synced value.
-double clampTtsRate(double rate) =>
-    rate.clamp(AppConstants.minTtsRate, AppConstants.maxTtsRate);

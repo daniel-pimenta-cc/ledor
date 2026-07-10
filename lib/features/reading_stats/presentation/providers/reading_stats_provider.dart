@@ -63,9 +63,7 @@ StatsSnapshot buildSnapshot({
         return BookBreakdown(
           bookId: a.bookId,
           title: book?.title ?? _fallbackTitle,
-          author: book?.author,
           totalDurationMs: a.totalDurationMs,
-          totalWords: a.totalWords,
           sessionCount: a.sessionCount,
         );
       })
@@ -80,8 +78,6 @@ StatsSnapshot buildSnapshot({
 
   return StatsSnapshot(
     range: range,
-    from: from,
-    to: to,
     dailyBuckets: bucketMap.values.map((b) => b.freeze()).toList(growable: false),
     bookBreakdowns: breakdowns,
     totalWords: totalWords,
@@ -105,7 +101,6 @@ class _MutableDailyBucket {
     totalDurationMs += s.durationMs;
     final slice =
         perBook.putIfAbsent(s.bookId, () => _MutableBookSlice(s.bookId));
-    slice.durationMs += s.durationMs;
     slice.wordsRead += s.wordsRead;
   }
 
@@ -113,7 +108,6 @@ class _MutableDailyBucket {
     final slices = perBook.values
         .map((m) => DailyBookSlice(
               bookId: m.bookId,
-              durationMs: m.durationMs,
               wordsRead: m.wordsRead,
             ))
         .toList(growable: false);
@@ -131,7 +125,6 @@ class _MutableDailyBucket {
 
 class _MutableBookSlice {
   final String bookId;
-  int durationMs = 0;
   int wordsRead = 0;
   _MutableBookSlice(this.bookId);
 }
@@ -139,13 +132,11 @@ class _MutableBookSlice {
 class _MutableBookAgg {
   final String bookId;
   int totalDurationMs = 0;
-  int totalWords = 0;
   int sessionCount = 0;
   _MutableBookAgg(this.bookId);
 
   void addSession(ReadingSessionTableData s) {
     totalDurationMs += s.durationMs;
-    totalWords += s.wordsRead;
     sessionCount++;
   }
 }

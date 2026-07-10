@@ -11,8 +11,8 @@ class RecapMonth {
   final int month;
   const RecapMonth(this.year, this.month);
 
-  factory RecapMonth.current({DateTime? now}) {
-    final n = now ?? DateTime.now();
+  factory RecapMonth.current() {
+    final n = DateTime.now();
     return RecapMonth(n.year, n.month);
   }
 
@@ -76,9 +76,6 @@ MonthlyRecap buildMonthlyRecap({
     final progress = bookTotalWords > 0
         ? (agg.maxEndWordIndex / bookTotalWords).clamp(0.0, 1.0)
         : 0.0;
-    final avgWpm = agg.totalDurationMs > 0
-        ? (agg.totalWords * 60000 / agg.totalDurationMs).round()
-        : 0;
 
     final entry = RecapBook(
       bookId: agg.bookId,
@@ -86,10 +83,7 @@ MonthlyRecap buildMonthlyRecap({
       author: book?.author,
       coverImage: book?.coverImage,
       totalDurationMs: agg.totalDurationMs,
-      totalWords: agg.totalWords,
-      avgWpm: avgWpm,
       progressFraction: isFinished ? 1.0 : progress,
-      isFinished: isFinished,
     );
 
     if (isFinished) {

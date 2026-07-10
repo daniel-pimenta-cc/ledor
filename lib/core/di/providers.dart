@@ -1,7 +1,4 @@
-import 'dart:io';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:path_provider/path_provider.dart';
 
 import '../../database/app_database.dart';
 import '../../database/daos/bookmarks_dao.dart';
@@ -37,8 +34,4 @@ final syncImportFailuresDaoProvider = Provider<SyncImportFailuresDao>((ref) {
 
 final bookmarksDaoProvider = Provider<BookmarksDao>((ref) {
   return ref.watch(appDatabaseProvider).bookmarksDao;
-});
-
-final appDocumentsDirProvider = FutureProvider<Directory>((ref) async {
-  return getApplicationDocumentsDirectory();
 });

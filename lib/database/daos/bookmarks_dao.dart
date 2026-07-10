@@ -19,13 +19,6 @@ class BookmarksDao extends DatabaseAccessor<AppDatabase>
         .watch();
   }
 
-  Future<List<BookmarksTableData>> getForBook(String bookId) {
-    return (select(bookmarksTable)
-          ..where((t) => t.bookId.equals(bookId) & t.deletedAt.isNull())
-          ..orderBy([(t) => OrderingTerm.asc(t.globalWordIndex)]))
-        .get();
-  }
-
   /// Live list of every non-tombstoned bookmark across the library,
   /// ordered most-recent first. Feeds the global `/bookmarks` screen.
   Stream<List<BookmarksTableData>> watchAll() {
@@ -33,11 +26,6 @@ class BookmarksDao extends DatabaseAccessor<AppDatabase>
           ..where((t) => t.deletedAt.isNull())
           ..orderBy([(t) => OrderingTerm.desc(t.updatedAt)]))
         .watch();
-  }
-
-  Future<BookmarksTableData?> getById(String id) {
-    return (select(bookmarksTable)..where((t) => t.id.equals(id)))
-        .getSingleOrNull();
   }
 
   Future<void> upsert(BookmarksTableCompanion entry) {
@@ -74,12 +62,6 @@ class BookmarksDao extends DatabaseAccessor<AppDatabase>
     return (select(bookmarksTable)
           ..orderBy([(t) => OrderingTerm.asc(t.createdAt)]))
         .get();
-  }
-
-  /// Used by sync when applying a remote payload. Replaces the local row
-  /// verbatim — caller has already decided who wins the LWW match.
-  Future<void> applyFromSync(BookmarksTableCompanion entry) {
-    return into(bookmarksTable).insertOnConflictUpdate(entry);
   }
 
   /// Hard-delete every bookmark for a book. Called when the user removes

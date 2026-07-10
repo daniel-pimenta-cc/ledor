@@ -47,10 +47,6 @@ class FakeSyncFolderGateway implements SyncFolderGateway {
   }
 
   @override
-  Future<bool> fileExists(String folderPath, String relativePath) async =>
-      textFiles.containsKey(relativePath) || binFiles.containsKey(relativePath);
-
-  @override
   Future<void> deleteFile(String folderPath, String relativePath) async {
     textFiles.remove(relativePath);
     binFiles.remove(relativePath);

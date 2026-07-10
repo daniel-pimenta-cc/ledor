@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../domain/entities/stats_snapshot.dart';
+import 'stats_duration_label.dart';
 
 class StatsSummaryCards extends StatelessWidget {
   final StatsSnapshot snapshot;
@@ -13,12 +15,7 @@ class StatsSummaryCards extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final totalMinutes = (snapshot.totalDurationMs / 60000).round();
-    final hours = totalMinutes ~/ 60;
-    final minutes = totalMinutes % 60;
-    final timeLabel = hours > 0
-        ? l10n.statsDurationHoursMinutes(hours, minutes)
-        : l10n.statsDurationMinutes(totalMinutes);
+    final timeLabel = formatDuration(l10n, snapshot.totalDurationMs);
 
     return GridView.count(
       crossAxisCount: 2,
@@ -30,7 +27,8 @@ class StatsSummaryCards extends StatelessWidget {
       children: [
         _SummaryTile(
           label: l10n.statsSummaryWordsRead,
-          value: _formatCompact(snapshot.totalWords),
+          value: NumberFormat.compact(locale: l10n.localeName)
+              .format(snapshot.totalWords),
         ),
         _SummaryTile(
           label: l10n.statsSummaryTimeSpent,
@@ -46,13 +44,6 @@ class StatsSummaryCards extends StatelessWidget {
         ),
       ],
     );
-  }
-
-  static String _formatCompact(int n) {
-    if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M';
-    if (n >= 10000) return '${(n / 1000).round()}k';
-    if (n >= 1000) return '${(n / 1000).toStringAsFixed(1)}k';
-    return n.toString();
   }
 }
 

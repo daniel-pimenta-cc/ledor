@@ -1,3 +1,5 @@
+import 'package:collection/collection.dart';
+
 import '../../../epub_import/domain/entities/chapter.dart';
 import '../entities/sentence_segment.dart';
 
@@ -11,14 +13,6 @@ import '../entities/sentence_segment.dart';
 /// 200 tokens at ~6 chars/token ≈ 1200 chars per `speak()`, well below
 /// the platform limits (Android: 4000, iOS: no hard limit).
 const int kSentenceMaxTokens = 200;
-
-/// Larger cap used by backends that **can't pipeline** (today: Linux's
-/// `spd-say`, where each speak spawns a fresh process and the queue
-/// mode of the abstraction collapses to flush-each-time). Bigger chunks
-/// mean fewer process spawns, so the perceptible gap appears every
-/// ~4 minutes of speech instead of every ~80 seconds. Still under the
-/// Android 4000-char limit so the abstraction stays uniform.
-const int kSentenceMaxTokensLargeChunk = 600;
 
 /// Extracts the next chunk of speakable tokens starting at [startGlobalIndex].
 ///
@@ -134,18 +128,5 @@ SentenceSegment? extractSentenceFrom(
 ///
 /// Used by the TTS progress callback to map a charOffset reported by the
 /// engine to the matching speakable-token index inside a [SentenceSegment].
-int charOffsetToTokenIndex(List<int> offsets, int target) {
-  if (offsets.isEmpty) return -1;
-  if (target < offsets.first) return -1;
-  int lo = 0;
-  int hi = offsets.length - 1;
-  while (lo < hi) {
-    final mid = (lo + hi + 1) >> 1;
-    if (offsets[mid] <= target) {
-      lo = mid;
-    } else {
-      hi = mid - 1;
-    }
-  }
-  return lo;
-}
+int charOffsetToTokenIndex(List<int> offsets, int target) =>
+    lowerBound(offsets, target + 1) - 1;

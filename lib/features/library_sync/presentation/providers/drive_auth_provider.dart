@@ -18,21 +18,6 @@ class DriveAuthState {
   });
 
   bool get isSignedIn => email != null;
-
-  DriveAuthState copyWith({
-    bool? isBusy,
-    String? email,
-    bool clearEmail = false,
-    String? errorMessage,
-    bool clearError = false,
-  }) {
-    return DriveAuthState(
-      isBusy: isBusy ?? this.isBusy,
-      email: clearEmail ? null : (email ?? this.email),
-      errorMessage:
-          clearError ? null : (errorMessage ?? this.errorMessage),
-    );
-  }
 }
 
 class DriveAuthNotifier extends StateNotifier<DriveAuthState> {
@@ -44,11 +29,11 @@ class DriveAuthNotifier extends StateNotifier<DriveAuthState> {
   /// every app launch — returns false if there's no cached account or
   /// the refresh fails.
   Future<bool> trySilentSignIn() async {
-    state = state.copyWith(isBusy: true, clearError: true);
+    state = DriveAuthState(isBusy: true, email: state.email);
     try {
-      final result = await _backend.trySilentSignIn();
-      state = DriveAuthState(email: result?.email);
-      return result != null;
+      final email = await _backend.trySilentSignIn();
+      state = DriveAuthState(email: email);
+      return email != null;
     } catch (e) {
       state = DriveAuthState(errorMessage: e.toString());
       return false;
@@ -58,15 +43,15 @@ class DriveAuthNotifier extends StateNotifier<DriveAuthState> {
   /// Interactive sign-in. Shows the account chooser (mobile) or opens
   /// the system browser (desktop).
   Future<bool> signIn() async {
-    state = state.copyWith(isBusy: true, clearError: true);
+    state = DriveAuthState(isBusy: true, email: state.email);
     try {
-      final result = await _backend.signIn();
-      if (result == null) {
+      final email = await _backend.signIn();
+      if (email == null) {
         // user cancelled
         state = const DriveAuthState();
         return false;
       }
-      state = DriveAuthState(email: result.email);
+      state = DriveAuthState(email: email);
       return true;
     } catch (e) {
       state = DriveAuthState(errorMessage: e.toString());

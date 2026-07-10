@@ -85,35 +85,25 @@ class SyncLibraryBook {
   });
 
   SyncLibraryBook copyWith({
-    String? title,
-    String? author,
-    int? totalWords,
-    int? chapterCount,
-    DateTime? importedAt,
-    DateTime? lastReadAt,
-    bool? hasEpubFile,
-    String? syncFileName,
     SyncLibraryProgress? progress,
     DateTime? deletedAt,
     DateTime? updatedAt,
-    int? rating,
-    DateTime? ratingUpdatedAt,
   }) {
     return SyncLibraryBook(
       id: id,
-      title: title ?? this.title,
-      author: author ?? this.author,
-      totalWords: totalWords ?? this.totalWords,
-      chapterCount: chapterCount ?? this.chapterCount,
-      importedAt: importedAt ?? this.importedAt,
-      lastReadAt: lastReadAt ?? this.lastReadAt,
-      hasEpubFile: hasEpubFile ?? this.hasEpubFile,
-      syncFileName: syncFileName ?? this.syncFileName,
+      title: title,
+      author: author,
+      totalWords: totalWords,
+      chapterCount: chapterCount,
+      importedAt: importedAt,
+      lastReadAt: lastReadAt,
+      hasEpubFile: hasEpubFile,
+      syncFileName: syncFileName,
       progress: progress ?? this.progress,
       deletedAt: deletedAt ?? this.deletedAt,
       updatedAt: updatedAt ?? this.updatedAt,
-      rating: rating ?? this.rating,
-      ratingUpdatedAt: ratingUpdatedAt ?? this.ratingUpdatedAt,
+      rating: rating,
+      ratingUpdatedAt: ratingUpdatedAt,
     );
   }
 
@@ -198,20 +188,6 @@ class SyncLibrary {
     required this.books,
   });
 
-  factory SyncLibrary.empty(String deviceId) => SyncLibrary(
-        updatedAt: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
-        updatedBy: deviceId,
-        books: const [],
-      );
-
-  Map<String, dynamic> toJson() => {
-        'schemaVersion': schemaVersion,
-        'updatedAt': updatedAt.toUtc().toIso8601String(),
-        'updatedBy': updatedBy,
-        'settings': settings?.toJson(),
-        'books': books.map((b) => b.toJson()).toList(),
-      };
-
   factory SyncLibrary.fromJson(Map<String, dynamic> json) => SyncLibrary(
         schemaVersion: json['schemaVersion'] as int? ?? syncSchemaVersion,
         updatedAt: DateTime.parse(json['updatedAt'] as String),
@@ -225,8 +201,8 @@ class SyncLibrary {
             .toList(),
       );
 
-  String encode() => const JsonEncoder.withIndent('  ').convert(toJson());
-
+  /// The app only ever decodes the legacy monolith (one-shot migration off
+  /// `library.json`); it is never written back, so there is no encoder.
   factory SyncLibrary.decode(String raw) =>
       SyncLibrary.fromJson(jsonDecode(raw) as Map<String, dynamic>);
 }
@@ -312,37 +288,6 @@ DateTime? _laterNullable(DateTime? a, DateTime? b) {
   if (a == null) return b;
   if (b == null) return a;
   return _later(a, b);
-}
-
-/// Merge two libraries. Result contains the union of books, each merged,
-/// and the newer of the two settings snapshots.
-SyncLibrary mergeLibraries(SyncLibrary a, SyncLibrary b, String deviceId) {
-  final byId = <String, SyncLibraryBook>{};
-  for (final book in a.books) {
-    byId[book.id] = book;
-  }
-  for (final book in b.books) {
-    final existing = byId[book.id];
-    byId[book.id] = existing == null ? book : mergeBook(existing, book);
-  }
-
-  SyncLibrarySettings? settings;
-  if (a.settings == null) {
-    settings = b.settings;
-  } else if (b.settings == null) {
-    settings = a.settings;
-  } else {
-    settings = a.settings!.updatedAt.isAfter(b.settings!.updatedAt)
-        ? a.settings
-        : b.settings;
-  }
-
-  return SyncLibrary(
-    updatedAt: _later(a.updatedAt, b.updatedAt),
-    updatedBy: deviceId,
-    settings: settings,
-    books: byId.values.toList()..sort((x, y) => x.id.compareTo(y.id)),
-  );
 }
 
 // ---------------------------------------------------------------------------

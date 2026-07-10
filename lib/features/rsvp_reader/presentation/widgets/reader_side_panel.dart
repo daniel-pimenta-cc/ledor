@@ -7,6 +7,7 @@ import '../../domain/entities/display_settings.dart';
 import '../providers/reader_side_panel_provider.dart';
 import '../providers/rsvp_engine_provider.dart';
 import 'bookmarks_list.dart';
+import 'chapter_tile.dart';
 import 'display_settings_panel.dart';
 import 'finish_book_button.dart';
 
@@ -163,45 +164,13 @@ class _ChapterList extends ConsumerWidget {
     return ListView.builder(
       itemCount: state.chapters.length,
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
-      itemBuilder: (context, index) {
-        final chapter = state.chapters[index];
-        final isCurrent = index == state.currentChapterIndex;
-
-        return ListTile(
-          dense: true,
-          selected: isCurrent,
-          selectedTileColor: settings.orpColor.withAlpha(30),
-          leading: Text(
-            '${index + 1}',
-            style: TextStyle(
-              color: isCurrent
-                  ? settings.orpColor
-                  : settings.wordColor.withAlpha(120),
-              fontSize: 14,
-              fontWeight: isCurrent ? FontWeight.w700 : FontWeight.w400,
-            ),
-          ),
-          title: Text(
-            chapter.title,
-            style: TextStyle(
-              color: isCurrent ? settings.orpColor : settings.wordColor,
-              fontSize: 14,
-              fontWeight: isCurrent ? FontWeight.w600 : FontWeight.w400,
-            ),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-          trailing: Text(
-            '${chapter.wordCount}',
-            style: TextStyle(
-              color: settings.wordColor.withAlpha(100),
-              fontSize: 12,
-              fontFeatures: const [FontFeature.tabularFigures()],
-            ),
-          ),
-          onTap: () => engine.jumpToChapter(index),
-        );
-      },
+      itemBuilder: (context, index) => ChapterTile(
+        index: index,
+        chapter: state.chapters[index],
+        isCurrent: index == state.currentChapterIndex,
+        settings: settings,
+        onTap: () => engine.jumpToChapter(index),
+      ),
     );
   }
 }

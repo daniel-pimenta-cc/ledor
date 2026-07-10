@@ -47,10 +47,6 @@ class SyncImportFailuresDao extends DatabaseAccessor<AppDatabase>
   /// after listing the sync folder to prune entries for files the user
   /// deleted from the cloud.
   Future<void> retainOnly(Set<String> stillPresent) async {
-    if (stillPresent.isEmpty) {
-      await delete(syncImportFailuresTable).go();
-      return;
-    }
     await (delete(syncImportFailuresTable)
           ..where((t) => t.fileName.isNotIn(stillPresent)))
         .go();

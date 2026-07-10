@@ -6,7 +6,9 @@ import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../domain/entities/book_completion_summary.dart';
+import 'recap_cover.dart';
 import 'star_rating_picker.dart';
+import 'stats_duration_label.dart';
 
 /// 9:16 shareable card for "I finished this book". Palette matches the
 /// monthly recap card so both feel like they belong to the same line.
@@ -64,7 +66,15 @@ class BookCompletionCard extends StatelessWidget {
                     width: showStats ? 220 : 260,
                     child: AspectRatio(
                       aspectRatio: 2 / 3,
-                      child: _Cover(summary: summary),
+                      child: RecapCover(
+                        coverImage: summary.coverImage,
+                        title: summary.title,
+                        radius: AppRadius.borderMd,
+                        fallbackPadding: const EdgeInsets.all(AppSpacing.md),
+                        fallbackFontSize: 16,
+                        fallbackHeight: 1.15,
+                        fallbackMaxLines: 6,
+                      ),
                     ),
                   ),
                 ),
@@ -169,12 +179,7 @@ class _StatsPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final totalMinutes = (summary.totalDurationMs / 60000).round();
-    final hours = totalMinutes ~/ 60;
-    final minutes = totalMinutes % 60;
-    final timeLabel = hours > 0
-        ? l10n.statsDurationHoursMinutes(hours, minutes)
-        : l10n.statsDurationMinutes(totalMinutes);
+    final timeLabel = formatDuration(l10n, summary.totalDurationMs);
 
     return Container(
       padding: const EdgeInsets.symmetric(
@@ -195,7 +200,8 @@ class _StatsPanel extends StatelessWidget {
           Expanded(
             child: _StatTile(
               label: l10n.completionStatWords,
-              value: _formatCompact(summary.totalWords),
+              value: NumberFormat.compact(locale: l10n.localeName)
+                  .format(summary.totalWords),
             ),
           ),
           _Divider(),
@@ -208,12 +214,6 @@ class _StatsPanel extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  static String _formatCompact(int n) {
-    if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M';
-    if (n >= 1000) return '${(n / 1000).toStringAsFixed(1)}k';
-    return n.toString();
   }
 }
 
@@ -288,58 +288,4 @@ class _MinimalFooter extends StatelessWidget {
   }
 }
 
-class _Cover extends StatelessWidget {
-  final BookCompletionSummary summary;
-  const _Cover({required this.summary});
-
-  @override
-  Widget build(BuildContext context) {
-    final cover = summary.coverImage;
-    if (cover != null && cover.isNotEmpty) {
-      return ClipRRect(
-        borderRadius: AppRadius.borderMd,
-        child: Image.memory(
-          cover,
-          fit: BoxFit.cover,
-          gaplessPlayback: true,
-          errorBuilder: (_, _, _) => _FallbackCover(summary: summary),
-        ),
-      );
-    }
-    return _FallbackCover(summary: summary);
-  }
-}
-
-class _FallbackCover extends StatelessWidget {
-  final BookCompletionSummary summary;
-  const _FallbackCover({required this.summary});
-
-  @override
-  Widget build(BuildContext context) {
-    final seed = summary.title.isNotEmpty ? summary.title.codeUnitAt(0) : 0;
-    final hue = (seed * 37) % 360;
-    final bg = HSLColor.fromAHSL(1, hue.toDouble(), 0.35, 0.80).toColor();
-    return Container(
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: AppRadius.borderMd,
-        border: Border.all(color: BookCompletionCard._outline),
-      ),
-      padding: const EdgeInsets.all(AppSpacing.md),
-      alignment: Alignment.center,
-      child: Text(
-        summary.title,
-        maxLines: 6,
-        overflow: TextOverflow.ellipsis,
-        textAlign: TextAlign.center,
-        style: GoogleFonts.lora(
-          fontWeight: FontWeight.w600,
-          height: 1.15,
-          fontSize: 16,
-          color: BookCompletionCard._ink,
-        ),
-      ),
-    );
-  }
-}
 

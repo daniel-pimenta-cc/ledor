@@ -102,7 +102,7 @@ In `RsvpWordDisplay`, if the word does not fit the available width at the config
 
 Transitions:
 - Play/pause: alternates `rsvp` ↔ `scroll`. `AnimatedSwitcher` with a 200ms fade.
-- Toggle ereader (via top bar): `engine.toggleEreaderMode()`. On enter, the ticker pauses and progress is saved. On exit, it returns to `scroll`.
+- Toggle ereader (via top bar): `engine.enterEreaderMode()` / `engine.exitEreaderMode()`. On enter, the ticker pauses and progress is saved. On exit, it returns to `scroll`.
 - `RsvpControls` is only rendered when `mode != ereader`.
 
 ### Velocity-based scroll tracking

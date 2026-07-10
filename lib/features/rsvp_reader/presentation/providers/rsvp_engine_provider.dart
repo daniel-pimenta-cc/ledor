@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
@@ -8,7 +9,6 @@ import 'package:uuid/uuid.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/di/providers.dart';
-import '../../../../core/utils/platform_capabilities.dart';
 import '../../../../core/utils/sentence_boundary.dart';
 import '../../../../core/utils/token_codec.dart';
 import '../../../../database/app_database.dart';
@@ -76,6 +76,15 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
 
   RsvpEngineNotifier(this._ref, String bookId)
       : super(RsvpState(bookId: bookId)) {
+    // Settings committed outside this notifier — the TTS engine/voice picker
+    // sheets, the full-screen settings panel, a Drive sync pull — land only
+    // in the global provider. Mirror them into the engine's own snapshot so
+    // the TTS player never plays with a stale engine/voice. WPM stays local:
+    // it's per-book (restored from reading progress), not a global setting.
+    _ref.listen<DisplaySettings>(displaySettingsProvider, (_, next) {
+      if (!mounted) return;
+      updateDisplaySettings((s) => next.copyWith(wpm: s.wpm));
+    });
     _initFuture = _loadBook();
   }
 
@@ -123,8 +132,15 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
     if (!mounted) return;
     if (chapters.isEmpty) return;
 
-    final chapterIdx = progress?.chapterIndex ?? 0;
-    final wordIdx = progress?.wordIndex ?? 0;
+    // O progresso pode vir do Drive sync com índices de uma tokenização
+    // diferente (mesmo EPUB importado por uma versão mais antiga do parser
+    // no outro device). Sem clamp, `chapters[i].tokens[j]` estoura, o
+    // _loadBook morre sem catch e o reader fica preso num Scaffold vazio
+    // (tela preta em dark theme).
+    final chapterIdx =
+        math.min(progress?.chapterIndex ?? 0, chapters.length - 1);
+    final wordIdx = math.min(
+        progress?.wordIndex ?? 0, chapters[chapterIdx].tokens.length - 1);
     final wpm = progress?.wpm ?? _ref.read(displaySettingsProvider).wpm;
     final persistedMode = parsePersistedReaderMode(progress?.readerMode);
 
@@ -176,6 +192,11 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
       await enterTtsMode();
       if (!mounted) return;
       state = state.copyWith(isLoading: false);
+    } else if (persistedMode == ReaderMode.ereader) {
+      // Auto-restored ereader skips enterEreaderMode (the mode landed via
+      // the state copy above) — open the manual session here so reading
+      // that starts right away still gets logged.
+      _startSession();
     }
   }
 
@@ -254,17 +275,29 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
 
   // ---------- Public controls ----------
 
+  /// Resets session bookkeeping to "now, from the current word". Used by
+  /// both playback paths in [play] and by the manual (ereader) session
+  /// started in [enterEreaderMode] / restored in [_loadBook].
+  void _startSession() {
+    _sessionStartedAt = DateTime.now();
+    _sessionStartWordIndex = state.globalWordIndex;
+    _wordsInSession = 0;
+  }
+
   void play() {
     if (state.isPlaying || state.isLoading) return;
+
+    // A manual ereader session may still be open (keyboard shortcut can
+    // trigger play straight from ereader mode) — bank it before the
+    // playback session overwrites the counters.
+    _flushSession();
 
     // TTS path: ticker stays dormant; the player drives the backend.
     // The end-of-book guard is intentionally relaxed here — the last
     // sentence still needs to be spoken; the player's onBookFinished
     // callback bumps finishTicket.
     if (state.mode == ReaderMode.tts) {
-      _sessionStartedAt = DateTime.now();
-      _sessionStartWordIndex = state.globalWordIndex;
-      _wordsInSession = 0;
+      _startSession();
       state = state.copyWith(isPlaying: true);
       _pushSettingsToPlayer();
       unawaited(
@@ -294,9 +327,7 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
     // AnimatedSwitcher can finish and the eyes have time to focus before
     // the engine starts advancing.
     _nextWordAt = AppConstants.playPreRollDelay;
-    _wordsInSession = 0;
-    _sessionStartedAt = DateTime.now();
-    _sessionStartWordIndex = state.globalWordIndex;
+    _startSession();
     _ticker?.start();
     state = state.copyWith(isPlaying: true, mode: ReaderMode.rsvp);
   }
@@ -359,21 +390,19 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
       _flushSession();
     }
     state = state.copyWith(isPlaying: false, mode: ReaderMode.ereader);
+    // Manual session: words are credited by the scroll-driven seeks in
+    // [seekToWord]; flushed on exit/mode-change/dispose like any other.
+    _startSession();
     unawaited(_saveProgress());
   }
 
   void exitEreaderMode() {
     if (state.mode != ReaderMode.ereader) return;
+    // Flush before mutating mode — _flushSession tags manual sessions by
+    // reading state.mode.
+    _flushSession();
     state = state.copyWith(mode: ReaderMode.scroll);
     unawaited(_saveProgress());
-  }
-
-  void toggleEreaderMode() {
-    if (state.mode == ReaderMode.ereader) {
-      exitEreaderMode();
-    } else {
-      enterEreaderMode();
-    }
   }
 
   /// Switches into TTS mode without auto-playing. The reader sees the same
@@ -387,10 +416,10 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
   Future<void> enterTtsMode() async {
     if (state.mode == ReaderMode.tts) return;
 
-    if (state.isPlaying) {
-      _ticker?.stop();
-      _flushSession();
-    }
+    if (state.isPlaying) _ticker?.stop();
+    // Unconditional: also banks an open manual ereader session (the mode
+    // menu allows ereader → tts directly). No-op when nothing is open.
+    _flushSession();
 
     // Flip the UI to TTS up front so the mode menu reflects the choice
     // immediately. The backend setup awaits below — without this, a user
@@ -497,10 +526,26 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
   void decreaseTtsRate() =>
       setTtsRate(state.displaySettings.ttsRate - AppConstants.ttsRateStep);
 
+  /// Largest forward seek still credited as words read in an ereader
+  /// session. Scroll-driven position syncs advance a viewport at a time
+  /// (a few hundred words); anything bigger is a chapter jump / slider
+  /// drag, i.e. navigation, not reading.
+  static const _maxManualReadDelta = 500;
+
   /// Seek to a specific global word index.
   void seekToWord(int globalIndex) {
     final clamped = globalIndex.clamp(0, state.totalWords - 1);
     final (chapterIdx, wordIdx) = _globalToLocal(clamped);
+
+    // Ereader: seeks come from the scroll position sync — small forward
+    // deltas are the reading itself. Backward scrolls (re-reading) don't
+    // subtract; covering the same words again still takes time.
+    if (state.mode == ReaderMode.ereader && _sessionStartedAt != null) {
+      final delta = clamped - state.globalWordIndex;
+      if (delta > 0 && delta <= _maxManualReadDelta) {
+        _wordsInSession += delta;
+      }
+    }
 
     state = state.copyWith(
       currentChapterIndex: chapterIdx,
@@ -546,7 +591,7 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
     }
     // Even outside TTS mode, keep an updated snapshot ready so the player
     // doesn't blow stale settings at the engine on next enterTtsMode.
-    _ttsPlayer?.setSettings(_currentTtsSettings());
+    _ttsPlayer?.setSettings(state.displaySettings);
   }
 
   // ---------- TTS player wiring ----------
@@ -563,23 +608,11 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
     return player;
   }
 
-  TtsPlayerSettings _currentTtsSettings() {
-    final s = state.displaySettings;
-    return TtsPlayerSettings(
-      language: s.ttsLanguage,
-      voiceName: s.ttsVoiceName,
-      engineId: s.ttsEngineId,
-      pitch: s.ttsPitch,
-      rate: s.ttsRate,
-      largeChunks: PlatformCapabilities.isLinux,
-    );
-  }
-
   void _pushSettingsToPlayer() {
     final player = _ttsPlayer;
     if (player == null) return;
     player.setContent(state.chapters, state.totalWords);
-    player.setSettings(_currentTtsSettings());
+    player.setSettings(state.displaySettings);
   }
 
   void _onPlayerWordAdvance(int newGlobalIndex, int wordsAdvanced) {
@@ -724,7 +757,10 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
 
     final durationMs = DateTime.now().difference(startedAt).inMilliseconds;
     final wordsRead = _wordsInSession;
-    final avgWpm = computeSessionAvgWpm(durationMs, wordsRead);
+    // Callers that leave ereader mode flush BEFORE mutating state.mode, so
+    // this reliably tags scroll-inferred sessions as manual.
+    final avgWpm = computeSessionAvgWpm(durationMs, wordsRead,
+        manual: state.mode == ReaderMode.ereader);
     if (avgWpm == null) return;
 
     final dao = _ref.read(readingSessionDaoProvider);
@@ -917,11 +953,21 @@ double computeWordIntervalMultiplier({
 /// and [wordsRead] ticks — or `null` if the session should be dropped as
 /// noise (below minimum duration or word count). The thresholds filter
 /// accidental taps on the play button.
-int? computeSessionAvgWpm(int durationMs, int wordsRead) {
+///
+/// [manual] marks ereader sessions, where words are inferred from scroll
+/// position instead of engine ticks. An implausibly high WPM there means
+/// the user was flipping through pages, not reading — drop the session
+/// instead of polluting the stats.
+int? computeSessionAvgWpm(int durationMs, int wordsRead,
+    {bool manual = false}) {
   const minDurationMs = 3000;
   const minWords = 5;
+  // ponytail: fixed skim cutoff; make configurable only if real readers hit it
+  const maxManualWpm = 700;
   if (durationMs < minDurationMs || wordsRead < minWords) return null;
-  return (wordsRead * 60000 / durationMs).round();
+  final wpm = (wordsRead * 60000 / durationMs).round();
+  if (manual && wpm > maxManualWpm) return null;
+  return wpm;
 }
 
 /// Runs in a background isolate. Each record is

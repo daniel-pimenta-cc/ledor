@@ -3,12 +3,10 @@ import 'stats_range.dart';
 /// Per-book contribution within a single day.
 class DailyBookSlice {
   final String bookId;
-  final int durationMs;
   final int wordsRead;
 
   const DailyBookSlice({
     required this.bookId,
-    required this.durationMs,
     required this.wordsRead,
   });
 }
@@ -40,25 +38,19 @@ class DailyBucket {
 class BookBreakdown {
   final String bookId;
   final String title;
-  final String? author;
   final int totalDurationMs;
-  final int totalWords;
   final int sessionCount;
 
   const BookBreakdown({
     required this.bookId,
     required this.title,
-    required this.author,
     required this.totalDurationMs,
-    required this.totalWords,
     required this.sessionCount,
   });
 }
 
 class StatsSnapshot {
   final StatsRange range;
-  final DateTime from;
-  final DateTime to;
   final List<DailyBucket> dailyBuckets;
   final List<BookBreakdown> bookBreakdowns;
   final int totalWords;
@@ -67,8 +59,6 @@ class StatsSnapshot {
 
   const StatsSnapshot({
     required this.range,
-    required this.from,
-    required this.to,
     required this.dailyBuckets,
     required this.bookBreakdowns,
     required this.totalWords,

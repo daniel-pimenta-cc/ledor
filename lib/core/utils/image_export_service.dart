@@ -13,40 +13,38 @@ import 'package:share_plus/share_plus.dart';
 ///
 /// [pixelRatio] controls export resolution. `3.0` on a 360dp-wide card
 /// yields ~1080px, matching Instagram/Stories-quality output.
-class ImageExportService {
-  Future<void> shareWidgetAsPng({
-    required GlobalKey boundaryKey,
-    required String filename,
-    String? shareText,
-    double pixelRatio = 3.0,
-  }) async {
-    final bytes = await _capturePng(boundaryKey, pixelRatio: pixelRatio);
-    final dir = await getTemporaryDirectory();
-    final file = File('${dir.path}/$filename.png');
-    await file.writeAsBytes(bytes);
-    await SharePlus.instance.share(
-      ShareParams(
-        files: [XFile(file.path, mimeType: 'image/png')],
-        text: shareText,
-      ),
-    );
-  }
+Future<void> shareWidgetAsPng({
+  required GlobalKey boundaryKey,
+  required String filename,
+  String? shareText,
+  double pixelRatio = 3.0,
+}) async {
+  final bytes = await _capturePng(boundaryKey, pixelRatio: pixelRatio);
+  final dir = await getTemporaryDirectory();
+  final file = File('${dir.path}/$filename.png');
+  await file.writeAsBytes(bytes);
+  await SharePlus.instance.share(
+    ShareParams(
+      files: [XFile(file.path, mimeType: 'image/png')],
+      text: shareText,
+    ),
+  );
+}
 
-  Future<Uint8List> _capturePng(
-    GlobalKey key, {
-    required double pixelRatio,
-  }) async {
-    // Ensure the boundary has painted at least once before capturing —
-    // without this, first export after hot-route can return a blank or
-    // partially-painted PNG.
-    await SchedulerBinding.instance.endOfFrame;
-    final boundary =
-        key.currentContext!.findRenderObject() as RenderRepaintBoundary;
-    final image = await boundary.toImage(pixelRatio: pixelRatio);
-    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-    if (byteData == null) {
-      throw StateError('Failed to encode widget to PNG');
-    }
-    return byteData.buffer.asUint8List();
+Future<Uint8List> _capturePng(
+  GlobalKey key, {
+  required double pixelRatio,
+}) async {
+  // Ensure the boundary has painted at least once before capturing —
+  // without this, first export after hot-route can return a blank or
+  // partially-painted PNG.
+  await SchedulerBinding.instance.endOfFrame;
+  final boundary =
+      key.currentContext!.findRenderObject() as RenderRepaintBoundary;
+  final image = await boundary.toImage(pixelRatio: pixelRatio);
+  final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+  if (byteData == null) {
+    throw StateError('Failed to encode widget to PNG');
   }
+  return byteData.buffer.asUint8List();
 }

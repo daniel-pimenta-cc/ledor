@@ -197,7 +197,7 @@ A manifest acumulava tombstones "zumbis": entradas com `deletedAt` cujo
    fisicamente o arquivo de Y), depois re-uploadava Y na proxima iteracao.
    Eterno flip-flop.
 
-**Fix** (em `library_sync_service.sync()`): apos `mergeLibraries`, um step
+**Fix** (em `library_sync_service.sync()`): apos o merge dos shards, um step
 de compactacao remove do manifest todo tombstone cujo `syncFileName` ja e
 reivindicado por um livro ativo em merged. O ativo "herdou" a posse do
 filename; o tombstone nao propaga nada util e so polui as comparacoes.

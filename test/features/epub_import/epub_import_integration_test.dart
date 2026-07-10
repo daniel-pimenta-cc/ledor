@@ -103,7 +103,7 @@ void main() {
         await notifier.importFromPath(source.path);
 
         final state = container.read(epubImportProvider);
-        expect(state.status, ImportStatus.done, reason: state.errorMessage);
+        expect(state.status, ImportStatus.done);
         expect(state.importedBookId, isNotNull);
 
         // 1. Books table has the row with the metadata from the OPF.
@@ -157,7 +157,6 @@ void main() {
 
       final state = container.read(epubImportProvider);
       expect(state.status, ImportStatus.error);
-      expect(state.errorMessage, isNotNull);
 
       // Nothing should have been persisted.
       final all = await db.booksDao.getAllBooks();
@@ -179,7 +178,7 @@ void main() {
         await notifier.importFromPath(source.path);
 
         final state = container.read(epubImportProvider);
-        expect(state.status, ImportStatus.done, reason: state.errorMessage);
+        expect(state.status, ImportStatus.done);
 
         final book = await db.booksDao.getBookById(state.importedBookId!);
         expect(book!.syncFileName, 'My Awesome Book.epub');

@@ -6,6 +6,7 @@ import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../domain/entities/monthly_recap.dart';
+import 'recap_cover.dart';
 
 /// 9:16 portrait recap card (360×640 dp — renders ~1080×1920 at pixelRatio 3).
 /// Visual is palette-independent (fixed editorial "ink on paper") so the
@@ -92,7 +93,8 @@ class MonthlyRecapCard extends StatelessWidget {
                 const SizedBox(height: AppSpacing.md),
                 Text(
                   l10n.recapStatsFooter(
-                    _formatWords(recap.totalWords),
+                    NumberFormat.compact(locale: l10n.localeName)
+                        .format(recap.totalWords),
                     hours,
                     minutes,
                   ),
@@ -108,12 +110,6 @@ class MonthlyRecapCard extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  static String _formatWords(int n) {
-    if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M';
-    if (n >= 1000) return '${(n / 1000).toStringAsFixed(1)}k';
-    return n.toString();
   }
 }
 
@@ -197,7 +193,15 @@ class _FinishedTile extends StatelessWidget {
       children: [
         AspectRatio(
           aspectRatio: 2 / 3,
-          child: _Cover(book: book, prominent: true),
+          child: RecapCover(
+            coverImage: book.coverImage,
+            title: book.title,
+            radius: AppRadius.borderSm,
+            fallbackPadding: const EdgeInsets.all(AppSpacing.sm),
+            fallbackFontSize: 12,
+            fallbackHeight: 1.1,
+            fallbackMaxLines: 4,
+          ),
         ),
         const SizedBox(height: AppSpacing.xs),
         Text(
@@ -259,7 +263,15 @@ class _ReadingTile extends StatelessWidget {
       children: [
         AspectRatio(
           aspectRatio: 2 / 3,
-          child: _Cover(book: book, prominent: false),
+          child: RecapCover(
+            coverImage: book.coverImage,
+            title: book.title,
+            radius: AppRadius.borderSm,
+            fallbackPadding: const EdgeInsets.all(AppSpacing.sm),
+            fallbackFontSize: 12,
+            fallbackHeight: 1.1,
+            fallbackMaxLines: 4,
+          ),
         ),
         const SizedBox(height: 4),
         Text(
@@ -286,61 +298,4 @@ class _ReadingTile extends StatelessWidget {
   }
 }
 
-class _Cover extends StatelessWidget {
-  final RecapBook book;
-  final bool prominent;
-  const _Cover({required this.book, required this.prominent});
-
-  @override
-  Widget build(BuildContext context) {
-    final cover = book.coverImage;
-    if (cover != null && cover.isNotEmpty) {
-      return ClipRRect(
-        borderRadius: AppRadius.borderSm,
-        child: Image.memory(
-          cover,
-          fit: BoxFit.cover,
-          gaplessPlayback: true,
-          errorBuilder: (ctx, err, stack) => _FallbackCover(book: book),
-        ),
-      );
-    }
-    return _FallbackCover(book: book);
-  }
-}
-
-class _FallbackCover extends StatelessWidget {
-  final RecapBook book;
-  const _FallbackCover({required this.book});
-
-  @override
-  Widget build(BuildContext context) {
-    // Tinted fallback based on the first letter's codepoint — stable per book.
-    final seed = book.title.isNotEmpty ? book.title.codeUnitAt(0) : 0;
-    final hue = (seed * 37) % 360;
-    final bg = HSLColor.fromAHSL(1, hue.toDouble(), 0.35, 0.80).toColor();
-
-    return Container(
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: AppRadius.borderSm,
-        border: Border.all(color: MonthlyRecapCard._outline),
-      ),
-      padding: const EdgeInsets.all(AppSpacing.sm),
-      alignment: Alignment.center,
-      child: Text(
-        book.title,
-        maxLines: 4,
-        overflow: TextOverflow.ellipsis,
-        textAlign: TextAlign.center,
-        style: GoogleFonts.lora(
-          fontWeight: FontWeight.w600,
-          height: 1.1,
-          fontSize: 12,
-          color: MonthlyRecapCard._ink,
-        ),
-      ),
-    );
-  }
-}
 

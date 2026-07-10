@@ -40,9 +40,4 @@ class SentenceSegment {
   });
 
   bool get isEmpty => spokenText.isEmpty;
-
-  /// Total number of words (including image-only tokens) in the range. The
-  /// engine uses this to advance globalWordIndex past the segment when the
-  /// TTS engine reports completion.
-  int get length => endGlobalIndexExcl - startGlobalIndex;
 }

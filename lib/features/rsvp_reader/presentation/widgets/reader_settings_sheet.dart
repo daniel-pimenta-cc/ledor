@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/display_settings_provider.dart';
 import 'display_settings_panel.dart';
 import 'finish_book_button.dart';
+import 'reader_sheet_shell.dart';
 
 /// Bottom sheet wrapper around [DisplaySettingsPanel], shown from the reader.
 class ReaderSettingsSheet extends ConsumerWidget {
@@ -15,45 +16,29 @@ class ReaderSettingsSheet extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(displaySettingsProvider);
 
-    return DraggableScrollableSheet(
+    return ReaderSheetShell(
+      settings: settings,
       initialChildSize: 0.55,
       minChildSize: 0.3,
       maxChildSize: 0.9,
-      expand: false,
-      builder: (context, scrollController) {
-        return Container(
-          decoration: BoxDecoration(
-            color: Color.lerp(settings.backgroundColor, Colors.white, 0.08),
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+      showDivider: false,
+      bodyBuilder: (context, scrollController) => Expanded(
+        child: SingleChildScrollView(
+          controller: scrollController,
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
+          child: Column(
+            children: [
+              DisplaySettingsPanel(bookId: bookId),
+              const SizedBox(height: 24),
+              FinishBookButton(
+                bookId: bookId,
+                settings: settings,
+                onBeforeNavigate: () => Navigator.of(context).maybePop(),
+              ),
+            ],
           ),
-          child: SingleChildScrollView(
-            controller: scrollController,
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            child: Column(
-              children: [
-                // Drag handle
-                Container(
-                  width: 36,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: settings.wordColor.withAlpha(60),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                DisplaySettingsPanel(bookId: bookId),
-                const SizedBox(height: 24),
-                FinishBookButton(
-                  bookId: bookId,
-                  settings: settings,
-                  onBeforeNavigate: () => Navigator.of(context).maybePop(),
-                ),
-                const SizedBox(height: 16),
-              ],
-            ),
-          ),
-        );
-      },
+        ),
+      ),
     );
   }
 }

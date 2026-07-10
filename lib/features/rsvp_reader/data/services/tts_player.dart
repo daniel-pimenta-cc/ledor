@@ -4,39 +4,15 @@ import 'dart:collection';
 import 'package:flutter/foundation.dart';
 
 import '../../../epub_import/domain/entities/chapter.dart';
+import '../../domain/entities/display_settings.dart';
 import '../../domain/entities/sentence_segment.dart';
 import '../../domain/utils/sentence_extractor.dart';
 import 'tts_backend.dart';
 
-/// Snapshot of the user-facing TTS settings the player consumes. Decoupled
-/// from `DisplaySettings` so the player can be unit-tested without dragging
-/// the full settings tree along.
-class TtsPlayerSettings {
-  final String language;
-  final String? voiceName;
-  final String? engineId;
-  final double pitch;
-  final double rate;
-
-  /// Hint that the backend can't pipeline (Linux `spd-say`) — the player
-  /// uses larger chunks to reduce the perceived gap between utterances.
-  final bool largeChunks;
-
-  const TtsPlayerSettings({
-    this.language = 'en-US',
-    this.voiceName,
-    this.engineId,
-    this.pitch = 1.0,
-    this.rate = 1.0,
-    this.largeChunks = false,
-  });
-}
-
 /// Pipelined wrapper around a [TtsBackend].
 ///
-/// Pre-extracts the next 1–2 segments (per [_effectiveLookahead]) and
-/// enqueues them on the backend with [TtsQueueMode.add] so the platform
-/// engine plays them
+/// Pre-extracts the next [_lookahead] segments and enqueues them on the
+/// backend with [TtsQueueMode.add] so the platform engine plays them
 /// back-to-back with no audible gap. Without this, every chunk boundary
 /// introduced a ~200–500ms IPC gap on Android (the time between the
 /// completion handler firing and the next `speak()` being processed).
@@ -54,7 +30,7 @@ class TtsPlayer {
   // ---- Content + settings ----
   List<Chapter> _chapters = const [];
   int _totalWords = 0;
-  TtsPlayerSettings _settings = const TtsPlayerSettings();
+  DisplaySettings _settings = const DisplaySettings();
 
   // Per-field snapshot of what the backend last accepted. Sentinel "_unset"
   // strings would be neater but the platform APIs never return null and
@@ -96,19 +72,11 @@ class TtsPlayer {
   /// progress callbacks compare against the live counter and bail.
   int _generation = 0;
 
-  /// Lookahead depth for backends that pipeline (flutter_tts queueMode=1,
-  /// speech-dispatcher daemon socket). 2 = one segment playing + one
-  /// pre-queued; deeper would help nothing (the gap appears at every
-  /// queue boundary, not just the second) and would make `stop()` slower.
-  ///
-  /// Non-pipeline backends (spd-say CLI: each speak spawns a new process
-  /// and the existing one would be cancelled) drop to 1 — see
-  /// [_effectiveLookahead].
-  static const int _lookaheadPipelined = 2;
-  static const int _lookaheadSequential = 1;
-
-  int get _effectiveLookahead =>
-      _backend.canPipeline ? _lookaheadPipelined : _lookaheadSequential;
+  /// Lookahead depth: 2 = one segment playing + one pre-queued so the
+  /// platform engine (flutter_tts queueMode=1 / speech-dispatcher daemon
+  /// socket) stitches them gap-free. Deeper helps nothing (the gap appears
+  /// at every queue boundary, not just the second) and makes `stop()` slower.
+  static const int _lookahead = 2;
 
   /// Wall-clock timestamp of the last progress callback we received from
   /// the backend. Used by [restartIfStalled] to detect a backend that
@@ -129,7 +97,6 @@ class TtsPlayer {
     if (_initialised) return;
     await _backend.init();
     _backend.onProgress = _onProgress;
-    _backend.onStart = _onStart;
     _backend.onCompletion = _onCompletion;
     _backend.onError = _onErrorInternal;
     _initialised = true;
@@ -144,7 +111,7 @@ class TtsPlayer {
   /// Replaces the player's settings snapshot. Settings are applied to the
   /// backend on the next [play]; rate changes also propagate immediately
   /// to the next utterance through [setRate].
-  void setSettings(TtsPlayerSettings settings) {
+  void setSettings(DisplaySettings settings) {
     _settings = settings;
   }
 
@@ -164,14 +131,7 @@ class TtsPlayer {
   /// so the next utterance (including any already queued via lookahead)
   /// picks it up. The rest of the settings are unchanged.
   Future<void> setRate(double rate) async {
-    _settings = TtsPlayerSettings(
-      language: _settings.language,
-      voiceName: _settings.voiceName,
-      engineId: _settings.engineId,
-      pitch: _settings.pitch,
-      rate: rate,
-      largeChunks: _settings.largeChunks,
-    );
+    _settings = _settings.copyWith(ttsRate: rate);
     if (!_initialised) return;
     // Dedup via _appliedRate so a slider that re-emits the same value
     // (common with the capsule's stepper) doesn't burn IPC.
@@ -180,16 +140,10 @@ class TtsPlayer {
     _appliedRate = rate;
   }
 
-  /// Returns the global word index the player believes is currently being
-  /// spoken (or the last index spoken, if paused).
-  int get currentGlobalIndex => _currentGlobalIndex;
-
-  bool get isPlaying => _isPlaying;
-
   /// Starts playback from [fromGlobalIndex]. Applies the current settings
   /// to the backend before issuing the first `speak()`, then fills the
-  /// pipeline with [_effectiveLookahead] queued segments so the platform
-  /// engine stitches them together seamlessly.
+  /// pipeline with [_lookahead] queued segments so the platform engine
+  /// stitches them together seamlessly.
   ///
   /// `_isPlaying` is set to `true` **synchronously** before any `await`
   /// so a `pause()` issued in the same tick (typical when the user taps
@@ -216,7 +170,7 @@ class TtsPlayer {
     await _applySettingsIfChanged();
     if (myGen != _generation) return;
 
-    for (var i = 0; i < _effectiveLookahead; i++) {
+    for (var i = 0; i < _lookahead; i++) {
       final more = await _enqueueNext();
       if (myGen != _generation) return;
       if (!more) break;
@@ -275,6 +229,10 @@ class TtsPlayer {
     final cursor = _currentGlobalIndex;
     _isPlaying = false; // play() refuses when already playing
     _queue.clear();
+    // A stall usually means the OS killed and recreated the native synth,
+    // which comes back with default voice/language/rate — force a full
+    // settings re-push instead of trusting the _applied* snapshot.
+    _hasAppliedAny = false;
     try {
       await _backend.stop();
     } catch (_) {}
@@ -292,7 +250,6 @@ class TtsPlayer {
       // Detach callbacks so a late event from the platform layer doesn't
       // try to drive a disposed player.
       _backend.onProgress = null;
-      _backend.onStart = null;
       _backend.onCompletion = null;
       _backend.onError = null;
     }
@@ -313,38 +270,44 @@ class TtsPlayer {
     final myGen = _generation;
     final firstApply = !_hasAppliedAny;
 
-    if (firstApply || _appliedEngineId != s.engineId) {
-      final eng = s.engineId;
+    // Switching engines (Android: flutter_tts tears down and rebuilds the
+    // platform TTS client) silently resets voice/language/pitch/rate to the
+    // new engine's defaults, so a change here forces every later block to
+    // re-push even when the `_applied*` snapshot says the value is current.
+    var engineChanged = false;
+    if (firstApply || _appliedEngineId != s.ttsEngineId) {
+      final eng = s.ttsEngineId;
       if (eng != null && eng.isNotEmpty) {
         await _backend.setEngine(eng);
         if (myGen != _generation) return;
+        engineChanged = !firstApply;
       }
-      _appliedEngineId = s.engineId;
+      _appliedEngineId = s.ttsEngineId;
     }
-    if (firstApply || _appliedLanguage != s.language) {
-      await _backend.setLanguage(s.language);
+    if (firstApply || engineChanged || _appliedLanguage != s.ttsLanguage) {
+      await _backend.setLanguage(s.ttsLanguage);
       if (myGen != _generation) return;
-      _appliedLanguage = s.language;
+      _appliedLanguage = s.ttsLanguage;
     }
-    if (firstApply || _appliedVoiceName != s.voiceName) {
-      final name = s.voiceName;
+    if (firstApply || engineChanged || _appliedVoiceName != s.ttsVoiceName) {
+      final name = s.ttsVoiceName;
       if (name == null || name.isEmpty) {
         await _backend.setVoice(null);
       } else {
-        await _backend.setVoice(TtsVoice(name: name, locale: s.language));
+        await _backend.setVoice(TtsVoice(name: name, locale: s.ttsLanguage));
       }
       if (myGen != _generation) return;
-      _appliedVoiceName = s.voiceName;
+      _appliedVoiceName = s.ttsVoiceName;
     }
-    if (firstApply || _appliedPitch != s.pitch) {
-      await _backend.setPitch(s.pitch);
+    if (firstApply || engineChanged || _appliedPitch != s.ttsPitch) {
+      await _backend.setPitch(s.ttsPitch);
       if (myGen != _generation) return;
-      _appliedPitch = s.pitch;
+      _appliedPitch = s.ttsPitch;
     }
-    if (firstApply || _appliedRate != s.rate) {
-      await _backend.setRate(s.rate);
+    if (firstApply || engineChanged || _appliedRate != s.ttsRate) {
+      await _backend.setRate(s.ttsRate);
       if (myGen != _generation) return;
-      _appliedRate = s.rate;
+      _appliedRate = s.ttsRate;
     }
     _hasAppliedAny = true;
   }
@@ -362,11 +325,7 @@ class TtsPlayer {
 
     if (startIdx >= _totalWords) return false;
 
-    final maxTokens = _settings.largeChunks
-        ? kSentenceMaxTokensLargeChunk
-        : kSentenceMaxTokens;
-    final segment =
-        extractSentenceFrom(_chapters, startIdx, maxTokens: maxTokens);
+    final segment = extractSentenceFrom(_chapters, startIdx);
     if (segment == null) return false;
     if (segment.isEmpty) {
       // Range was all image tokens. Advance cursor past it; no speak().
@@ -388,13 +347,6 @@ class TtsPlayer {
     final mode = _queue.length == 1 ? TtsQueueMode.flush : TtsQueueMode.add;
     await _backend.speak(segment.spokenText, mode: mode);
     return true;
-  }
-
-  void _onStart() {
-    // Currently unused. flutter_tts's start handler doesn't pass the
-    // utterance text, so we can't reliably correlate it with a specific
-    // queue entry. The head-of-queue invariant (popped on completion) is
-    // enough for progress mapping.
   }
 
   void _onProgress(int charOffset, int charEnd, String word) {

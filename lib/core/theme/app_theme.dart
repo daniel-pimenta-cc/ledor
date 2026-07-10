@@ -208,7 +208,4 @@ class AppTheme {
       ),
     );
   }
-
-  /// Fallback for tests or callers that don't inject brightness.
-  static ThemeData buildDark() => build(brightness: Brightness.dark);
 }

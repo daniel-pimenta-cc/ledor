@@ -17,6 +17,7 @@ import 'package:ledor/features/library_sync/presentation/providers/library_sync_
 import 'package:ledor/features/rsvp_reader/data/services/tts_backend.dart';
 import 'package:ledor/features/rsvp_reader/domain/entities/display_settings.dart';
 import 'package:ledor/features/rsvp_reader/domain/entities/rsvp_state.dart';
+import 'package:ledor/features/rsvp_reader/presentation/providers/display_settings_provider.dart';
 import 'package:ledor/features/rsvp_reader/presentation/providers/rsvp_engine_provider.dart';
 import 'package:ledor/features/rsvp_reader/presentation/providers/tts_backend_provider.dart';
 import 'package:mocktail/mocktail.dart';
@@ -155,6 +156,32 @@ List<CachedTokensTableData> _twoChapterRows() {
       tokensJson: jsonEncode([for (final t in ch1) t.toJson()]),
       wordCount: ch1.length,
       paragraphCount: 1,
+    ),
+  ];
+}
+
+/// One chapter with [count] words — enough room for the ereader-session
+/// tests to seek forward by realistic scroll-page deltas.
+List<CachedTokensTableData> _manyWordRows(int count) {
+  final tokens = [
+    for (var i = 0; i < count; i++)
+      _token(
+        text: 'w$i',
+        globalIndex: i,
+        chapterIndex: 0,
+        paragraphIndex: i ~/ 20,
+        isChapterStart: i == 0,
+      ),
+  ];
+  return [
+    CachedTokensTableData(
+      id: 1,
+      bookId: 'book-1',
+      chapterIndex: 0,
+      chapterTitle: 'Chapter 0',
+      tokensJson: jsonEncode([for (final t in tokens) t.toJson()]),
+      wordCount: tokens.length,
+      paragraphCount: (count + 19) ~/ 20,
     ),
   ];
 }
@@ -516,6 +543,29 @@ void main() {
         expect(engine.state.currentWord?.text, 'zeta');
       });
 
+      test('clamps out-of-range progress (synced from another device) '
+          'instead of crashing into an eternal isLoading', () async {
+        final mocks = _wireMocks(
+          chapterRows: _twoChapterRows(),
+          savedProgress: ReadingProgressTableData(
+            bookId: 'book-1',
+            // Índices válidos na tokenização do outro device, não na local.
+            chapterIndex: 7,
+            wordIndex: 99,
+            wpm: 300,
+            updatedAt: DateTime.fromMillisecondsSinceEpoch(0),
+          ),
+        );
+        final container = _container(mocks);
+
+        final engine = await _bootEngine(container, _FakeTickerProvider());
+
+        expect(engine.state.isLoading, isFalse);
+        expect(engine.state.currentChapterIndex, 1);
+        expect(engine.state.currentWordIndex, 2);
+        expect(engine.state.currentWord?.text, 'zeta');
+      });
+
       test('restores ereader mode from saved progress', () async {
         final mocks = _wireMocks(
           chapterRows: _twoChapterRows(),
@@ -707,17 +757,73 @@ void main() {
         expect(engine.state.mode, ReaderMode.scroll);
       });
 
-      test('toggleEreaderMode flips between ereader and scroll', () async {
-        final mocks = _wireMocks(chapterRows: _twoChapterRows());
-        final container = _container(mocks);
+    });
 
+    group('ereader sessions', () {
+      test('scroll-driven reading in ereader mode logs a manual session',
+          () async {
+        final mocks = _wireMocks(chapterRows: _manyWordRows(700));
+        final container = _container(mocks);
         final engine = await _bootEngine(container, _FakeTickerProvider());
 
-        engine.toggleEreaderMode();
-        expect(engine.state.mode, ReaderMode.ereader);
+        engine.enterEreaderMode();
+        // Scroll-position syncs: small forward deltas = reading.
+        engine.seekToWord(10);
+        engine.seekToWord(22);
+        // Session must clear the 3s minimum-duration threshold (real clock).
+        await Future<void>.delayed(const Duration(milliseconds: 3100));
+        engine.seekToWord(30);
+        engine.exitEreaderMode();
 
-        engine.toggleEreaderMode();
-        expect(engine.state.mode, ReaderMode.scroll);
+        final captured = verify(() => mocks.sessions.insertSession(captureAny()))
+            .captured
+            .single as ReadingSessionTableCompanion;
+        expect(captured.wordsRead.value, 30);
+        expect(captured.startWordIndex.value, 0);
+        expect(captured.endWordIndex.value, 30);
+        expect(captured.avgWpm.value, greaterThan(0));
+      });
+
+      test('auto-restored ereader mode opens a session too', () async {
+        final mocks = _wireMocks(
+          chapterRows: _manyWordRows(700),
+          savedProgress: ReadingProgressTableData(
+            bookId: 'book-1',
+            chapterIndex: 0,
+            wordIndex: 5,
+            wpm: 300,
+            updatedAt: DateTime.fromMillisecondsSinceEpoch(0),
+            readerMode: 'ereader',
+          ),
+        );
+        final container = _container(mocks);
+        final engine = await _bootEngine(container, _FakeTickerProvider());
+
+        engine.seekToWord(20);
+        await Future<void>.delayed(const Duration(milliseconds: 3100));
+        engine.seekToWord(28);
+        engine.exitEreaderMode();
+
+        final captured = verify(() => mocks.sessions.insertSession(captureAny()))
+            .captured
+            .single as ReadingSessionTableCompanion;
+        expect(captured.wordsRead.value, 23);
+        expect(captured.startWordIndex.value, 5);
+      });
+
+      test('large forward jumps (navigation) are not credited as reading',
+          () async {
+        final mocks = _wireMocks(chapterRows: _manyWordRows(700));
+        final container = _container(mocks);
+        final engine = await _bootEngine(container, _FakeTickerProvider());
+
+        engine.enterEreaderMode();
+        engine.seekToWord(600); // > _maxManualReadDelta → navigation
+        engine.seekToWord(590); // backward → never subtracts/credits
+        engine.exitEreaderMode();
+
+        // 0 words credited → below the minimum → dropped.
+        verifyNever(() => mocks.sessions.insertSession(any()));
       });
     });
 
@@ -1247,6 +1353,57 @@ void main() {
         verifyNever(() => mocks.progress.upsertProgress(any()));
       });
     });
+
+    group('display settings wiring', () {
+      test('global provider updates reach the engine snapshot, preserving wpm',
+          () async {
+        final mocks = _wireMocks(
+          chapterRows: _twoChapterRows(),
+          savedProgress: ReadingProgressTableData(
+            bookId: 'book-1',
+            chapterIndex: 0,
+            wordIndex: 0,
+            wpm: 420,
+            updatedAt: DateTime.fromMillisecondsSinceEpoch(0),
+          ),
+        );
+        final container = _container(mocks);
+        final engine = await _bootEngine(container, _FakeTickerProvider());
+
+        await container.read(displaySettingsProvider.notifier).update(
+              (s) => s.copyWith(ttsEngineId: 'engine.x', ttsVoiceName: null),
+            );
+        await _pumpMicrotasks();
+
+        expect(engine.state.displaySettings.ttsEngineId, 'engine.x');
+        // The mirror must not clobber the per-book WPM restored from
+        // reading progress with the global provider's value.
+        expect(engine.state.displaySettings.wpm, 420);
+      });
+
+      test('engine picked mid-session is applied to the backend on next play',
+          () async {
+        final tts = _StubTtsBackend();
+        final mocks = _wireMocks(chapterRows: _twoChapterRows());
+        final container = _ttsContainer(mocks, tts);
+        final engine = await _bootEngine(container, _FakeTickerProvider());
+
+        await engine.enterTtsMode();
+        await _pumpMicrotasks();
+
+        // Simulates the engine picker sheet: it writes only to the global
+        // provider (it has no bookId to reach the engine notifier).
+        await container.read(displaySettingsProvider.notifier).update(
+              (s) => s.copyWith(ttsEngineId: 'engine.x', ttsVoiceName: null),
+            );
+        await _pumpMicrotasks();
+
+        engine.play();
+        await _pumpMicrotasks();
+
+        expect(tts.engineId, 'engine.x');
+      });
+    });
   });
 }
 
@@ -1265,14 +1422,9 @@ class _StubTtsBackend implements TtsBackend {
   double? pitch;
   String? engineId;
 
-  @override
-  bool get canPipeline => true;
-
   TtsProgressHandler? _onProgress;
   VoidCallback? _onCompletion;
   void Function(String)? _onError;
-  // _onStart is set by the engine but the stubbed backend never fires it;
-  // we accept the setter to keep the interface honest.
 
   void emitProgress(int offset, int end, String word) =>
       _onProgress?.call(offset, end, word);
@@ -1286,9 +1438,6 @@ class _StubTtsBackend implements TtsBackend {
 
   @override
   Future<List<TtsVoice>> getVoices() async => const [];
-
-  @override
-  Future<List<String>> getLanguages() async => const [];
 
   @override
   Future<List<TtsEngine>> getEngines() async => const [];
@@ -1343,11 +1492,6 @@ class _StubTtsBackend implements TtsBackend {
 
   @override
   set onError(void Function(String error)? cb) => _onError = cb;
-
-  @override
-  set onStart(VoidCallback? cb) {
-    // Not used in these tests; the stub never fires the start hook.
-  }
 }
 
 /// Yields enough microtasks so chained awaits inside the engine + player

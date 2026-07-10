@@ -97,6 +97,13 @@ class FakeSsipServer {
     }
   }
 
+  /// Drops the current client connection (simulates a daemon restart —
+  /// the server socket keeps listening for the reconnect).
+  void dropClient() {
+    _client?.destroy();
+    _client = null;
+  }
+
   void _reply(String line) => _client!.add(utf8.encode('$line\r\n'));
 
   int countOf(String line) => received.where((l) => l == line).length;
@@ -120,10 +127,6 @@ void main() {
   tearDown(() async {
     await backend.dispose(); // safe when never initialised
     await server.close();
-  });
-
-  test('canPipeline is true (TtsPlayer relies on this for lookahead)', () {
-    expect(backend.canPipeline, isTrue);
   });
 
   test('escapeForSpeak dot-stuffs lines consisting of a single "."', () {
@@ -229,6 +232,29 @@ void main() {
       expect(server.countOf('SET SELF RATE 50'), 1);
     });
 
+    test('re-applies settings on a fresh connection after the socket drops',
+        () async {
+      await backend.init();
+      await backend.setLanguage('pt-BR');
+      await backend.setVoice(const TtsVoice(name: 'pt-voice', locale: 'pt'));
+      await backend.speak('Hello');
+      expect(server.countOf('SET SELF LANGUAGE pt-BR'), 1);
+      expect(server.countOf('SET SELF SYNTHESIS_VOICE pt-voice'), 1);
+
+      // Daemon restart: connection drops; the backend must notice (onDone)
+      // and the next speak must reconnect AND re-apply every setting — the
+      // new daemon connection starts from defaults.
+      server.dropClient();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      await backend.speak('World');
+      expect(server.countOf('SET SELF LANGUAGE pt-BR'), 2,
+          reason: 'a reconnect must not trust the stale applied-snapshot — '
+              'the daemon side reset to defaults');
+      expect(server.countOf('SET SELF SYNTHESIS_VOICE pt-voice'), 2);
+      expect(server.countOf('SPEAK'), 2);
+    });
+
     test('add mode does not CANCEL the in-flight utterance', () async {
       await backend.init();
       await backend.speak('one two three', mode: TtsQueueMode.add);
@@ -246,16 +272,10 @@ void main() {
   });
 
   group('SSIP events', () {
-    test('701 BEGIN fires onStart once; 702 END fires completion + '
-        'flushes progress to the last word', () async {
-      var startCount = 0;
-      final started = Completer<void>();
+    test('702 END fires completion and flushes progress to the last word',
+        () async {
       final completed = Completer<void>();
       final progressOffsets = <int>[];
-      backend.onStart = () {
-        startCount++;
-        if (!started.isCompleted) started.complete();
-      };
       backend.onCompletion = () {
         if (!completed.isCompleted) completed.complete();
       };
@@ -266,13 +286,9 @@ void main() {
       // Real daemons send event metadata lines (`-` separator) before the
       // terminal label line — only the terminal line may trigger handlers.
       server.sendEvent(['701-42', '701-1', '701 BEGIN']);
-      await started.future.timeout(const Duration(seconds: 5));
-
       server.sendEvent(['702-42', '702-1', '702 END']);
       await completed.future.timeout(const Duration(seconds: 5));
 
-      expect(startCount, 1,
-          reason: 'metadata 701- lines must not re-trigger onStart');
       // END flushes the remaining word callbacks up to the last offset.
       expect(progressOffsets, contains(6));
     });
