@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ledor/features/library_sync/domain/entities/sync_library.dart';
 
@@ -142,82 +144,19 @@ void main() {
     });
   });
 
-  group('mergeLibraries', () {
-    test('union of books by id', () {
-      final a = SyncLibrary(
-        updatedAt: _t(0),
-        updatedBy: 'devA',
-        books: [
-          _book(id: 'b1', updatedAtSec: 0),
-          _book(id: 'b2', updatedAtSec: 0),
-        ],
-      );
-      final b = SyncLibrary(
-        updatedAt: _t(100),
-        updatedBy: 'devB',
-        books: [
-          _book(id: 'b2', updatedAtSec: 100),
-          _book(id: 'b3', updatedAtSec: 100),
-        ],
-      );
-      final merged = mergeLibraries(a, b, 'devMerger');
-      expect(merged.books.map((x) => x.id), ['b1', 'b2', 'b3']);
-      expect(merged.updatedBy, 'devMerger');
-    });
-
-    test('settings: newer updatedAt wins', () {
-      final a = SyncLibrary(
-        updatedAt: _t(0),
-        updatedBy: 'devA',
-        settings: SyncLibrarySettings(
-          values: {'wpm': 250},
-          updatedAt: _t(0),
-        ),
-        books: const [],
-      );
-      final b = SyncLibrary(
-        updatedAt: _t(100),
-        updatedBy: 'devB',
-        settings: SyncLibrarySettings(
-          values: {'wpm': 400},
-          updatedAt: _t(100),
-        ),
-        books: const [],
-      );
-      final merged = mergeLibraries(a, b, 'd');
-      expect(merged.settings!.values['wpm'], 400);
-    });
-
-    test('settings: preserves the only non-null side', () {
-      final a = SyncLibrary(
-        updatedAt: _t(0),
-        updatedBy: 'devA',
-        settings: SyncLibrarySettings(
-          values: {'wpm': 250},
-          updatedAt: _t(0),
-        ),
-        books: const [],
-      );
-      final b = SyncLibrary(
-        updatedAt: _t(100),
-        updatedBy: 'devB',
-        books: const [],
-      );
-      final merged = mergeLibraries(a, b, 'd');
-      expect(merged.settings!.values['wpm'], 250);
-    });
-  });
-
-  group('JSON roundtrip', () {
-    test('library serializes and deserializes', () {
-      final original = SyncLibrary(
-        updatedAt: _t(100),
-        updatedBy: 'dev-1',
-        settings: SyncLibrarySettings(
-          values: {'wpm': 350, 'font': 'Inter'},
-          updatedAt: _t(90),
-        ),
-        books: [
+  group('legacy monolith decode', () {
+    test('decodes a legacy library.json payload', () {
+      // The app only ever DECODES the legacy monolith (one-shot migration),
+      // so the fixture is a raw JSON map — there is no production encoder.
+      final raw = jsonEncode({
+        'schemaVersion': 1,
+        'updatedAt': _t(100).toIso8601String(),
+        'updatedBy': 'dev-1',
+        'settings': {
+          'values': {'wpm': 350, 'font': 'Inter'},
+          'updatedAt': _t(90).toIso8601String(),
+        },
+        'books': [
           _book(
             id: 'b1',
             title: 'Hello',
@@ -226,23 +165,19 @@ void main() {
             hasEpubFile: true,
             syncFileName: 'hello.epub',
             updatedAtSec: 100,
-          ),
-          _book(
-            id: 'b2',
-            deletedAt: _t(90),
-            updatedAtSec: 95,
-          ),
+          ).toJson(),
+          _book(id: 'b2', deletedAt: _t(90), updatedAtSec: 95).toJson(),
         ],
-      );
-      final roundtripped = SyncLibrary.decode(original.encode());
-      expect(roundtripped.books.length, 2);
-      expect(roundtripped.books[0].id, 'b1');
-      expect(roundtripped.books[0].progress!.wordIndex, 42);
-      expect(roundtripped.books[0].hasEpubFile, isTrue);
-      expect(roundtripped.books[0].syncFileName, 'hello.epub');
-      expect(roundtripped.books[1].deletedAt, _t(90));
-      expect(roundtripped.settings!.values['wpm'], 350);
-      expect(roundtripped.updatedBy, 'dev-1');
+      });
+      final decoded = SyncLibrary.decode(raw);
+      expect(decoded.books.length, 2);
+      expect(decoded.books[0].id, 'b1');
+      expect(decoded.books[0].progress!.wordIndex, 42);
+      expect(decoded.books[0].hasEpubFile, isTrue);
+      expect(decoded.books[0].syncFileName, 'hello.epub');
+      expect(decoded.books[1].deletedAt, _t(90));
+      expect(decoded.settings!.values['wpm'], 350);
+      expect(decoded.updatedBy, 'dev-1');
     });
   });
 

@@ -4,6 +4,7 @@ import 'package:ledor/features/epub_import/domain/entities/chapter.dart';
 import 'package:ledor/features/epub_import/domain/entities/word_token.dart';
 import 'package:ledor/features/rsvp_reader/data/services/tts_backend.dart';
 import 'package:ledor/features/rsvp_reader/data/services/tts_player.dart';
+import 'package:ledor/features/rsvp_reader/domain/entities/display_settings.dart';
 
 WordToken _token(String text, int globalIdx) => WordToken(
       text: text,
@@ -24,20 +25,15 @@ Chapter _chapter(String title, List<String> words, int startGlobal) =>
     );
 
 class _RecorderBackend implements TtsBackend {
-  bool canPipelineValue;
   final List<String> speakTexts = [];
   final List<TtsQueueMode> speakModes = [];
   int setRateCount = 0;
   int setLanguageCount = 0;
+  int setEngineCount = 0;
   bool stopCalled = false;
 
   TtsProgressHandler? _onProgress;
   VoidCallback? _onCompletion;
-
-  _RecorderBackend({this.canPipelineValue = true});
-
-  @override
-  bool get canPipeline => canPipelineValue;
 
   void emitProgress(int offset, int end, String word) =>
       _onProgress?.call(offset, end, word);
@@ -50,13 +46,12 @@ class _RecorderBackend implements TtsBackend {
   Future<List<TtsVoice>> getVoices() async => const [];
 
   @override
-  Future<List<String>> getLanguages() async => const [];
-
-  @override
   Future<List<TtsEngine>> getEngines() async => const [];
 
   @override
-  Future<void> setEngine(String id) async {}
+  Future<void> setEngine(String id) async {
+    setEngineCount++;
+  }
 
   @override
   Future<void> setVoice(TtsVoice? v) async {}
@@ -95,12 +90,10 @@ class _RecorderBackend implements TtsBackend {
   set onProgress(TtsProgressHandler? cb) => _onProgress = cb;
   @override
   set onCompletion(VoidCallback? cb) => _onCompletion = cb;
-  // These tests never emit errors or "start" events; we accept the
-  // setters to satisfy the TtsBackend contract.
+  // These tests never emit errors; we accept the setter to satisfy the
+  // TtsBackend contract.
   @override
   set onError(void Function(String)? cb) {}
-  @override
-  set onStart(VoidCallback? cb) {}
 }
 
 Future<void> _pump([int n = 30]) async {
@@ -110,9 +103,9 @@ Future<void> _pump([int n = 30]) async {
 }
 
 void main() {
-  group('TtsPlayer lookahead respects backend.canPipeline', () {
-    test('canPipeline=true → enqueues 2 segments (flush + add)', () async {
-      final backend = _RecorderBackend(canPipelineValue: true);
+  group('TtsPlayer lookahead', () {
+    test('pre-queues 2 segments (flush + add)', () async {
+      final backend = _RecorderBackend();
       final player = TtsPlayer(backend);
       await player.init();
       player.setContent(
@@ -129,27 +122,6 @@ void main() {
       expect(backend.speakTexts, hasLength(2));
       expect(backend.speakModes, [TtsQueueMode.flush, TtsQueueMode.add]);
     });
-
-    test('canPipeline=false → enqueues only 1 segment (flush)', () async {
-      final backend = _RecorderBackend(canPipelineValue: false);
-      final player = TtsPlayer(backend);
-      await player.init();
-      player.setContent(
-        [
-          _chapter('one', ['alpha'], 0),
-          _chapter('two', ['beta'], 1),
-        ],
-        2,
-      );
-
-      await player.play(fromGlobalIndex: 0);
-      await _pump();
-
-      // Sequential backends would have the new speak() cancel the
-      // previous one — the player must not pre-queue.
-      expect(backend.speakTexts, hasLength(1));
-      expect(backend.speakModes, [TtsQueueMode.flush]);
-    });
   });
 
   group('TtsPlayer settings dedup', () {
@@ -158,7 +130,7 @@ void main() {
       final player = TtsPlayer(backend);
       await player.init();
       // Push initial settings — sets rate once.
-      player.setSettings(const TtsPlayerSettings(rate: 1.0));
+      player.setSettings(const DisplaySettings(ttsRate: 1.0));
       await player.applySettings();
       final after1 = backend.setRateCount;
 
@@ -176,20 +148,40 @@ void main() {
       final player = TtsPlayer(backend);
       await player.init();
 
-      player.setSettings(const TtsPlayerSettings(language: 'en-US'));
+      player.setSettings(const DisplaySettings(ttsLanguage: 'en-US'));
       await player.applySettings();
       final lang1 = backend.setLanguageCount;
 
       // Same snapshot a second time — backend shouldn't see another
       // setLanguage call.
-      player.setSettings(const TtsPlayerSettings(language: 'en-US'));
+      player.setSettings(const DisplaySettings(ttsLanguage: 'en-US'));
       await player.applySettings();
       expect(backend.setLanguageCount, lang1);
 
       // Genuine change → one call.
-      player.setSettings(const TtsPlayerSettings(language: 'pt-BR'));
+      player.setSettings(const DisplaySettings(ttsLanguage: 'pt-BR'));
       await player.applySettings();
       expect(backend.setLanguageCount, lang1 + 1);
+    });
+
+    test('engine change re-pushes voice/language/pitch/rate', () async {
+      final backend = _RecorderBackend();
+      final player = TtsPlayer(backend);
+      await player.init();
+
+      player.setSettings(const DisplaySettings(ttsEngineId: 'engine.a'));
+      await player.applySettings();
+      final lang1 = backend.setLanguageCount;
+      final rate1 = backend.setRateCount;
+      expect(backend.setEngineCount, 1);
+
+      // Switching engines resets the platform client to its defaults, so
+      // the unchanged language/rate must be re-applied anyway.
+      player.setSettings(const DisplaySettings(ttsEngineId: 'engine.b'));
+      await player.applySettings();
+      expect(backend.setEngineCount, 2);
+      expect(backend.setLanguageCount, lang1 + 1);
+      expect(backend.setRateCount, rate1 + 1);
     });
   });
 
@@ -208,7 +200,13 @@ void main() {
       await _pump();
 
       expect(finished, isTrue);
-      expect(player.isPlaying, isFalse);
+
+      // Player must have stopped: a late completion is a no-op (the internal
+      // isPlaying flag guards it), so onBookFinished doesn't fire again.
+      finished = false;
+      backend.emitCompletion();
+      await _pump();
+      expect(finished, isFalse);
     });
   });
 

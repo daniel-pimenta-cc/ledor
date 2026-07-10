@@ -22,7 +22,6 @@ dependencies:
 
   # State management
   flutter_riverpod: ^2.6.1
-  riverpod_annotation: ^2.6.1
 
   # Routing
   go_router: ^14.8.1
@@ -63,7 +62,7 @@ dependencies:
 
   # Text-to-speech (mobile/desktop/web). Linux desktop is unsupported by
   # this package; the reader falls back to a custom speech-dispatcher socket
-  # backend (with spd-say as a last-resort fallback).
+  # backend (which autospawns the daemon when the socket is absent).
   flutter_tts: ^4.2.5
 
   # Background TTS playback: foreground service on Android, AVAudioSession
@@ -74,10 +73,6 @@ dependencies:
 
   # Scroll
   scrollable_positioned_list: ^0.3.8
-
-  # Data classes
-  freezed_annotation: ^3.0.0
-  json_annotation: ^4.9.0
 
   # Image processing (transitive dep of epub_pro, needed for cover encoding)
   image: ^4.8.0
@@ -98,14 +93,10 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   build_runner: ^2.4.15
   drift_dev: ^2.24.0
-  freezed: ^3.0.0
-  json_serializable: ^6.9.4
   mocktail: ^1.0.4
   shared_preferences_platform_interface: ^2.4.1
   path_provider_platform_interface: ^2.1.2
   archive: ^4.0.7
-  integration_test:
-    sdk: flutter
   flutter_launcher_icons: ^0.14.3
   flutter_native_splash: ^2.4.6
 

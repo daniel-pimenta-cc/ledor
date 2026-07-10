@@ -38,16 +38,6 @@ void main() {
   final day2 = DateTime(2026, 7, 2, 10);
   final day3 = DateTime(2026, 7, 3, 10);
 
-  test('getSessionsInRange is inclusive on from, exclusive on to', () async {
-    final dao = db.readingSessionDao;
-    await dao.insertSession(session(id: 's1', bookId: 'b', startedAt: day1));
-    await dao.insertSession(session(id: 's2', bookId: 'b', startedAt: day2));
-    await dao.insertSession(session(id: 's3', bookId: 'b', startedAt: day3));
-
-    final rows = await dao.getSessionsInRange(day1, day3);
-    expect(rows.map((r) => r.id), ['s1', 's2']);
-  });
-
   test('aggregateByBookInRange groups sums per book', () async {
     final dao = db.readingSessionDao;
     await dao.insertSession(session(
@@ -97,17 +87,6 @@ void main() {
     await dao.insertSession(session(id: 's2', bookId: 'b', startedAt: day2));
 
     expect(await dao.existingSessionIds(), {'s1', 's2'});
-  });
-
-  test('deleteSessionsForBook only touches that book', () async {
-    final dao = db.readingSessionDao;
-    await dao.insertSession(session(id: 's1', bookId: 'a', startedAt: day1));
-    await dao.insertSession(session(id: 's2', bookId: 'b', startedAt: day2));
-
-    await dao.deleteSessionsForBook('a');
-
-    expect(await dao.getAllSessionsForBook('a'), isEmpty);
-    expect((await dao.getAllSessions()).map((r) => r.id), ['s2']);
   });
 
   test('watchSessionsInRange emits ordered by startedAt', () async {

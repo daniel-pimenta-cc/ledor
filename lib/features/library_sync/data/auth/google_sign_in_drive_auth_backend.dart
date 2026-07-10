@@ -1,19 +1,10 @@
-import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:googleapis/drive/v3.dart' as drive;
 import 'package:googleapis_auth/auth_io.dart' as ga;
 import 'package:http/http.dart' as http;
 
 import 'drive_auth_backend.dart';
-
-const _clientIdKey = 'RSVP_OAUTH_CLIENT_ID';
-const _clientSecretKey = 'RSVP_OAUTH_CLIENT_SECRET';
-
-String _envOrEmpty(String key) => dotenv.maybeGet(key) ?? '';
 
 /// Mobile (Android/iOS) backend. Pairs the native Google account picker
 /// with a [serverClientId] pointing at the same Web Application OAuth
@@ -27,35 +18,20 @@ String _envOrEmpty(String key) => dotenv.maybeGet(key) ?? '';
 /// "RSVP Reader" folders even though they're on the same Google account.
 /// Pinning Android to the web client_id via [serverClientId] makes both
 /// devices see the same set of app-created files.
-class GoogleSignInDriveAuthBackend implements DriveAuthBackend {
-  static const _credsKey = 'drive_auth.credentials';
-  static const _emailKey = 'drive_auth.email';
-  static const _scopes = <String>[
-    drive.DriveApi.driveFileScope,
-    'https://www.googleapis.com/auth/userinfo.email',
-  ];
-
-  final String _clientId;
-  final String _clientSecret;
-  final FlutterSecureStorage _storage;
+class GoogleSignInDriveAuthBackend extends DriveAuthBackend {
   late final GoogleSignIn _google;
 
-  ga.AutoRefreshingAuthClient? _client;
-  StreamSubscription<ga.AccessCredentials>? _credsSub;
-
   GoogleSignInDriveAuthBackend({
-    String? clientId,
-    String? clientSecret,
-    FlutterSecureStorage? storage,
-  })  : _clientId = clientId ?? _envOrEmpty(_clientIdKey),
-        _clientSecret = clientSecret ?? _envOrEmpty(_clientSecretKey),
-        _storage = storage ?? const FlutterSecureStorage() {
+    super.clientId,
+    super.clientSecret,
+    super.storage,
+  }) {
     _google = GoogleSignIn(
-      scopes: _scopes,
+      scopes: DriveAuthBackend.scopes,
       // serverClientId switches the issuer of the requested authorization
       // code to the Web client_id; without it, tokens are minted for the
       // Android client and Drive treats this device as a different app.
-      serverClientId: _clientId.isNotEmpty ? _clientId : null,
+      serverClientId: clientId.isNotEmpty ? clientId : null,
       // Force a fresh, offline-exchangeable serverAuthCode on every
       // interactive sign-in. Without it Android can return a code that's
       // only good for an access token — or a cached, already-consumed one —
@@ -65,27 +41,20 @@ class GoogleSignInDriveAuthBackend implements DriveAuthBackend {
     );
   }
 
-  ga.ClientId get _clientIdObj => ga.ClientId(_clientId, _clientSecret);
-
-  bool get _hasCredentials =>
-      _clientId.isNotEmpty && _clientSecret.isNotEmpty;
-
   @override
-  Future<DriveSignInResult?> trySilentSignIn() async {
-    if (!_hasCredentials) return null;
+  Future<String?> trySilentSignIn() async {
+    if (!hasCredentials) return null;
     // Restore from the previously-stored refresh token first — avoids
     // bouncing through google_sign_in on every cold start.
-    final stored = await _storage.read(key: _credsKey);
-    final email = await _storage.read(key: _emailKey);
-    if (stored != null && email != null) {
+    final stored = await loadStoredSession();
+    if (stored != null) {
       try {
         final creds = ga.AccessCredentials.fromJson(
-          jsonDecode(stored) as Map<String, dynamic>,
+          jsonDecode(stored.creds) as Map<String, dynamic>,
         );
-        final client =
-            ga.autoRefreshingClient(_clientIdObj, creds, http.Client());
-        _attachClient(client);
-        return DriveSignInResult(email);
+        attachClient(
+            ga.autoRefreshingClient(clientIdObj, creds, http.Client()));
+        return stored.email;
       } catch (_) {
         // Stored credentials corrupt/revoked — clear and fall through.
         await signOut();
@@ -105,8 +74,8 @@ class GoogleSignInDriveAuthBackend implements DriveAuthBackend {
   }
 
   @override
-  Future<DriveSignInResult?> signIn() async {
-    if (!_hasCredentials) {
+  Future<String?> signIn() async {
+    if (!hasCredentials) {
       throw StateError(
         'OAuth credentials not configured. Copy .env.example to .env and '
         'fill in RSVP_OAUTH_CLIENT_ID (must be a "Web Application" OAuth '
@@ -129,8 +98,7 @@ class GoogleSignInDriveAuthBackend implements DriveAuthBackend {
 
   /// Trades the server auth code for an access+refresh token pair that
   /// belongs to the Web client.
-  Future<DriveSignInResult?> _exchangeAndStore(
-      GoogleSignInAccount account) async {
+  Future<String?> _exchangeAndStore(GoogleSignInAccount account) async {
     final code = account.serverAuthCode;
     if (code == null) {
       throw StateError(
@@ -144,8 +112,8 @@ class GoogleSignInDriveAuthBackend implements DriveAuthBackend {
       Uri.parse('https://oauth2.googleapis.com/token'),
       body: {
         'code': code,
-        'client_id': _clientId,
-        'client_secret': _clientSecret,
+        'client_id': clientId,
+        'client_secret': clientSecret,
         // Empty redirect_uri tells Google to use the "installed app" semantics
         // that match what serverAuthCode was issued for.
         'redirect_uri': '',
@@ -171,44 +139,18 @@ class GoogleSignInDriveAuthBackend implements DriveAuthBackend {
         DateTime.now().toUtc().add(Duration(seconds: expiresIn)),
       ),
       refreshToken,
-      _scopes,
+      DriveAuthBackend.scopes,
     );
-    final client =
-        ga.autoRefreshingClient(_clientIdObj, creds, http.Client());
-    _attachClient(client);
-    await _persistCredentials(creds);
-    await _storage.write(key: _emailKey, value: account.email);
-    return DriveSignInResult(account.email);
+    attachClient(ga.autoRefreshingClient(clientIdObj, creds, http.Client()));
+    await persistSession(creds, account.email);
+    return account.email;
   }
 
   @override
   Future<void> signOut() async {
-    await _credsSub?.cancel();
-    _credsSub = null;
-    _client?.close();
-    _client = null;
-    await _storage.delete(key: _credsKey);
-    await _storage.delete(key: _emailKey);
+    await super.signOut();
     try {
       await _google.signOut();
     } catch (_) {/* best-effort */}
-  }
-
-  @override
-  Future<ga.AuthClient?> authenticatedClient() async => _client;
-
-  void _attachClient(ga.AutoRefreshingAuthClient client) {
-    _credsSub?.cancel();
-    _client?.close();
-    _client = client;
-    _credsSub = client.credentialUpdates
-        .listen(_persistCredentials, onError: (_) {});
-  }
-
-  Future<void> _persistCredentials(ga.AccessCredentials creds) {
-    return _storage.write(
-      key: _credsKey,
-      value: jsonEncode(creds.toJson()),
-    );
   }
 }

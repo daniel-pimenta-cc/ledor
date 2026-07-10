@@ -130,7 +130,6 @@ void main() {
       // and progressFraction is 0 (can't know total).
       expect(recap.reading.single.title, '—');
       expect(recap.reading.single.progressFraction, 0);
-      expect(recap.reading.single.isFinished, isFalse);
     });
   });
 

@@ -1,15 +1,14 @@
-// Shared helpers between the two Linux TTS backends
-// ([SpeechdSocketBackend] over the SSIP socket and the legacy
-// [SpeechDispatcherBackend] over the `spd-say` CLI). Keeping them in one
-// file means changing the module-name mapping or the word-boundary
-// tokeniser only happens once.
+// Helpers for the Linux TTS backend ([SpeechdSocketBackend] over the SSIP
+// socket): the output-module → display-name mapping and the word-boundary
+// tokeniser. Kept in their own file so the backend stays focused on the
+// SSIP wire protocol.
 
 import 'tts_backend.dart';
 
-/// Word-boundary char offsets used by both Linux backends to emit
-/// approximate progress callbacks at a wall-clock cadence (neither
-/// `spd-say` nor a bare SSIP `SPEAK` exposes real per-word callbacks
-/// without SSML index marks, which most output modules don't implement).
+/// Word-boundary char offsets used by the Linux backend to emit approximate
+/// progress callbacks at a wall-clock cadence (a bare SSIP `SPEAK` doesn't
+/// expose real per-word callbacks without SSML index marks, which most
+/// output modules don't implement).
 ///
 /// Returns the starting char offset of each whitespace-delimited word
 /// in [text]. Multiple-space runs collapse into a single boundary;

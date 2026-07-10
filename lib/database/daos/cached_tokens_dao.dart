@@ -84,7 +84,7 @@ class CachedTokensDao extends DatabaseAccessor<AppDatabase>
     final rows = await query.get();
     return [
       for (final r in rows)
-        ChapterWordCount(
+        (
           bookId: r.read(cachedTokensTable.bookId)!,
           chapterIndex: r.read(cachedTokensTable.chapterIndex)!,
           wordCount: r.read(cachedTokensTable.wordCount)!,
@@ -93,14 +93,4 @@ class CachedTokensDao extends DatabaseAccessor<AppDatabase>
   }
 }
 
-class ChapterWordCount {
-  final String bookId;
-  final int chapterIndex;
-  final int wordCount;
-
-  const ChapterWordCount({
-    required this.bookId,
-    required this.chapterIndex,
-    required this.wordCount,
-  });
-}
+typedef ChapterWordCount = ({String bookId, int chapterIndex, int wordCount});

@@ -106,21 +106,11 @@ DisplaySettings displaySettingsFromMap(Map<String, dynamic> m) {
   );
 }
 
-OrpIndicatorStyle? _orpIndicatorFromName(String? raw) {
-  if (raw == null) return null;
-  for (final s in OrpIndicatorStyle.values) {
-    if (s.name == raw) return s;
-  }
-  return null;
-}
+OrpIndicatorStyle? _orpIndicatorFromName(String? raw) =>
+    OrpIndicatorStyle.values.asNameMap()[raw];
 
-TimeRemainingMode? _timeRemainingModeFromName(String? raw) {
-  if (raw == null) return null;
-  for (final m in TimeRemainingMode.values) {
-    if (m.name == raw) return m;
-  }
-  return null;
-}
+TimeRemainingMode? _timeRemainingModeFromName(String? raw) =>
+    TimeRemainingMode.values.asNameMap()[raw];
 
 /// Called after pull to apply the synced DisplaySettings (the provider layer
 /// writes the fields back to SharedPreferences by re-saving through the
@@ -259,7 +249,7 @@ class LibrarySyncService {
 
     // 7. Apply remote → local where remote won.
     await _applyShardsToLocal(
-      merged: _MergedShards(
+      merged: _Shards(
         books: mergedBooks,
         settings: mergedSettings,
         sessions: mergedSessions,
@@ -278,7 +268,8 @@ class LibrarySyncService {
       } catch (_) {/* best-effort; next sync will retry */}
     }
     final pushes = <Future<void>>[];
-    if (!_booksShardEquals(mergedBooks, remoteShards.books)) {
+    if (!_rowsEqual<SyncLibraryBook>(mergedBooks.books,
+        remoteShards.books.books, (b) => b.id, (b) => b.toJson())) {
       pushes.add(
           _gateway.writeText(folder, _kBooksShardFile, mergedBooks.encode()));
     }
@@ -286,11 +277,13 @@ class LibrarySyncService {
       pushes.add(_gateway.writeText(
           folder, _kSettingsShardFile, mergedSettings.encode()));
     }
-    if (!_sessionsShardEquals(mergedSessions, remoteShards.sessions)) {
+    if (!_rowsEqual<SyncReadingSession>(mergedSessions.sessions,
+        remoteShards.sessions.sessions, (s) => s.id, (s) => s.toJson())) {
       pushes.add(_gateway.writeText(
           folder, _kSessionsShardFile, mergedSessions.encode()));
     }
-    if (!_bookmarksShardEquals(mergedBookmarks, remoteShards.bookmarks)) {
+    if (!_rowsEqual<SyncLibraryBookmark>(mergedBookmarks.bookmarks,
+        remoteShards.bookmarks.bookmarks, (b) => b.id, (b) => b.toJson())) {
       pushes.add(_gateway.writeText(
           folder, _kBookmarksShardFile, mergedBookmarks.encode()));
     }
@@ -311,7 +304,7 @@ class LibrarySyncService {
   /// Loads the three shards. Falls back to the legacy `library.json` only
   /// when none of the shards exist remotely (fresh upgrade); otherwise the
   /// legacy file is treated as already-migrated and ignored.
-  Future<_RemoteShards> _loadRemoteShards({
+  Future<_Shards> _loadRemoteShards({
     required Future<String?> booksShardF,
     required Future<String?> settingsShardF,
     required Future<String?> sessionsShardF,
@@ -333,7 +326,7 @@ class LibrarySyncService {
 
     if (!anyShardPresent && legacyPresent) {
       final legacy = SyncLibrary.decode(legacyRaw);
-      return _RemoteShards(
+      return _Shards(
         books: SyncBooksShard(
           updatedAt: legacy.updatedAt,
           updatedBy: legacy.updatedBy,
@@ -350,7 +343,7 @@ class LibrarySyncService {
       );
     }
 
-    return _RemoteShards(
+    return _Shards(
       books: booksRaw == null || booksRaw.trim().isEmpty
           ? SyncBooksShard.empty(deviceId)
           : SyncBooksShard.decode(booksRaw),
@@ -389,7 +382,7 @@ class LibrarySyncService {
     );
   }
 
-  Future<_LocalShards> _buildLocalShards({
+  Future<_Shards> _buildLocalShards({
     required SyncConfig config,
     required DisplaySettings localSettings,
     required DateTime localSettingsUpdatedAt,
@@ -466,7 +459,7 @@ class LibrarySyncService {
         .toList();
 
     final now = DateTime.now().toUtc();
-    return _LocalShards(
+    return _Shards(
       books: SyncBooksShard(
         updatedAt: now,
         updatedBy: config.deviceId,
@@ -494,8 +487,8 @@ class LibrarySyncService {
   }
 
   Future<void> _applyShardsToLocal({
-    required _MergedShards merged,
-    required _LocalShards localBefore,
+    required _Shards merged,
+    required _Shards localBefore,
     required SyncConfig config,
     required ApplySettingsCallback applySettings,
   }) async {
@@ -525,14 +518,7 @@ class LibrarySyncService {
             // tokens. Reader will prompt to re-import locally.
             await _insertPlaceholderBook(book);
             if (book.progress != null) {
-              await _progressDao.upsertProgress(ReadingProgressTableCompanion(
-                bookId: Value(book.id),
-                chapterIndex: Value(book.progress!.chapterIndex),
-                wordIndex: Value(book.progress!.wordIndex),
-                wpm: Value(book.progress!.wpm),
-                updatedAt: Value(book.progress!.updatedAt),
-                readerMode: Value(book.progress!.readerMode),
-              ));
+              await _applyRemoteProgress(book.id, book.progress!);
             }
           }
           continue;
@@ -555,14 +541,7 @@ class LibrarySyncService {
                 remoteProg.chapterIndex != localProg.chapterIndex ||
                 remoteProg.readerMode != localProg.readerMode);
         if (progressDiffers) {
-          await _progressDao.upsertProgress(ReadingProgressTableCompanion(
-            bookId: Value(book.id),
-            chapterIndex: Value(remoteProg.chapterIndex),
-            wordIndex: Value(remoteProg.wordIndex),
-            wpm: Value(remoteProg.wpm),
-            updatedAt: Value(remoteProg.updatedAt),
-            readerMode: Value(remoteProg.readerMode),
-          ));
+          await _applyRemoteProgress(book.id, remoteProg);
         }
         final lastReadDiffers = book.lastReadAt != null &&
             (local.lastReadAt == null ||
@@ -635,7 +614,9 @@ class LibrarySyncService {
           // local DB never knew about — the remote already carries the
           // tombstone, so other peers don't need us to round-trip it.
           if (remote.deletedAt != null) continue;
-          await _bookmarksDao.applyFromSync(BookmarksTableCompanion.insert(
+          // LWW already decided above (no local row) — write the remote row
+          // verbatim.
+          await _bookmarksDao.upsert(BookmarksTableCompanion.insert(
             id: remote.id,
             bookId: remote.bookId,
             globalWordIndex: remote.globalWordIndex,
@@ -654,7 +635,8 @@ class LibrarySyncService {
         // boundaries (Drift writes local-TZ, JSON parses to UTC).
         if (remote.updatedAt.isAtSameMomentAs(local.updatedAt)) continue;
         if (remote.updatedAt.isAfter(local.updatedAt)) {
-          await _bookmarksDao.applyFromSync(BookmarksTableCompanion(
+          // Remote wins the LWW — overwrite the local row verbatim.
+          await _bookmarksDao.upsert(BookmarksTableCompanion(
             id: Value(remote.id),
             bookId: Value(remote.bookId),
             globalWordIndex: Value(remote.globalWordIndex),
@@ -690,6 +672,17 @@ class LibrarySyncService {
         debugPrint('Failed to apply remote settings: $e\n$st');
       }
     }
+  }
+
+  Future<void> _applyRemoteProgress(String bookId, SyncLibraryProgress p) {
+    return _progressDao.upsertProgress(ReadingProgressTableCompanion(
+      bookId: Value(bookId),
+      chapterIndex: Value(p.chapterIndex),
+      wordIndex: Value(p.wordIndex),
+      wpm: Value(p.wpm),
+      updatedAt: Value(p.updatedAt),
+      readerMode: Value(p.readerMode),
+    ));
   }
 
   Future<void> _deleteBookLocally(String bookId) async {
@@ -746,14 +739,7 @@ class LibrarySyncService {
       // placeholder; next sync will fill it in.
       await _insertPlaceholderBook(book);
       if (book.progress != null) {
-        await _progressDao.upsertProgress(ReadingProgressTableCompanion(
-          bookId: Value(book.id),
-          chapterIndex: Value(book.progress!.chapterIndex),
-          wordIndex: Value(book.progress!.wordIndex),
-          wpm: Value(book.progress!.wpm),
-          updatedAt: Value(book.progress!.updatedAt),
-          readerMode: Value(book.progress!.readerMode),
-        ));
+        await _applyRemoteProgress(book.id, book.progress!);
       }
       return;
     }
@@ -792,14 +778,7 @@ class LibrarySyncService {
     );
 
     if (book.progress != null) {
-      await _progressDao.upsertProgress(ReadingProgressTableCompanion(
-        bookId: Value(book.id),
-        chapterIndex: Value(book.progress!.chapterIndex),
-        wordIndex: Value(book.progress!.wordIndex),
-        wpm: Value(book.progress!.wpm),
-        updatedAt: Value(book.progress!.updatedAt),
-        readerMode: Value(book.progress!.readerMode),
-      ));
+      await _applyRemoteProgress(book.id, book.progress!);
     }
   }
 
@@ -955,15 +934,20 @@ class LibrarySyncService {
     );
   }
 
-  /// True when two books shards describe the same book set, ignoring the
-  /// per-sync metadata that flips every run. Skipping the write here saves a
-  /// ~1.5s Drive round-trip when the user didn't touch any book this session.
-  bool _booksShardEquals(SyncBooksShard a, SyncBooksShard b) {
-    if (a.books.length != b.books.length) return false;
-    final aBooks = [...a.books]..sort((x, y) => x.id.compareTo(y.id));
-    final bBooks = [...b.books]..sort((x, y) => x.id.compareTo(y.id));
-    for (int i = 0; i < aBooks.length; i++) {
-      if (jsonEncode(aBooks[i].toJson()) != jsonEncode(bBooks[i].toJson())) {
+  /// True when two shard row lists describe the same set, ignoring order and
+  /// the per-sync metadata that flips every run. Skipping the write when this
+  /// holds saves a ~1.5s Drive round-trip for shards the user didn't touch.
+  bool _rowsEqual<T>(
+    List<T> a,
+    List<T> b,
+    String Function(T) id,
+    Object? Function(T) toJson,
+  ) {
+    if (a.length != b.length) return false;
+    final aSorted = [...a]..sort((x, y) => id(x).compareTo(id(y)));
+    final bSorted = [...b]..sort((x, y) => id(x).compareTo(id(y)));
+    for (int i = 0; i < aSorted.length; i++) {
+      if (jsonEncode(toJson(aSorted[i])) != jsonEncode(toJson(bSorted[i]))) {
         return false;
       }
     }
@@ -973,32 +957,6 @@ class LibrarySyncService {
   bool _settingsShardEquals(SyncSettingsShard a, SyncSettingsShard b) {
     return jsonEncode(a.settings?.toJson()) ==
         jsonEncode(b.settings?.toJson());
-  }
-
-  bool _sessionsShardEquals(SyncSessionsShard a, SyncSessionsShard b) {
-    if (a.sessions.length != b.sessions.length) return false;
-    final aSessions = [...a.sessions]..sort((x, y) => x.id.compareTo(y.id));
-    final bSessions = [...b.sessions]..sort((x, y) => x.id.compareTo(y.id));
-    for (int i = 0; i < aSessions.length; i++) {
-      if (jsonEncode(aSessions[i].toJson()) !=
-          jsonEncode(bSessions[i].toJson())) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  bool _bookmarksShardEquals(SyncBookmarksShard a, SyncBookmarksShard b) {
-    if (a.bookmarks.length != b.bookmarks.length) return false;
-    final aBookmarks = [...a.bookmarks]..sort((x, y) => x.id.compareTo(y.id));
-    final bBookmarks = [...b.bookmarks]..sort((x, y) => x.id.compareTo(y.id));
-    for (int i = 0; i < aBookmarks.length; i++) {
-      if (jsonEncode(aBookmarks[i].toJson()) !=
-          jsonEncode(bBookmarks[i].toJson())) {
-        return false;
-      }
-    }
-    return true;
   }
 
   /// Write a tombstone to the books shard for [bookId] so other devices
@@ -1067,53 +1025,22 @@ class LibrarySyncService {
   }
 }
 
-/// In-memory wrapper for what we read from Drive.
-class _RemoteShards {
+/// In-memory bundle of the four shards. Used for the local snapshot, the
+/// remote read, and the merged result alike. [legacyPresent] is only
+/// meaningful on the remote read — true when `library.json` was still there
+/// and got migrated into [books]/[settings]; local/merged leave it false.
+class _Shards {
   final SyncBooksShard books;
   final SyncSettingsShard settings;
   final SyncSessionsShard sessions;
   final SyncBookmarksShard bookmarks;
-
-  /// True when `library.json` is still present remotely (and was migrated
-  /// into [books]/[settings]). The sync flow deletes the legacy file on
-  /// push so other devices don't see it on the next pull.
   final bool legacyPresent;
 
-  const _RemoteShards({
+  const _Shards({
     required this.books,
     required this.settings,
     required this.sessions,
     required this.bookmarks,
-    required this.legacyPresent,
-  });
-}
-
-/// In-memory wrapper for the snapshot we built off the local DB.
-class _LocalShards {
-  final SyncBooksShard books;
-  final SyncSettingsShard settings;
-  final SyncSessionsShard sessions;
-  final SyncBookmarksShard bookmarks;
-
-  const _LocalShards({
-    required this.books,
-    required this.settings,
-    required this.sessions,
-    required this.bookmarks,
-  });
-}
-
-/// Output of merging local × remote, per shard.
-class _MergedShards {
-  final SyncBooksShard books;
-  final SyncSettingsShard settings;
-  final SyncSessionsShard sessions;
-  final SyncBookmarksShard bookmarks;
-
-  const _MergedShards({
-    required this.books,
-    required this.settings,
-    required this.sessions,
-    required this.bookmarks,
+    this.legacyPresent = false,
   });
 }

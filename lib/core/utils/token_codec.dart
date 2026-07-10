@@ -8,7 +8,7 @@ import '../../features/epub_import/domain/entities/word_token.dart';
 /// (~150 bytes/palavra), grava só o que não é derivável da estrutura:
 ///
 /// ```json
-/// {"v":2,"g":123,"p":[[["palavra",2,1.0], ...], [{"i":"path","w":300,"h":200}]]}
+/// {"v":2,"g":123,"p":[[["palavra",2,1.0], ...], [{"i":"path"}]]}
 /// ```
 ///
 /// - `g`: globalIndex do primeiro token do capítulo (os demais são
@@ -17,8 +17,7 @@ import '../../features/epub_import/domain/entities/word_token.dart';
 ///   `isParagraphStart` = primeiro token do parágrafo, `isChapterStart` =
 ///   primeiro token do capítulo.
 /// - palavra = `[text, orpIndex, timingMultiplier]`; imagem = map
-///   `{"i": path, "w": width, "h": height}` (imagens têm sempre
-///   `text:'', orp:0, mult:1.0`).
+///   `{"i": path}` (imagens têm sempre `text:'', orp:0, mult:1.0`).
 /// - `chapterIndex` vem da própria row de `cached_tokens` no decode.
 ///
 /// Isso reduz o JSON ~8-10x e corta o custo de parse na abertura do livro.
@@ -29,15 +28,7 @@ abstract final class TokenCodec {
   static const _version = 2;
 
   /// True quando [tokensJson] já está no formato compacto v2.
-  static bool isCompact(String tokensJson) {
-    for (var i = 0; i < tokensJson.length; i++) {
-      final c = tokensJson.codeUnitAt(i);
-      // espaço, tab, \n, \r
-      if (c == 0x20 || c == 0x09 || c == 0x0A || c == 0x0D) continue;
-      return c == 0x7B; // '{'
-    }
-    return false;
-  }
+  static bool isCompact(String s) => s.trimLeft().startsWith('{');
 
   static String encode(List<WordToken> tokens) {
     final compact = _tryEncodeCompact(tokens);
@@ -97,8 +88,6 @@ abstract final class TokenCodec {
             isChapterStart: isChapterStart,
             isImage: true,
             imageRelativePath: m['i'] as String?,
-            imageWidth: (m['w'] as num?)?.toInt(),
-            imageHeight: (m['h'] as num?)?.toInt(),
           ));
         }
       }
@@ -136,15 +125,9 @@ abstract final class TokenCodec {
         if (t.text.isNotEmpty || t.orpIndex != 0 || t.timingMultiplier != 1.0) {
           return null;
         }
-        encoded = {
-          'i': t.imageRelativePath,
-          if (t.imageWidth != null) 'w': t.imageWidth,
-          if (t.imageHeight != null) 'h': t.imageHeight,
-        };
+        encoded = {'i': t.imageRelativePath};
       } else {
-        if (t.imageRelativePath != null ||
-            t.imageWidth != null ||
-            t.imageHeight != null) {
+        if (t.imageRelativePath != null) {
           return null;
         }
         encoded = [t.text, t.orpIndex, t.timingMultiplier];

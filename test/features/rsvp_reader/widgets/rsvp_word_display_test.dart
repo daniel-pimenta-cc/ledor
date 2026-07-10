@@ -91,16 +91,16 @@ void main() {
       },
     );
 
-    Finder coloredBoxInside() => find.descendant(
+    Finder focusLine() => find.descendant(
           of: find.byType(RsvpWordDisplay),
-          matching: find.byType(ColoredBox),
+          matching: find.byType(LinearProgressIndicator),
         );
 
     testWidgets('focus line is hidden when showFocusLine is false',
         (tester) async {
       const settings = DisplaySettings(showFocusLine: false);
       await _pump(tester, word: _token('reading'), settings: settings);
-      expect(coloredBoxInside(), findsNothing);
+      expect(focusLine(), findsNothing);
     });
 
     testWidgets(
@@ -116,9 +116,11 @@ void main() {
           settings: settings,
           progress: 0.5,
         );
-        // Two ColoredBoxes inside the widget: rest track + filled portion
-        // stacked on top.
-        expect(coloredBoxInside(), findsNWidgets(2));
+        // Determinate bar filled to the reading progress.
+        expect(
+          tester.widget<LinearProgressIndicator>(focusLine()).value,
+          0.5,
+        );
       },
     );
 
@@ -130,7 +132,11 @@ void main() {
           focusLineShowsProgress: false,
         );
         await _pump(tester, word: _token('reading'), settings: settings);
-        expect(coloredBoxInside(), findsOneWidget);
+        // Value 0 keeps the whole track as a plain focus aid (no fill).
+        expect(
+          tester.widget<LinearProgressIndicator>(focusLine()).value,
+          0.0,
+        );
       },
     );
 

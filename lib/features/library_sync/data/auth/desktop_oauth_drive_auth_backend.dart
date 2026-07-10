@@ -1,9 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:googleapis/drive/v3.dart' as drive;
 import 'package:googleapis_auth/auth_io.dart' as ga;
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
@@ -20,121 +19,61 @@ import 'drive_auth_backend.dart';
 /// client_id is reused by the Android backend (via google_sign_in's
 /// `serverClientId`) so Drive's `drive.file` scope sees the same folder
 /// on both platforms.
-const _clientIdKey = 'RSVP_OAUTH_CLIENT_ID';
-const _clientSecretKey = 'RSVP_OAUTH_CLIENT_SECRET';
-
-String _envOrEmpty(String key) => dotenv.maybeGet(key) ?? '';
 
 /// Whether the build was provisioned with desktop OAuth credentials.
 /// Requires that `dotenv.load()` has already run (see `main.dart`).
 bool get desktopOAuthCredentialsConfigured =>
-    _envOrEmpty(_clientIdKey).isNotEmpty &&
-    _envOrEmpty(_clientSecretKey).isNotEmpty;
+    envOrEmpty(oauthClientIdKey).isNotEmpty &&
+    envOrEmpty(oauthClientSecretKey).isNotEmpty;
 
 /// Linux/macOS/Windows backend. Drives the OAuth 2.0 "installed app" flow:
 /// opens the user's default browser, listens on a loopback port, captures
 /// the redirected auth code, exchanges it for tokens, and persists the
 /// refresh token via [FlutterSecureStorage] (libsecret on Linux).
-class DesktopOAuthDriveAuthBackend implements DriveAuthBackend {
-  static const _credsKey = 'drive_auth.credentials';
-  static const _emailKey = 'drive_auth.email';
-  // `userinfo.email` is needed for the OIDC userinfo endpoint we use to
-  // surface the connected account in Settings.
-  static const _scopes = <String>[
-    drive.DriveApi.driveFileScope,
-    'https://www.googleapis.com/auth/userinfo.email',
-  ];
-
-  final String _clientId;
-  final String _clientSecret;
-  final FlutterSecureStorage _storage;
-
-  ga.AutoRefreshingAuthClient? _client;
-  StreamSubscription<ga.AccessCredentials>? _credsSub;
-
+class DesktopOAuthDriveAuthBackend extends DriveAuthBackend {
   DesktopOAuthDriveAuthBackend({
-    String? clientId,
-    String? clientSecret,
-    FlutterSecureStorage? storage,
-  })  : _clientId = clientId ?? _envOrEmpty(_clientIdKey),
-        _clientSecret = clientSecret ?? _envOrEmpty(_clientSecretKey),
-        _storage = storage ?? const FlutterSecureStorage();
-
-  ga.ClientId get _clientIdObj => ga.ClientId(_clientId, _clientSecret);
-
-  bool get _hasCredentials =>
-      _clientId.isNotEmpty && _clientSecret.isNotEmpty;
+    super.clientId,
+    super.clientSecret,
+    super.storage,
+  });
 
   @override
-  Future<DriveSignInResult?> trySilentSignIn() async {
-    if (!_hasCredentials) return null;
-    final stored = await _storage.read(key: _credsKey);
-    final email = await _storage.read(key: _emailKey);
-    if (stored == null || email == null) return null;
+  Future<String?> trySilentSignIn() async {
+    if (!hasCredentials) return null;
+    final stored = await loadStoredSession();
+    if (stored == null) return null;
     try {
       final creds = ga.AccessCredentials.fromJson(
-        jsonDecode(stored) as Map<String, dynamic>,
+        jsonDecode(stored.creds) as Map<String, dynamic>,
       );
-      final base = http.Client();
-      final client = ga.autoRefreshingClient(_clientIdObj, creds, base);
-      _attachClient(client);
-      return DriveSignInResult(email);
-    } catch (_) {
+      attachClient(ga.autoRefreshingClient(clientIdObj, creds, http.Client()));
+      return stored.email;
+    } catch (e) {
       // Stored credentials are corrupt or revoked — wipe them so the next
       // signIn() starts clean.
+      debugPrint('[auth] silent sign-in failed, wiping stored session: $e');
       await signOut();
       return null;
     }
   }
 
   @override
-  Future<DriveSignInResult?> signIn() async {
-    if (!_hasCredentials) {
+  Future<String?> signIn() async {
+    if (!hasCredentials) {
       throw StateError(
         'OAuth credentials not configured. Copy .env.example to .env and '
         'fill in RSVP_OAUTH_CLIENT_ID and RSVP_OAUTH_CLIENT_SECRET.',
       );
     }
     final client = await ga.clientViaUserConsent(
-      _clientIdObj,
-      _scopes,
+      clientIdObj,
+      DriveAuthBackend.scopes,
       _launchPrompt,
     );
-    _attachClient(client);
+    attachClient(client);
     final email = await _fetchEmail(client);
-    await _persistCredentials(client.credentials);
-    await _storage.write(key: _emailKey, value: email);
-    return DriveSignInResult(email);
-  }
-
-  @override
-  Future<void> signOut() async {
-    await _credsSub?.cancel();
-    _credsSub = null;
-    _client?.close();
-    _client = null;
-    await _storage.delete(key: _credsKey);
-    await _storage.delete(key: _emailKey);
-  }
-
-  @override
-  Future<ga.AuthClient?> authenticatedClient() async => _client;
-
-  void _attachClient(ga.AutoRefreshingAuthClient client) {
-    _credsSub?.cancel();
-    _client?.close();
-    _client = client;
-    // Re-persist on every refresh so a long-lived install doesn't end up
-    // with a stale access token written to disk.
-    _credsSub =
-        client.credentialUpdates.listen(_persistCredentials, onError: (_) {});
-  }
-
-  Future<void> _persistCredentials(ga.AccessCredentials creds) {
-    return _storage.write(
-      key: _credsKey,
-      value: jsonEncode(creds.toJson()),
-    );
+    await persistSession(client.credentials, email);
+    return email;
   }
 
   Future<String> _fetchEmail(http.Client client) async {
@@ -155,11 +94,20 @@ class DesktopOAuthDriveAuthBackend implements DriveAuthBackend {
   }
 
   void _launchPrompt(String url) {
+    // googleapis_auth never sends access_type=offline / prompt=consent, and
+    // a Web client only returns a refresh token when both are present. On
+    // re-auth (grant already active) Google would otherwise omit the refresh
+    // token, the session gets persisted with refreshToken=null, and the next
+    // trySilentSignIn throws in autoRefreshingClient and wipes the session —
+    // forcing a fresh login on every app start.
+    final uri = Uri.parse(url);
+    final patched = uri.replace(queryParameters: {
+      ...uri.queryParameters,
+      'access_type': 'offline',
+      'prompt': 'consent',
+    });
     // Fire-and-forget: the loopback flow is waiting on the redirect, and
     // the prompt callback signature is synchronous.
-    unawaited(launchUrl(
-      Uri.parse(url),
-      mode: LaunchMode.externalApplication,
-    ));
+    unawaited(launchUrl(patched, mode: LaunchMode.externalApplication));
   }
 }

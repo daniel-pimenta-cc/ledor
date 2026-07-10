@@ -1,7 +1,9 @@
+import 'package:collection/collection.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
 import '../../domain/entities/stats_snapshot.dart';
+import 'stats_chart_titles.dart';
 
 /// Line chart: weighted avg WPM per day. Days without sessions are skipped
 /// (no spot emitted) — the line then connects real reading days directly,
@@ -32,8 +34,8 @@ class StatsWpmTrendChart extends StatelessWidget {
     }
 
     final values = spots.map((s) => s.y).toList();
-    final minY = (values.reduce((a, b) => a < b ? a : b) - 30).clamp(0, 2000).toDouble();
-    final maxY = values.reduce((a, b) => a > b ? a : b) + 30;
+    final minY = (values.min - 30).clamp(0, 2000).toDouble();
+    final maxY = values.max + 30;
 
     return AspectRatio(
       aspectRatio: 1.6,
@@ -111,31 +113,7 @@ class StatsWpmTrendChart extends StatelessWidget {
           },
         ),
       ),
-      bottomTitles: AxisTitles(
-        sideTitles: SideTitles(
-          showTitles: true,
-          reservedSize: 24,
-          getTitlesWidget: (value, meta) {
-            final idx = value.toInt();
-            if (idx < 0 || idx >= snap.dailyBuckets.length) {
-              return const SizedBox.shrink();
-            }
-            final n = snap.dailyBuckets.length;
-            final step = n <= 7 ? 1 : (n ~/ 5);
-            if (idx != 0 && idx != n - 1 && idx % step != 0) {
-              return const SizedBox.shrink();
-            }
-            final day = snap.dailyBuckets[idx].day;
-            return Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text(
-                '${day.day}/${day.month}',
-                style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 10),
-              ),
-            );
-          },
-        ),
-      ),
+      bottomTitles: dayAxisTitles(snap.dailyBuckets, scheme),
     );
   }
 }

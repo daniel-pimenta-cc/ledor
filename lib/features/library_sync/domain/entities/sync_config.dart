@@ -24,9 +24,7 @@ class SyncConfig {
     bool? clearDriveFolderId,
     bool? syncEpubs,
     bool? autoSync,
-    String? deviceId,
     DateTime? lastSyncedAt,
-    bool? clearLastSyncedAt,
   }) {
     return SyncConfig(
       driveFolderId: (clearDriveFolderId ?? false)
@@ -34,10 +32,8 @@ class SyncConfig {
           : (driveFolderId ?? this.driveFolderId),
       syncEpubs: syncEpubs ?? this.syncEpubs,
       autoSync: autoSync ?? this.autoSync,
-      deviceId: deviceId ?? this.deviceId,
-      lastSyncedAt: (clearLastSyncedAt ?? false)
-          ? null
-          : (lastSyncedAt ?? this.lastSyncedAt),
+      deviceId: deviceId,
+      lastSyncedAt: lastSyncedAt ?? this.lastSyncedAt,
     );
   }
 }

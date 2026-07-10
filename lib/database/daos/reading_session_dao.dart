@@ -42,17 +42,6 @@ class ReadingSessionDao extends DatabaseAccessor<AppDatabase>
         .watch();
   }
 
-  Future<List<ReadingSessionTableData>> getSessionsInRange(
-    DateTime from,
-    DateTime to,
-  ) {
-    return (select(readingSessionTable)
-          ..where((t) => t.startedAt.isBiggerOrEqualValue(from))
-          ..where((t) => t.startedAt.isSmallerThanValue(to))
-          ..orderBy([(t) => OrderingTerm.asc(t.startedAt)]))
-        .get();
-  }
-
   /// Aggregates sessions in range grouped by bookId. Used for monthly recap
   /// ranking and the stats screen's book breakdown.
   Future<List<BookSessionAggregate>> aggregateByBookInRange(
@@ -114,11 +103,5 @@ class ReadingSessionDao extends DatabaseAccessor<AppDatabase>
       ..addColumns([readingSessionTable.id]);
     final rows = await query.get();
     return rows.map((r) => r.read(readingSessionTable.id)!).toSet();
-  }
-
-  Future<int> deleteSessionsForBook(String bookId) {
-    return (delete(readingSessionTable)
-          ..where((t) => t.bookId.equals(bookId)))
-        .go();
   }
 }

@@ -10,17 +10,15 @@ import 'tts_backend.dart';
 /// Linux TTS backend speaking the SSIP protocol directly to the
 /// `speech-dispatcher` daemon over a Unix socket.
 ///
-/// Replaces the older [SpeechDispatcherBackend] (which spawned `spd-say` per
-/// utterance). Each `spd-say` invocation cost ~50-100ms in process startup,
-/// so chunk transitions had an audible gap. Holding a persistent socket
-/// connection lets the daemon's internal queue handle back-to-back
-/// utterances seamlessly — same outcome that `flutter_tts.setQueueMode(1)`
-/// gives us on Android / iOS.
+/// Holding a persistent socket connection lets the daemon's internal queue
+/// handle back-to-back utterances seamlessly — same outcome that
+/// `flutter_tts.setQueueMode(1)` gives us on Android / iOS. When the daemon
+/// isn't running yet, [init] spawns it (as the old `spd-say` CLI did
+/// implicitly) rather than failing.
 ///
 /// Word boundaries are emulated via a periodic timer (no INDEX_MARK
 /// integration yet — see follow-ups in `docs/tts-mode.md`). Accuracy:
-/// ±200ms across a long sentence, indistinguishable from the spd-say
-/// backend.
+/// ±200ms across a long sentence.
 class SpeechdSocketBackend implements TtsBackend {
   /// [socketPathOverride] bypasses [_resolveSocketPath] (which reads
   /// `Platform.environment` and fixed system paths) so tests can point the
@@ -30,9 +28,6 @@ class SpeechdSocketBackend implements TtsBackend {
       : _socketPathOverride = socketPathOverride;
 
   final String? _socketPathOverride;
-
-  @override
-  bool get canPipeline => true;
 
   Socket? _socket;
   StreamSubscription<String>? _lineSub;
@@ -47,7 +42,6 @@ class SpeechdSocketBackend implements TtsBackend {
   TtsProgressHandler? _onProgress;
   VoidCallback? _onCompletion;
   void Function(String)? _onError;
-  VoidCallback? _onStart;
 
   // Periodic word-boundary emitter for the active utterance.
   Timer? _wordTimer;
@@ -85,25 +79,35 @@ class SpeechdSocketBackend implements TtsBackend {
   @override
   Future<void> init() async {
     if (_initialised) return;
-    final socketPath = _socketPathOverride ?? _resolveSocketPath();
-    if (socketPath == null) {
+
+    // ponytail: autospawn substitui o backend spd-say de uma-sessão-só.
+    // spd-say arrancava o daemon implicitamente na 1ª fala; aqui, quando o
+    // socket não está presente (ou o connect falha), pedimos
+    // `speech-dispatcher --spawn` e re-tentamos conectar. Pulado quando um
+    // teste fixa socketPathOverride.
+    final override = _socketPathOverride;
+    _socket = await _connect(override ?? _resolveSocketPath());
+    if (_socket == null && override == null) {
+      _socket = await _spawnAndConnect();
+    }
+    if (_socket == null) {
       throw const TtsUnavailableException(
-        'speech-dispatcher socket not found. Install and start the '
-        'speech-dispatcher service (e.g. `sudo apt install speech-dispatcher` '
-        'on Debian/Ubuntu, `sudo dnf install speech-dispatcher` on Fedora).',
+        'speech-dispatcher not available. Install the speech-dispatcher '
+        'service (e.g. `sudo apt install speech-dispatcher` on Debian/Ubuntu, '
+        '`sudo dnf install speech-dispatcher` on Fedora).',
       );
     }
 
-    try {
-      _socket = await Socket.connect(
-        InternetAddress(socketPath, type: InternetAddressType.unix),
-        0,
-      );
-    } catch (e) {
-      throw TtsUnavailableException(
-        'Failed to connect to speech-dispatcher at $socketPath: $e',
-      );
-    }
+    // A fresh connection means the daemon-side settings are back to their
+    // defaults. Forget the applied snapshot so _applyDirtySettings re-sends
+    // everything on the next speak — without this, a reconnect after a
+    // daemon restart speaks with the default voice/language, which piper
+    // setups without a default model render as silence.
+    _appliedEngineId = null;
+    _appliedLanguage = null;
+    _appliedVoiceName = null;
+    _appliedRate = null;
+    _appliedPitch = null;
 
     _lineSub = utf8.decoder
         .bind(_socket!)
@@ -140,6 +144,42 @@ class SpeechdSocketBackend implements TtsBackend {
     return null;
   }
 
+  /// Connects to the SSIP unix socket at [socketPath]. Returns null (rather
+  /// than throwing) when the path is null or the connection fails, so the
+  /// caller can decide whether to spawn the daemon and retry.
+  Future<Socket?> _connect(String? socketPath) async {
+    if (socketPath == null) return null;
+    try {
+      return await Socket.connect(
+        InternetAddress(socketPath, type: InternetAddressType.unix),
+        0,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Starts the `speech-dispatcher` daemon (as `spd-say` did implicitly) and
+  /// polls by *connecting* — a stale socket file left by a dead daemon
+  /// passes an existence check but refuses connections. A cold daemon start
+  /// loads its output modules and can take a few seconds.
+  ///
+  /// ponytail: single spawn + fixed 12×250ms connect-poll (~3s); widen the
+  /// loop if a slow box needs longer, rather than adding retry config.
+  Future<Socket?> _spawnAndConnect() async {
+    try {
+      await Process.run('speech-dispatcher', ['--spawn']);
+    } catch (_) {
+      return null; // binary not installed
+    }
+    for (var i = 0; i < 12; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      final socket = await _connect(_resolveSocketPath());
+      if (socket != null) return socket;
+    }
+    return null;
+  }
+
   @override
   Future<List<TtsVoice>> getVoices() async {
     await init();
@@ -150,13 +190,6 @@ class SpeechdSocketBackend implements TtsBackend {
     } catch (_) {
       return const [];
     }
-  }
-
-  @override
-  Future<List<String>> getLanguages() async {
-    final voices = await getVoices();
-    final locales = <String>{for (final v in voices) v.locale};
-    return locales.toList()..sort();
   }
 
   @override
@@ -237,7 +270,7 @@ class SpeechdSocketBackend implements TtsBackend {
       return;
     }
     // The daemon will fire 701 BEGIN soon — _handleEvent picks that up and
-    // calls _onStart + starts the word timer.
+    // starts the word timer.
   }
 
   Future<void> _applyDirtySettings() async {
@@ -295,7 +328,6 @@ class SpeechdSocketBackend implements TtsBackend {
     _onProgress = null;
     _onCompletion = null;
     _onError = null;
-    _onStart = null;
     _initialised = false;
   }
 
@@ -307,9 +339,6 @@ class SpeechdSocketBackend implements TtsBackend {
 
   @override
   set onError(void Function(String error)? cb) => _onError = cb;
-
-  @override
-  set onStart(VoidCallback? cb) => _onStart = cb;
 
   // ---------- Internals ----------
 
@@ -385,7 +414,6 @@ class SpeechdSocketBackend implements TtsBackend {
       case 701: // BEGIN
         _utteranceStartedAt = DateTime.now();
         _startWordTimer();
-        _onStart?.call();
         break;
       case 702: // END
         _captureEmpiricalWpm();
@@ -563,18 +591,6 @@ class SpeechdSocketBackend implements TtsBackend {
 
   @visibleForTesting
   static String escapeForSpeakForTest(String text) => _escapeForSpeak(text);
-
-  @visibleForTesting
-  static List<TtsEngine> parseEngineLinesForTest(List<String> lines) =>
-      _parseEngineLines(lines);
-
-  @visibleForTesting
-  static List<TtsVoice> parseVoiceLinesForTest(List<String> lines) =>
-      _parseVoiceLines(lines);
-
-  @visibleForTesting
-  static List<int> wordCharOffsetsForTest(String text) =>
-      wordCharOffsets(text);
 }
 
 class _SsipResponse {

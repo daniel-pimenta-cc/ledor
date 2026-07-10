@@ -240,20 +240,6 @@ class DriveSyncFolderGateway implements SyncFolderGateway {
   }
 
   @override
-  Future<bool> fileExists(String folderPath, String relativePath) async {
-    final api = await _api();
-    if (api == null) return false;
-    final parts = _split(relativePath);
-    if (parts.isEmpty) return false;
-    final dirSegments = parts.sublist(0, parts.length - 1);
-    final fileName = parts.last;
-    final parentId = await _resolveFolder(api, folderPath, dirSegments);
-    if (parentId == null) return false;
-    final file = await _findFile(api, parentId, fileName);
-    return file != null;
-  }
-
-  @override
   Future<void> deleteFile(String folderPath, String relativePath) async {
     final api = await _api();
     if (api == null) return;

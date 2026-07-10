@@ -26,16 +26,6 @@ final bookmarkCountProvider =
   return dao.watchForBook(bookId).map((rows) => rows.length);
 });
 
-/// Live list of every non-tombstoned bookmark across the whole library.
-/// Used by the global `/bookmarks` screen.
-final allBookmarksProvider =
-    StreamProvider.autoDispose<List<Bookmark>>((ref) {
-  final dao = ref.watch(bookmarksDaoProvider);
-  return dao.watchAll().map(
-        (rows) => rows.map(Bookmark.fromRow).toList(growable: false),
-      );
-});
-
 /// Stateless façade for create/update/delete operations on bookmarks of a
 /// single book. Each mutation also pings the sync provider so other
 /// devices pick the change up on the next push.

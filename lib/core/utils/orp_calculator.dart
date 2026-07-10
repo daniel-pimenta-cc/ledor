@@ -1,11 +1,12 @@
-import '../extensions/string_extensions.dart';
-
 /// Calculates the Optimal Recognition Point (ORP) for a word.
 ///
 /// The ORP is the character where the eye naturally fixates for fastest
 /// word recognition — typically at ~30% from the word start.
 class OrpCalculator {
   const OrpCalculator._();
+
+  // Same letter/digit pattern used by word_timing.dart, for consistency.
+  static final _letterOrDigit = RegExp(r'[\p{L}\p{N}]', unicode: true);
 
   // Lookup table for words with 1-13 alphabetic characters.
   // Index 0 = length 1, index 12 = length 13.
@@ -37,7 +38,7 @@ class OrpCalculator {
     int alphaCount = 0;
 
     for (int i = 0; i < word.length; i++) {
-      if (word[i].isLetterOrDigit) {
+      if (_letterOrDigit.hasMatch(word[i])) {
         if (firstAlpha == -1) firstAlpha = i;
         alphaCount++;
       }
@@ -56,7 +57,7 @@ class OrpCalculator {
     // Map back to full-string index
     int count = 0;
     for (int i = 0; i < word.length; i++) {
-      if (word[i].isLetterOrDigit) {
+      if (_letterOrDigit.hasMatch(word[i])) {
         if (count == orpInAlpha) return i;
         count++;
       }

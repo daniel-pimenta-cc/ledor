@@ -22,9 +22,6 @@ abstract class SyncFolderGateway {
   /// Write a binary file, replacing any existing content.
   Future<void> writeBytes(String folderPath, String relativePath, Uint8List bytes);
 
-  /// True if a file exists at [relativePath].
-  Future<bool> fileExists(String folderPath, String relativePath);
-
   /// Delete a file if it exists. No-op if it does not.
   Future<void> deleteFile(String folderPath, String relativePath);
 

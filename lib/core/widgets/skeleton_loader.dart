@@ -42,10 +42,10 @@ class _SkeletonScope extends InheritedWidget {
   @override
   bool updateShouldNotify(_SkeletonScope oldWidget) => false;
 
-  static AnimationController? maybeOf(BuildContext context) {
-    return context
-        .dependOnInheritedWidgetOfExactType<_SkeletonScope>()
-        ?.controller;
+  static AnimationController of(BuildContext context) {
+    final scope = context.dependOnInheritedWidgetOfExactType<_SkeletonScope>();
+    assert(scope != null, 'SkeletonBox must be used within a SkeletonHost');
+    return scope!.controller;
   }
 }
 
@@ -64,22 +64,9 @@ class SkeletonBox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final controller = _SkeletonScope.maybeOf(context);
+    final controller = _SkeletonScope.of(context);
     final base = scheme.surfaceContainerHigh;
     final highlight = scheme.outlineVariant;
-
-    if (controller == null) {
-      return SizedBox(
-        width: width,
-        height: height,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: base,
-            borderRadius: borderRadius,
-          ),
-        ),
-      );
-    }
 
     return AnimatedBuilder(
       animation: controller,

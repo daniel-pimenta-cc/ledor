@@ -18,16 +18,7 @@ class ThemeModeNotifier extends StateNotifier<ThemeMode> {
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_kThemeModeKey);
-    switch (raw) {
-      case 'light':
-        state = ThemeMode.light;
-        break;
-      case 'dark':
-        state = ThemeMode.dark;
-        break;
-      default:
-        state = ThemeMode.system;
-    }
+    state = ThemeMode.values.asNameMap()[raw] ?? ThemeMode.system;
   }
 
   /// Actual brightness that [mode] resolves to right now. Used to detect

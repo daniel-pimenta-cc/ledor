@@ -46,14 +46,6 @@ class PlatformCapabilities {
     return Platform.isLinux;
   }
 
-  /// Android. Used by features gated behind Android-only APIs:
-  /// `flutter_tts.getEngines` / `setEngine`, the foreground service that
-  /// keeps TTS alive in background, etc.
-  static bool get isAndroid {
-    if (kIsWeb) return false;
-    return Platform.isAndroid;
-  }
-
   /// Text-to-speech reader mode. Android/iOS/macOS/Windows use the
   /// `flutter_tts` package; Linux desktop uses a custom backend on top of
   /// `spd-say` (speech-dispatcher). On platforms where neither is wired up

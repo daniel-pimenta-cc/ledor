@@ -13,7 +13,7 @@ import '../settings_section_header.dart';
 
 /// "Audio" section — TTS scope. Engine picker (when ≥2 are available),
 /// voice picker, and pitch slider. Speech rate stays on the reader's
-/// transport row (TtsRateCapsule) so it's always reachable while listening.
+/// transport row (the rate capsule) so it's always reachable while listening.
 class AudioSection extends ConsumerWidget {
   final String? bookId;
   final DisplaySettings settings;

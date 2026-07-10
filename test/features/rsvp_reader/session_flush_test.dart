@@ -35,5 +35,15 @@ void main() {
       // 100 words in 23s = ~260.87 wpm -> 261
       expect(computeSessionAvgWpm(23000, 100), 261);
     });
+
+    test('manual sessions above the skim cutoff are dropped', () {
+      // 800 wpm scrolling in ereader mode = flipping pages, not reading.
+      expect(computeSessionAvgWpm(60000, 800, manual: true), isNull);
+      // Same numbers from real playback are kept — the cap is manual-only.
+      expect(computeSessionAvgWpm(60000, 800), 800);
+      // Plausible manual reading speeds pass through unchanged.
+      expect(computeSessionAvgWpm(60000, 600, manual: true), 600);
+      expect(computeSessionAvgWpm(60000, 700, manual: true), 700);
+    });
   });
 }

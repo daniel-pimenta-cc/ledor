@@ -19,7 +19,6 @@ class MonthlyRecapScreen extends ConsumerStatefulWidget {
 
 class _MonthlyRecapScreenState extends ConsumerState<MonthlyRecapScreen> {
   final GlobalKey _boundaryKey = GlobalKey();
-  final _exportService = ImageExportService();
   bool _sharing = false;
 
   @override
@@ -60,7 +59,7 @@ class _MonthlyRecapScreenState extends ConsumerState<MonthlyRecapScreen> {
     final monthName =
         DateFormat.MMMM(l10n.localeName).format(DateTime(recap.year, recap.month));
     try {
-      await _exportService.shareWidgetAsPng(
+      await shareWidgetAsPng(
         boundaryKey: _boundaryKey,
         filename: 'rsvp-recap-${recap.year}-${recap.month.toString().padLeft(2, '0')}',
         shareText: l10n.recapShareText(monthName),

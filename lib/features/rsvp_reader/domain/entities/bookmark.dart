@@ -42,56 +42,12 @@ class Bookmark {
     this.deletedAt,
   });
 
-  bool get isRange =>
-      endGlobalWordIndex != null && endGlobalWordIndex! > globalWordIndex;
-
-  bool get isTombstone => deletedAt != null;
-
   /// Trimmed label or null. Empty strings are treated as "no label" so the
   /// UI can show the snippet preview instead.
   String? get effectiveLabel {
     final trimmed = label?.trim();
     if (trimmed == null || trimmed.isEmpty) return null;
     return trimmed;
-  }
-
-  Bookmark copyWith({
-    String? id,
-    String? bookId,
-    int? globalWordIndex,
-    int? chapterIndex,
-    int? endGlobalWordIndex,
-    bool clearEndGlobalWordIndex = false,
-    int? endChapterIndex,
-    bool clearEndChapterIndex = false,
-    String? label,
-    bool clearLabel = false,
-    String? contextSnippet,
-    bool clearContextSnippet = false,
-    DateTime? createdAt,
-    DateTime? updatedAt,
-    DateTime? deletedAt,
-    bool clearDeletedAt = false,
-  }) {
-    return Bookmark(
-      id: id ?? this.id,
-      bookId: bookId ?? this.bookId,
-      globalWordIndex: globalWordIndex ?? this.globalWordIndex,
-      chapterIndex: chapterIndex ?? this.chapterIndex,
-      endGlobalWordIndex: clearEndGlobalWordIndex
-          ? null
-          : (endGlobalWordIndex ?? this.endGlobalWordIndex),
-      endChapterIndex: clearEndChapterIndex
-          ? null
-          : (endChapterIndex ?? this.endChapterIndex),
-      label: clearLabel ? null : (label ?? this.label),
-      contextSnippet: clearContextSnippet
-          ? null
-          : (contextSnippet ?? this.contextSnippet),
-      createdAt: createdAt ?? this.createdAt,
-      updatedAt: updatedAt ?? this.updatedAt,
-      deletedAt: clearDeletedAt ? null : (deletedAt ?? this.deletedAt),
-    );
   }
 
   factory Bookmark.fromRow(BookmarksTableData row) => Bookmark(

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:collection';
 import 'dart:io';
 
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,6 +13,7 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/responsive_defaults.dart';
 import '../../../../core/theme/responsive.dart';
 import '../../../../core/utils/font_mapper.dart';
+import '../../../../core/utils/sentence_boundary.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../book_library/data/services/inline_image_storage.dart';
 import '../../../epub_import/domain/entities/chapter.dart';
@@ -185,7 +187,7 @@ class _ContextScrollViewState extends ConsumerState<ContextScrollView> {
         }
         final pos = allTokens.length;
         if (currentParagraph!.isNotEmpty &&
-            _isSentenceEnd(currentParagraph.last.text)) {
+            wordEndsSentence(currentParagraph.last.text)) {
           sentenceBoundaries.add(pos);
         }
         currentParagraph.add(token);
@@ -386,6 +388,15 @@ class _ContextScrollViewState extends ConsumerState<ContextScrollView> {
           } else {
             _isUserScrolling = false;
             _smoothedVelocity = 0.0;
+            // Ereader has no visible highlight and the velocity-stepping
+            // heuristic barely runs under mouse-wheel scrolling (each wheel
+            // tick goes idle immediately) — derive the reading position
+            // straight from the viewport on every stop so progress tracks
+            // where the user actually is. _snapToEndIfAtBottom stays after
+            // it so reaching the end still wins.
+            if (!widget.showHighlight) {
+              _catchUpToVisible(_positionsListener.itemPositions.value);
+            }
             _snapToEndIfAtBottom();
             _syncToEngine();
           }
@@ -494,13 +505,6 @@ class _ContextScrollViewState extends ConsumerState<ContextScrollView> {
     );
   }
 
-  bool _isSentenceEnd(String word) {
-    final trimmed = word.trimRight();
-    return trimmed.endsWith('.') ||
-        trimmed.endsWith('!') ||
-        trimmed.endsWith('?');
-  }
-
   /// Binary search for the next boundary in [direction] from [currentPos].
   int _findNextBoundary(
       int currentPos, int direction, List<int> boundaries) {
@@ -508,16 +512,8 @@ class _ContextScrollViewState extends ConsumerState<ContextScrollView> {
       return (currentPos + direction).clamp(0, _allTokens.length - 1);
     }
 
-    // Find first boundary > currentPos
-    int lo = 0, hi = boundaries.length;
-    while (lo < hi) {
-      final mid = (lo + hi) ~/ 2;
-      if (boundaries[mid] <= currentPos) {
-        lo = mid + 1;
-      } else {
-        hi = mid;
-      }
-    }
+    // First boundary strictly greater than currentPos.
+    final lo = lowerBound(boundaries, currentPos + 1);
 
     if (direction > 0) {
       return lo < boundaries.length ? boundaries[lo] : _allTokens.length - 1;

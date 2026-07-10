@@ -7,13 +7,10 @@ class RecapBook {
   final String? author;
   final Uint8List? coverImage;
   final int totalDurationMs;
-  final int totalWords;
-  final int avgWpm;
 
   /// 0..1, based on `maxEndWordIndex / book.totalWords`. Always 1.0 for
   /// finished books (where the user hit the last word).
   final double progressFraction;
-  final bool isFinished;
 
   const RecapBook({
     required this.bookId,
@@ -21,10 +18,7 @@ class RecapBook {
     required this.author,
     required this.coverImage,
     required this.totalDurationMs,
-    required this.totalWords,
-    required this.avgWpm,
     required this.progressFraction,
-    required this.isFinished,
   });
 }
 

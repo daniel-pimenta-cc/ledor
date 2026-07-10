@@ -1,20 +1,27 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/services/tts_backend.dart';
+import 'display_settings_provider.dart';
 import 'tts_backend_provider.dart';
 
-/// Loads the list of voices the platform backend reports. Cached for the
-/// lifetime of the provider; the picker UI can re-fetch by invalidating
-/// this provider after a "refresh" button (none today, but the seam is
-/// here).
+/// Loads the list of voices the platform backend reports **for the engine
+/// the user selected** — the provider watches `ttsEngineId` and applies it
+/// to the backend before listing, so an engine switch in the picker refaces
+/// this list immediately (getVoices only sees the backend's active engine).
 ///
 /// May complete with an empty list when the engine has no voices
 /// installed (rare on Android, common on a stripped-down Linux), and may
 /// complete with an error when the backend's `init()` fails (e.g.
-/// `spd-say` not on PATH). UI handles both via AsyncValue.when.
+/// `speech-dispatcher` missing). UI handles both via AsyncValue.when.
 final ttsVoicesProvider = FutureProvider<List<TtsVoice>>((ref) async {
   final backend = ref.watch(ttsBackendProvider);
+  final engineId = ref.watch(
+    displaySettingsProvider.select((s) => s.ttsEngineId),
+  );
   await backend.init();
+  if (engineId != null && engineId.isNotEmpty) {
+    await backend.setEngine(engineId);
+  }
   final voices = await backend.getVoices();
   // Stable ordering: locale first (so the picker can group), then name.
   voices.sort((a, b) {

@@ -109,7 +109,6 @@ class LibrarySyncState {
     SyncStage? stage,
     String? errorMessage,
     bool clearError = false,
-    DateTime? lastSyncedAt,
     int? importCurrent,
     int? importTotal,
     String? importFileName,
@@ -118,7 +117,7 @@ class LibrarySyncState {
     return LibrarySyncState(
       stage: stage ?? this.stage,
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
-      lastSyncedAt: lastSyncedAt ?? this.lastSyncedAt,
+      lastSyncedAt: lastSyncedAt,
       importCurrent: clearImport ? null : (importCurrent ?? this.importCurrent),
       importTotal: clearImport ? null : (importTotal ?? this.importTotal),
       importFileName:

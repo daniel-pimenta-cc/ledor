@@ -31,18 +31,15 @@ Future<String> persistParsedBook({
   String? syncFileName,
   String? sourceUrl,
   String? siteName,
-  Uint8List? coverImage,
-  InlineImageStorage imageStorage = const InlineImageStorage(),
 }) async {
   final bookId = id ?? const Uuid().v4();
-  final effectiveCover = coverImage ?? book.coverImage;
 
   await booksDao.insertBook(BooksTableCompanion.insert(
     id: bookId,
     title: book.title,
     author: book.author.isEmpty ? const Value.absent() : Value(book.author),
     filePath: filePath ?? '',
-    coverImage: Value(effectiveCover),
+    coverImage: Value(book.coverImage),
     totalWords: Value(book.totalWords),
     chapterCount: Value(book.chapters.length),
     importedAt: DateTime.now(),
@@ -56,7 +53,6 @@ Future<String> persistParsedBook({
     bookId: bookId,
     chapters: book.chapters,
     tokensDao: tokensDao,
-    imageStorage: imageStorage,
   );
 
   return bookId;
@@ -75,8 +71,8 @@ Future<void> persistChaptersWithImages({
   required String bookId,
   required List<Chapter> chapters,
   required CachedTokensDao tokensDao,
-  InlineImageStorage imageStorage = const InlineImageStorage(),
 }) async {
+  const imageStorage = InlineImageStorage();
   int imageSeq = 0;
   for (int i = 0; i < chapters.length; i++) {
     final chapter = chapters[i];

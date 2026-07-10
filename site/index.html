@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ledor — as palavras vêm até você</title>
+  <meta name="description" content="Leitor RSVP open source de EPUB e artigos web para Android e Linux. Sync entre aparelhos, estatísticas de leitura, TTS — grátis, MIT.">
+  <meta property="og:title" content="Ledor — as palavras vêm até você">
+  <meta property="og:description" content="Leitor RSVP open source de EPUB e artigos web. Sync, estatísticas, TTS — grátis, MIT.">
+  <meta property="og:image" content="https://daniel-pimenta-cc.github.io/ledor/assets/rsvp-mode.jpg">
+  <link rel="icon" type="image/png" href="assets/icon-192.png">
+  <link rel="apple-touch-icon" href="assets/icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400..700;1,400..700&family=Inter:wght@400..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="nav">
+  <a class="wordmark" href="#top" aria-label="Ledor">
+    <img src="assets/icon-192.png" alt="" width="30" height="30">
+    <span>L<span class="orp">e</span>dor</span>
+  </a>
+  <nav class="nav-links" aria-label="Seções">
+    <a href="#modos" data-i18n="nav.modes">Modos</a>
+    <a href="#sync" data-i18n="nav.sync">Sync</a>
+    <a href="#stats" data-i18n="nav.stats">Estatísticas</a>
+    <a href="#opensource" data-i18n="nav.oss">Open source</a>
+  </nav>
+  <div class="nav-actions">
+    <button class="lang-toggle" id="lang-toggle" aria-label="Switch to English">EN</button>
+    <a class="btn btn-ghost btn-sm" href="https://github.com/daniel-pimenta-cc/ledor">GitHub</a>
+  </div>
+</header>
+
+<main id="top">
+
+  <!-- ============ HERO ============ -->
+  <section class="hero">
+    <div class="hero-copy">
+      <p class="eyebrow" data-i18n="hero.eyebrow">Leitura RSVP · EPUB + artigos web · código aberto</p>
+      <h1 data-i18n-html="hero.title">As palavras <em>vêm até você.</em></h1>
+      <p class="lead" data-i18n="hero.lead">Ledor é quem lê em voz alta para outra pessoa. Este aqui mostra uma palavra de cada vez, no ritmo que você escolher, com a letra de foco sempre no mesmo lugar — seus olhos param de perseguir o texto, e a leitura acelera.</p>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="https://github.com/daniel-pimenta-cc/ledor/releases/latest" data-i18n="hero.download">Baixar · Android &amp; Linux</a>
+        <a class="btn btn-ghost" href="https://github.com/daniel-pimenta-cc/ledor" data-i18n="hero.github">Ver no GitHub</a>
+      </div>
+      <p class="cta-note" data-i18n="hero.note">Grátis, sem anúncios, sem conta. Licença MIT.</p>
+    </div>
+
+    <div class="reader" aria-label="Demonstração de leitura RSVP">
+      <div class="reader-top">
+        <span data-i18n="reader.chapter">Capítulo 1 · Por que RSVP</span>
+        <span class="reader-wpm mono"><span id="wpm-status">350</span> wpm</span>
+      </div>
+      <div class="word-stage">
+        <div class="orp-tick" aria-hidden="true"></div>
+        <div class="word" id="word" aria-live="off">
+          <span class="w-pre">pala</span><span class="w-orp">v</span><span class="w-post">ras</span>
+        </div>
+        <div class="focus-line"><div class="focus-fill" id="focus-fill"></div></div>
+      </div>
+      <div class="reader-controls">
+        <button class="play-btn" id="play-btn" aria-label="Pausar" data-playing="false">
+          <svg class="ic-play" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>
+          <svg class="ic-pause" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M6 5h4v14H6zM14 5h4v14h-4z" fill="currentColor"/></svg>
+        </button>
+        <div class="wpm-capsule mono">
+          <button id="wpm-minus" aria-label="−25 wpm">−</button>
+          <span id="wpm-value">350</span>
+          <button id="wpm-plus" aria-label="+25 wpm">+</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="zero-strip" role="presentation">
+    <div class="zero-item"><span class="zero-num">0</span><span class="zero-label mono" data-i18n="zero.1">anúncios</span></div>
+    <div class="zero-item"><span class="zero-num">0</span><span class="zero-label mono" data-i18n="zero.2">assinaturas</span></div>
+    <div class="zero-item"><span class="zero-num">0</span><span class="zero-label mono" data-i18n="zero.3">rastreadores</span></div>
+    <div class="zero-item zero-hot"><span class="zero-num">100%</span><span class="zero-label mono" data-i18n="zero.4">código aberto</span></div>
+  </div>
+
+  <div class="orp-divider" aria-hidden="true"></div>
+
+  <!-- ============ MODOS ============ -->
+  <section id="modos" class="section">
+    <h2 data-i18n="modes.title">Três modos, o mesmo livro</h2>
+    <p class="section-lead" data-i18n="modes.lead">Pausou o RSVP ou o TTS? O texto completo aparece com a palavra atual destacada, no mesmo ponto — toque em outra palavra pra seguir dali.</p>
+    <div class="grid grid-3">
+      <div class="card">
+        <div class="modeviz" aria-hidden="true"><span class="viz-word">pa<b>l</b>avra</span></div>
+        <h3>RSVP</h3>
+        <p data-i18n="modes.rsvp.d">Uma palavra por vez, com o ponto ótimo de reconhecimento em destaque. O modo rápido.</p>
+      </div>
+      <div class="card">
+        <div class="modeviz" aria-hidden="true">
+          <i class="viz-line"></i><i class="viz-line has-pill"></i><i class="viz-line short"></i>
+          <span class="viz-eq"><i></i><i></i><i></i><i></i></span>
+        </div>
+        <h3>TTS</h3>
+        <p data-i18n="modes.tts.d">O app lê em voz alta com highlight sincronizado palavra a palavra — e segue com a tela bloqueada.</p>
+      </div>
+      <div class="card">
+        <div class="modeviz" aria-hidden="true">
+          <i class="viz-line"></i><i class="viz-line"></i><i class="viz-line"></i><i class="viz-line short"></i>
+        </div>
+        <h3>E-reader</h3>
+        <p data-i18n="modes.ereader.d">Leitura tradicional, sem destaques nem controles. Só você e o texto.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="orp-divider" aria-hidden="true"></div>
+
+  <!-- ============ SYNC / MULTIPLATAFORMA ============ -->
+  <section id="sync" class="section">
+    <div class="split">
+      <div class="split-copy">
+        <span class="tag mono"><s data-i18n="tag.strike">assinatura</s> <em data-i18n="tag.rest">incluso</em></span>
+        <h2 data-i18n="sync.h">Um livro, todos os seus aparelhos</h2>
+        <p class="section-lead" data-i18n="sync.lead">Comece no celular no ônibus, continue no tablet em casa, termine no desktop. Progresso, biblioteca, marcadores e até suas configurações de tema chegam juntos — pelo seu Google Drive, numa pasta que é sua.</p>
+        <ul class="checklist">
+          <li data-i18n="sync.li1">Sem servidor nosso, sem conta nova: a pasta fica no seu Drive, e o app só enxerga arquivos que ele mesmo criou.</li>
+          <li data-i18n="sync.li2">Sincroniza biblioteca, progresso por livro, marcadores, notas, sessões de leitura e configurações de exibição.</li>
+          <li data-i18n="sync.li3">Android, tablet e Linux desktop com o mesmo app — em tablet, biblioteca e leitor abrem lado a lado.</li>
+          <li data-i18n="sync.li4">Offline-first: o sync é opcional e o app funciona 100% sem internet.</li>
+        </ul>
+      </div>
+      <div class="split-viz devices" aria-hidden="true">
+        <div class="d-scene">
+          <svg class="d-net" viewBox="0 0 100 100" preserveAspectRatio="none">
+            <line x1="8" y1="30" x2="76" y2="30"/>
+            <line x1="50" y1="21" x2="50" y2="30"/>
+            <line x1="8" y1="30" x2="8" y2="47"/>
+            <line x1="34" y1="30" x2="34" y2="40"/>
+            <line x1="76" y1="30" x2="76" y2="56"/>
+            <line x1="8" y1="66" x2="76" y2="66"/>
+          </svg>
+          <span class="d-hub">
+            <svg class="d-cloud" viewBox="0 0 24 24" width="34" height="34"><path d="M19 18H6.5a4.5 4.5 0 1 1 .4-8.98A6 6 0 0 1 18.7 10.5 3.75 3.75 0 0 1 19 18z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+          </span>
+          <div class="device-row">
+            <div class="d-item">
+              <div class="device device-phone">
+                <i class="d-cam"></i>
+                <div class="d-screen">
+                  <i class="s-line"></i>
+                  <i class="s-line hl"></i>
+                  <i class="s-line short"></i>
+                  <div class="d-progress"><i></i></div>
+                  <span class="d-pct mono">62%</span>
+                </div>
+              </div>
+              <span class="d-name mono" data-i18n="sync.d1">celular</span>
+            </div>
+            <div class="d-item">
+              <div class="device device-tablet">
+                <i class="d-cam"></i>
+                <div class="d-screen d-split">
+                  <div class="d-list"><i></i><i></i><i></i><i></i></div>
+                  <div class="d-main">
+                    <i class="s-line"></i>
+                    <i class="s-line hl"></i>
+                    <i class="s-line short"></i>
+                    <div class="d-progress"><i></i></div>
+                    <span class="d-pct mono">62%</span>
+                  </div>
+                </div>
+              </div>
+              <span class="d-name mono" data-i18n="sync.d2">tablet</span>
+            </div>
+            <div class="d-item">
+              <div class="device device-laptop">
+                <div class="d-screen">
+                  <i class="s-line"></i>
+                  <i class="s-line hl"></i>
+                  <i class="s-line short"></i>
+                  <div class="d-progress"><i></i></div>
+                  <span class="d-pct mono">62%</span>
+                </div>
+              </div>
+              <i class="d-base"></i>
+              <span class="d-name mono" data-i18n="sync.d3">desktop</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="orp-divider" aria-hidden="true"></div>
+
+  <!-- ============ READING STATS ============ -->
+  <section id="stats" class="section">
+    <div class="split split-flip">
+      <div class="split-copy">
+        <span class="tag mono"><s data-i18n="tag.strike">assinatura</s> <em data-i18n="tag.rest">incluso</em></span>
+        <h2 data-i18n="stats.h">Sua leitura, em números</h2>
+        <p class="section-lead" data-i18n="stats.lead">Cada sessão vira telemetria local: palavras, tempo e velocidade. O dashboard mostra sua semana e seu mês — e no fim do mês você ganha um recap compartilhável, estilo retrospectiva.</p>
+        <ul class="checklist">
+          <li data-i18n="stats.li1">Gráficos semanais e mensais de palavras por dia, tempo de leitura e tendência de WPM.</li>
+          <li data-i18n="stats.li2">Recap mensal em imagem 9:16 pronta pra stories, com livros terminados e em andamento.</li>
+          <li data-i18n="stats.li3">Terminou um livro? Tela de celebração com estatísticas, nota de 0 a 5 estrelas e card compartilhável.</li>
+          <li data-i18n="stats.li4">Tudo calculado no aparelho — nenhum dado de leitura sai dele.</li>
+        </ul>
+      </div>
+      <div class="split-viz statsviz" aria-hidden="true">
+        <div class="sv-tabs mono">
+          <span class="sv-tab active" data-i18n="stats.tab1">Últimos 7 dias</span>
+          <span class="sv-tab" data-i18n="stats.tab2">Este mês</span>
+        </div>
+        <div class="sv-tiles">
+          <div class="sv-tile"><span class="sv-label mono" data-i18n="stats.t1">Palavras lidas</span><span class="sv-value" data-i18n="stats.v1">12,4k</span></div>
+          <div class="sv-tile"><span class="sv-label mono" data-i18n="stats.t2">Tempo</span><span class="sv-value">3h 40min</span></div>
+          <div class="sv-tile"><span class="sv-label mono" data-i18n="stats.t3">WPM médio</span><span class="sv-value">412</span></div>
+          <div class="sv-tile"><span class="sv-label mono" data-i18n="stats.t4">Livros</span><span class="sv-value">3</span></div>
+        </div>
+        <div class="chart">
+          <span class="c-bubble mono" data-i18n="stats.peak">2.130</span>
+          <i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+        </div>
+        <div class="c-days mono">
+          <span data-i18n="stats.day1">S</span><span data-i18n="stats.day2">T</span><span data-i18n="stats.day3">Q</span><span data-i18n="stats.day4">Q</span><span data-i18n="stats.day5">S</span><span data-i18n="stats.day6">S</span><span data-i18n="stats.day7">D</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="orp-divider" aria-hidden="true"></div>
+
+  <!-- ============ RECURSOS ============ -->
+  <section id="recursos" class="section">
+    <h2 data-i18n="feat.title">E o resto vem junto</h2>
+    <p class="section-lead" data-i18n="feat.lead">Nada aqui é extra pago ou "pro". É só o app.</p>
+    <div class="grid grid-3">
+      <div class="card">
+        <h3 data-i18n="feat.import.t">EPUB + artigos web</h3>
+        <p data-i18n="feat.import.d">Importe livros ou salve qualquer artigo por URL — no Android, direto pelo share sheet. Tudo vira a mesma leitura.</p>
+      </div>
+      <div class="card">
+        <h3 data-i18n="feat.tts.t">Narração TTS</h3>
+        <p data-i18n="feat.tts.d">Vozes do sistema com nomes amigáveis, controles na tela de bloqueio e velocidade independente de 0,5× a 3×.</p>
+      </div>
+      <div class="card">
+        <h3 data-i18n="feat.theme.t">Tema totalmente seu</h3>
+        <p data-i18n="feat.theme.d">Cores, fontes, tamanhos e posições com preview ao vivo. Claro e escuro editoriais, laranja preservado.</p>
+      </div>
+      <div class="card">
+        <h3 data-i18n="feat.marks.t">Marcadores</h3>
+        <p data-i18n="feat.marks.d">Segure qualquer palavra, em qualquer modo, para marcar. Com trecho de contexto — e sincronizados também.</p>
+      </div>
+      <div class="card">
+        <h3 data-i18n="feat.offline.t">Offline-first</h3>
+        <p data-i18n="feat.offline.d">Tudo em SQLite no seu aparelho. Sync é opcional; internet, só para importar artigos.</p>
+      </div>
+      <div class="card">
+        <h3 data-i18n="feat.timing.t">Timing inteligente</h3>
+        <p data-i18n="feat.timing.d">Pausas maiores em pontuação, parágrafos e palavras longas, pré-computadas no import. Ramp-up suave ao dar play.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="orp-divider" aria-hidden="true"></div>
+
+  <!-- ============ TELAS ============ -->
+  <section id="telas" class="section">
+    <h2 data-i18n="shots.title">Por dentro</h2>
+    <div class="shots">
+      <figure>
+        <img src="assets/library.jpg" alt="Tela da biblioteca do Ledor" loading="lazy" width="540" height="1130">
+        <figcaption class="mono" data-i18n="shots.1">Biblioteca</figcaption>
+      </figure>
+      <figure>
+        <img src="assets/rsvp-mode.jpg" alt="Modo RSVP com palavra única e letra de foco em laranja" loading="lazy" width="540" height="1130">
+        <figcaption class="mono" data-i18n="shots.2">Modo RSVP</figcaption>
+      </figure>
+      <figure>
+        <img src="assets/scroll-mode.jpg" alt="Texto completo com a palavra atual destacada" loading="lazy" width="540" height="1130">
+        <figcaption class="mono" data-i18n="shots.3">Leitor pausado</figcaption>
+      </figure>
+      <figure>
+        <img src="assets/settings.jpg" alt="Painel de configurações de exibição" loading="lazy" width="540" height="1130">
+        <figcaption class="mono" data-i18n="shots.4">Configurações</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <div class="orp-divider" aria-hidden="true"></div>
+
+  <!-- ============ OPEN SOURCE ============ -->
+  <section id="opensource" class="section">
+    <div class="oss">
+      <div class="oss-copy">
+        <h2 data-i18n="oss.title">É seu, de verdade.</h2>
+        <p class="section-lead" data-i18n="oss.lead">Licença MIT, sem conta e sem servidor nosso — não existe “nosso servidor”. Seus livros ficam no seu aparelho e, se você quiser, no seu Drive. Não gostou de algo? Abra uma issue, mande um PR — ou faça um fork e deixe o leitor com a sua cara.</p>
+        <div class="cta-row">
+          <a class="btn btn-primary" href="https://github.com/daniel-pimenta-cc/ledor/blob/main/CONTRIBUTING.md" data-i18n="oss.contribute">Como contribuir</a>
+          <a class="btn btn-ghost" href="https://github.com/daniel-pimenta-cc/ledor/issues" data-i18n="oss.issues">Issues abertas</a>
+        </div>
+      </div>
+      <div class="terminal mono" aria-hidden="true">
+        <div class="terminal-bar"><i></i><i></i><i></i></div>
+        <pre><span class="t-dim">$</span> git clone https://github.com/daniel-pimenta-cc/ledor.git
+<span class="t-dim">$</span> cd ledor &amp;&amp; flutter pub get
+<span class="t-dim">$</span> flutter run
+<span class="t-accent"># pronto — do seu jeito.</span></pre>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="footer">
+  <span class="footer-brand">
+    <img src="assets/icon-192.png" alt="" width="20" height="20">
+    <span data-i18n="footer.tagline">Ledor — leitor RSVP de código aberto. MIT © 2026 Daniel Pimenta.</span>
+  </span>
+  <nav class="footer-links" aria-label="Links">
+    <a href="https://github.com/daniel-pimenta-cc/ledor">GitHub</a>
+    <a href="https://github.com/daniel-pimenta-cc/ledor/releases" data-i18n="footer.releases">Releases</a>
+    <a href="https://github.com/daniel-pimenta-cc/ledor/blob/main/CONTRIBUTING.md" data-i18n="footer.contribute">Contribuir</a>
+  </nav>
+</footer>
+
+<script src="main.js"></script>
+</body>
+</html>

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:drift/drift.dart' hide isNull;
@@ -280,7 +281,7 @@ class SyncServiceHarness {
     DateTime? updatedAt,
     DateTime? deletedAt,
   }) async {
-    await db.bookmarksDao.applyFromSync(BookmarksTableCompanion.insert(
+    await db.bookmarksDao.upsert(BookmarksTableCompanion.insert(
       id: id,
       bookId: bookId,
       globalWordIndex: globalWordIndex,
@@ -290,4 +291,22 @@ class SyncServiceHarness {
       deletedAt: Value(deletedAt),
     ));
   }
+}
+
+/// Encodes a legacy monolithic `library.json` payload for migration tests.
+/// The app only ever DECODES the legacy format (production has no encoder),
+/// so this fixture-builder lives in test code.
+String encodeLegacyLibrary({
+  required DateTime updatedAt,
+  required String updatedBy,
+  SyncLibrarySettings? settings,
+  required List<SyncLibraryBook> books,
+}) {
+  return jsonEncode({
+    'schemaVersion': 1,
+    'updatedAt': updatedAt.toUtc().toIso8601String(),
+    'updatedBy': updatedBy,
+    'settings': settings?.toJson(),
+    'books': [for (final b in books) b.toJson()],
+  });
 }

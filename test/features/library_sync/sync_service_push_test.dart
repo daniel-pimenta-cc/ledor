@@ -33,7 +33,7 @@ void main() {
       // Build a valid legacy monolith referencing one EPUB, drop the EPUB
       // bytes in books/ so the import-from-remote path can populate the row.
       h.putRemoteEpub('legacy-book.epub', title: 'Legacy Title');
-      final legacy = SyncLibrary(
+      h.gateway.textFiles[kLegacyLibraryFile] = encodeLegacyLibrary(
         updatedAt: DateTime.utc(2026, 1, 1),
         updatedBy: 'device-remote',
         books: [
@@ -46,7 +46,6 @@ void main() {
           ),
         ],
       );
-      h.gateway.textFiles[kLegacyLibraryFile] = legacy.encode();
 
       await h.runSync();
 
@@ -85,14 +84,13 @@ void main() {
         ),
       ]);
       h.putRemoteEpub('shard-book.epub');
-      final legacy = SyncLibrary(
+      h.gateway.textFiles[kLegacyLibraryFile] = encodeLegacyLibrary(
         updatedAt: DateTime.utc(2025, 1, 1),
         updatedBy: 'device-remote',
         books: [
           h.makeRemoteBook(id: 'legacy-stale', title: 'Stale Legacy Book'),
         ],
       );
-      h.gateway.textFiles[kLegacyLibraryFile] = legacy.encode();
 
       await h.runSync();
 
@@ -188,9 +186,9 @@ void main() {
 
       // Invariant: a remote bookmark with a later updatedAt overwrites the
       // local label verbatim.
-      final row = await h.db.bookmarksDao.getById('bm-1');
-      expect(row, isNotNull);
-      expect(row!.label, 'new label');
+      final all = await h.db.bookmarksDao.getAllIncludingTombstones();
+      final row = all.firstWhere((b) => b.id == 'bm-1');
+      expect(row.label, 'new label');
       expect(row.deletedAt, isNull);
     });
 
@@ -214,8 +212,8 @@ void main() {
 
       await h.runSync();
 
-      // Invariant: tombstone hides the row from getForBook ...
-      final visible = await h.db.bookmarksDao.getForBook('book-1');
+      // Invariant: tombstone hides the row from the live list ...
+      final visible = await h.db.bookmarksDao.watchForBook('book-1').first;
       expect(visible.map((b) => b.id), isNot(contains('bm-1')));
       // ... but the soft-deleted row is still present for sync.
       final all = await h.db.bookmarksDao.getAllIncludingTombstones();
@@ -239,7 +237,6 @@ void main() {
 
       // Invariant: a tombstone the local DB never knew about is not
       // materialised — the originating peer already carries it.
-      expect(await h.db.bookmarksDao.getById('bm-ghost'), isNull);
       final all = await h.db.bookmarksDao.getAllIncludingTombstones();
       expect(all.map((b) => b.id), isNot(contains('bm-ghost')));
     });
@@ -265,8 +262,9 @@ void main() {
       await h.runSync();
 
       // Invariant: local row is untouched ...
-      final row = await h.db.bookmarksDao.getById('bm-1');
-      expect(row!.label, 'local fresh');
+      final all = await h.db.bookmarksDao.getAllIncludingTombstones();
+      final row = all.firstWhere((b) => b.id == 'bm-1');
+      expect(row.label, 'local fresh');
       // ... and the pushed shard carries the local (winning) version.
       final shardBm =
           h.readBookmarksShard()!.bookmarks.firstWhere((b) => b.id == 'bm-1');

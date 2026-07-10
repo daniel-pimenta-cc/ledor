@@ -17,27 +17,23 @@ final epubExtractionServiceProvider = Provider<EpubExtractionService>((ref) {
 });
 
 /// State for the import process.
-enum ImportStatus { idle, picking, processing, done, error }
+enum ImportStatus { idle, processing, done, error }
 
 class ImportState {
   final ImportStatus status;
-  final String? errorMessage;
   final String? importedBookId;
 
   const ImportState({
     this.status = ImportStatus.idle,
-    this.errorMessage,
     this.importedBookId,
   });
 
   ImportState copyWith({
     ImportStatus? status,
-    String? errorMessage,
     String? importedBookId,
   }) {
     return ImportState(
       status: status ?? this.status,
-      errorMessage: errorMessage ?? this.errorMessage,
       importedBookId: importedBookId ?? this.importedBookId,
     );
   }
@@ -49,8 +45,6 @@ class EpubImportNotifier extends StateNotifier<ImportState> {
   EpubImportNotifier(this._ref) : super(const ImportState());
 
   Future<void> importFromFilePicker() async {
-    state = state.copyWith(status: ImportStatus.picking);
-
     try {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
@@ -66,11 +60,8 @@ class EpubImportNotifier extends StateNotifier<ImportState> {
         result.files.single.path!,
         displayName: result.files.single.name,
       );
-    } catch (e) {
-      state = state.copyWith(
-        status: ImportStatus.error,
-        errorMessage: e.toString(),
-      );
+    } catch (_) {
+      state = state.copyWith(status: ImportStatus.error);
     }
   }
 
@@ -79,11 +70,8 @@ class EpubImportNotifier extends StateNotifier<ImportState> {
   Future<void> importFromPath(String path) async {
     try {
       await _importFromPath(path);
-    } catch (e) {
-      state = state.copyWith(
-        status: ImportStatus.error,
-        errorMessage: e.toString(),
-      );
+    } catch (_) {
+      state = state.copyWith(status: ImportStatus.error);
     }
   }
 
@@ -97,10 +85,7 @@ class EpubImportNotifier extends StateNotifier<ImportState> {
     final parsedBook = await extractionService.extractBook(bytes);
 
     if (parsedBook.chapters.isEmpty) {
-      state = state.copyWith(
-        status: ImportStatus.error,
-        errorMessage: 'No readable content found in EPUB',
-      );
+      state = state.copyWith(status: ImportStatus.error);
       return;
     }
 

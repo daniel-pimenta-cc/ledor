@@ -1,37 +1,64 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show MissingPluginException;
 import 'package:flutter_tts/flutter_tts.dart';
 
 import 'tts_backend.dart';
 
+/// Converts our audiobook-style rate (1.0 = normal, range [0.5, 3.0]) to
+/// the `flutter_tts` scale, where **0.5 is normal speed**: Android
+/// multiplies the value by 2 before handing it to `setSpeechRate`, and iOS
+/// maps 0.5 to `AVSpeechUtteranceDefaultSpeechRate`. Passing our value
+/// through unconverted made every Android install speak at 2× — the
+/// "bizarre chipmunk voice" bug.
+///
+/// Clamped to the plugin's own safe band ([0.1, 1.5] → native 0.2×–3×).
+@visibleForTesting
+double flutterTtsRate(double audiobookRate) =>
+    (audiobookRate * 0.5).clamp(0.1, 1.5);
+
 /// Backend on top of the `flutter_tts` package. Used on every platform the
 /// package supports (Android, iOS, macOS, Windows, Web). Linux is
 /// **unsupported** by `flutter_tts` and is handled by `SpeechdSocketBackend`
-/// (or the legacy `SpeechDispatcherBackend`) instead — `ttsBackendProvider`
-/// makes the switch.
+/// instead — `ttsBackendProvider` makes the switch.
+///
+/// Every operation that touches the plugin goes through [_enqueue], a
+/// serialising queue. The plugin's Android side has a single-slot pending
+/// `Result` for `setEngine` and drains queued calls against a
+/// half-initialised client when two calls overlap — concurrent callers
+/// (TtsPlayer applying settings + ttsVoicesProvider listing voices) used to
+/// hang each other and corrupt engine state. With the queue plus the
+/// [_activeEngineId] dedup, overlap simply cannot happen.
 class FlutterTtsBackend implements TtsBackend {
   final FlutterTts _tts = FlutterTts();
-  bool _initialised = false;
+  Future<void>? _initFuture;
   TtsQueueMode _activeQueueMode = TtsQueueMode.flush;
+  String? _activeEngineId;
 
-  @override
-  bool get canPipeline => true;
+  /// Tail of the serialising queue. Each public operation chains onto it;
+  /// failures are swallowed from the chain (but surface to the caller) so
+  /// one failed op doesn't poison every later one.
+  Future<void> _serial = Future.value();
+
+  Future<T> _enqueue<T>(Future<T> Function() op) {
+    final result = _serial.then((_) => op());
+    _serial = result.then((_) {}, onError: (_) {});
+    return result;
+  }
 
   TtsProgressHandler? _onProgress;
   VoidCallback? _onCompletion;
   void Function(String)? _onError;
-  VoidCallback? _onStart;
+
+  bool get _initialised => _initFuture != null;
 
   @override
-  Future<void> init() async {
-    if (_initialised) return;
+  Future<void> init() => _initFuture ??= _initImpl();
 
+  Future<void> _initImpl() async {
     _tts.setProgressHandler((String text, int start, int end, String word) {
       _onProgress?.call(start, end, word);
-    });
-    _tts.setStartHandler(() {
-      _onStart?.call();
     });
     _tts.setCompletionHandler(() {
       _onCompletion?.call();
@@ -78,12 +105,10 @@ class FlutterTtsBackend implements TtsBackend {
     // previous call hasn't returned, and flutter_tts ends up with a
     // confused internal state. We treat `speak()` as fire-and-forget and
     // rely on the completion handler for sequencing.
-
-    _initialised = true;
   }
 
   @override
-  Future<List<TtsVoice>> getVoices() async {
+  Future<List<TtsVoice>> getVoices() => _enqueue(() async {
     await init();
     final raw = await _tts.getVoices;
     if (raw is! List) return const [];
@@ -100,18 +125,10 @@ class FlutterTtsBackend implements TtsBackend {
       ));
     }
     return voices;
-  }
+  });
 
   @override
-  Future<List<String>> getLanguages() async {
-    await init();
-    final raw = await _tts.getLanguages;
-    if (raw is! List) return const [];
-    return [for (final lang in raw) lang.toString()];
-  }
-
-  @override
-  Future<List<TtsEngine>> getEngines() async {
+  Future<List<TtsEngine>> getEngines() => _enqueue(() async {
     await init();
     // `getEngines` is Android-only on flutter_tts. Other platforms throw
     // MissingPluginException or return null; we treat both as "no engine
@@ -127,56 +144,72 @@ class FlutterTtsBackend implements TtsBackend {
     } catch (_) {
       return const [];
     }
-  }
+  });
 
   @override
-  Future<void> setEngine(String engineId) async {
+  Future<void> setEngine(String engineId) => _enqueue(() async {
     await init();
-    if (engineId.isEmpty) return;
+    if (engineId.isEmpty || engineId == _activeEngineId) return;
     try {
-      await _tts.setEngine(engineId);
-    } catch (_) {
-      // Older Android versions or non-Android platforms may not implement
-      // setEngine; swallow so a synced value from another device doesn't
-      // crash the reader.
+      // flutter_tts never stops or shuts down the outgoing native client on
+      // an engine switch — anything still speaking would keep playing over
+      // the new engine, and its late completion callbacks would pop our
+      // player's queue. Silence it first.
+      await _tts.stop();
+      // The plugin's engine init can hang forever when its single pending
+      // Result slot gets confused; the timeout keeps this queue (and the
+      // player awaiting us) from wedging with it.
+      await _tts.setEngine(engineId).timeout(const Duration(seconds: 8));
+      _activeEngineId = engineId;
+    } on MissingPluginException {
+      // Platform without engine selection (iOS/macOS/Windows) — a synced
+      // Android engine id is meaningless here; ignore.
+    } catch (e) {
+      _onError?.call('setEngine($engineId): $e');
     }
-  }
+  });
 
   @override
-  Future<void> setVoice(TtsVoice? voice) async {
+  Future<void> setVoice(TtsVoice? voice) => _enqueue(() async {
     await init();
-    if (voice == null) return;
+    if (voice == null) {
+      // Reset to the active engine's default instead of silently keeping
+      // whatever voice happens to be loaded (matters right after an engine
+      // switch, where "no voice chosen" must mean the new engine's default).
+      try {
+        await _tts.clearVoice();
+      } catch (_) {
+        // Not implemented everywhere; the engine default is already active
+        // on platforms that lack it.
+      }
+      return;
+    }
     await _tts.setVoice({'name': voice.name, 'locale': voice.locale});
-  }
+  });
 
   @override
-  Future<void> setLanguage(String iso) async {
+  Future<void> setLanguage(String iso) => _enqueue(() async {
     await init();
     await _tts.setLanguage(iso);
-  }
+  });
 
   @override
-  Future<void> setRate(double rate) async {
+  Future<void> setRate(double rate) => _enqueue(() async {
     await init();
-    // flutter_tts treats 0.5 as default in some versions; modern versions
-    // accept values up to ~2.0 reliably. Clamp to a safe band so engines
-    // don't reject the call.
-    final clamped = rate.clamp(0.1, 2.0);
-    await _tts.setSpeechRate(clamped);
-  }
+    await _tts.setSpeechRate(flutterTtsRate(rate));
+  });
 
   @override
-  Future<void> setPitch(double pitch) async {
+  Future<void> setPitch(double pitch) => _enqueue(() async {
     await init();
-    final clamped = pitch.clamp(0.5, 2.0);
-    await _tts.setPitch(clamped);
-  }
+    await _tts.setPitch(pitch.clamp(0.5, 2.0));
+  });
 
   @override
   Future<void> speak(
     String text, {
     TtsQueueMode mode = TtsQueueMode.flush,
-  }) async {
+  }) => _enqueue(() async {
     await init();
     if (text.isEmpty) {
       // Nothing to say. Fire completion synthetically so callers don't
@@ -202,16 +235,16 @@ class FlutterTtsBackend implements TtsBackend {
     // `awaitSpeakCompletion(true)` would resolve immediately anyway, but
     // we drop the await to make the intent obvious.
     unawaited(_tts.speak(text));
-  }
+  });
 
   @override
-  Future<void> stop() async {
+  Future<void> stop() => _enqueue(() async {
     if (!_initialised) return;
     await _tts.stop();
-  }
+  });
 
   @override
-  Future<void> dispose() async {
+  Future<void> dispose() => _enqueue(() async {
     if (!_initialised) return;
     try {
       await _tts.stop();
@@ -219,9 +252,9 @@ class FlutterTtsBackend implements TtsBackend {
     _onProgress = null;
     _onCompletion = null;
     _onError = null;
-    _onStart = null;
-    _initialised = false;
-  }
+    _initFuture = null;
+    _activeEngineId = null;
+  });
 
   @override
   set onProgress(TtsProgressHandler? cb) => _onProgress = cb;
@@ -231,9 +264,6 @@ class FlutterTtsBackend implements TtsBackend {
 
   @override
   set onError(void Function(String error)? cb) => _onError = cb;
-
-  @override
-  set onStart(VoidCallback? cb) => _onStart = cb;
 }
 
 /// Best-effort prettifier for Android engine package names. Turns

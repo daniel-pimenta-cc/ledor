@@ -95,12 +95,6 @@ class AppDatabase extends _$AppDatabase {
             }
           }
 
-          Future<void> createTableIfMissing(TableInfo table) async {
-            if (!await _tableExists(table.actualTableName)) {
-              await m.createTable(table);
-            }
-          }
-
           Future<void> createIndexIfMissing(Index index) async {
             if (!await _indexExists(index.entityName)) {
               await m.createIndex(index);
@@ -111,7 +105,7 @@ class AppDatabase extends _$AppDatabase {
             await addColumnIfMissing(booksTable, booksTable.syncFileName);
           }
           if (from < 3) {
-            await createTableIfMissing(syncImportFailuresTable);
+            await m.createTable(syncImportFailuresTable);
           }
           if (from < 4) {
             await addColumnIfMissing(booksTable, booksTable.source);
@@ -119,7 +113,7 @@ class AppDatabase extends _$AppDatabase {
             await addColumnIfMissing(booksTable, booksTable.siteName);
           }
           if (from < 5) {
-            await createTableIfMissing(readingSessionTable);
+            await m.createTable(readingSessionTable);
             await createIndexIfMissing(readingSessionStartedAtIdx);
             await createIndexIfMissing(readingSessionBookIdIdx);
           }
@@ -138,7 +132,7 @@ class AppDatabase extends _$AppDatabase {
             // already carries the v10 endGlobalWordIndex/endChapterIndex
             // columns. So a DB from < 9 gets them here, and the addColumn
             // step below sees them present and skips — no double-add.
-            await createTableIfMissing(bookmarksTable);
+            await m.createTable(bookmarksTable);
             await createIndexIfMissing(bookmarksBookIdIdx);
           }
           if (from < 10) {
@@ -154,16 +148,6 @@ class AppDatabase extends _$AppDatabase {
           }
         },
       );
-
-  /// Whether a table named [name] exists. Used to keep the migration
-  /// idempotent across partially-applied upgrades (see [migration]).
-  Future<bool> _tableExists(String name) async {
-    final rows = await customSelect(
-      "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
-      variables: [Variable.withString(name)],
-    ).get();
-    return rows.isNotEmpty;
-  }
 
   /// Whether an index named [name] exists.
   Future<bool> _indexExists(String name) async {
