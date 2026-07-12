@@ -14,11 +14,11 @@ muda de fornecedor.
 
 ## Visao geral
 
-O sync usa uma pasta `RSVP Reader/` no Drive do usuario, com tres
+O sync usa uma pasta `Ledor/` no Drive do usuario, com tres
 arquivos de metadata + uma pasta de EPUBs:
 
 ```
-RSVP Reader/
+Ledor/
   library/
     books.json          ← per-book metadata + progress + rating + tombstones
     settings.json       ← display settings

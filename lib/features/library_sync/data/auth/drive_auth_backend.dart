@@ -6,8 +6,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:googleapis/drive/v3.dart' as drive;
 import 'package:googleapis_auth/googleapis_auth.dart' as ga;
 
-const oauthClientIdKey = 'RSVP_OAUTH_CLIENT_ID';
-const oauthClientSecretKey = 'RSVP_OAUTH_CLIENT_SECRET';
+const oauthClientIdKey = 'LEDOR_OAUTH_CLIENT_ID';
+const oauthClientSecretKey = 'LEDOR_OAUTH_CLIENT_SECRET';
 
 String envOrEmpty(String key) => dotenv.maybeGet(key) ?? '';
 

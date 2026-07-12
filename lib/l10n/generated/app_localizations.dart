@@ -809,7 +809,7 @@ abstract class AppLocalizations {
   /// No description provided for @syncHelp.
   ///
   /// In en, this message translates to:
-  /// **'Your library metadata, reading progress and settings sync through a folder the app creates in your Google Drive (\"RSVP Reader\"). Sign in to connect an account; signing out on this device keeps the Drive files intact.'**
+  /// **'Your library metadata, reading progress and settings sync through a folder the app creates in your Google Drive (\"Ledor\"). Sign in to connect an account; signing out on this device keeps the Drive files intact.'**
   String get syncHelp;
 
   /// No description provided for @statsTitle.

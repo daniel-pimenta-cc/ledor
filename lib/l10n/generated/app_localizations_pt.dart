@@ -409,7 +409,7 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get syncHelp =>
-      'Os metadados da biblioteca, progresso de leitura e configurações sincronizam através de uma pasta que o app cria no seu Google Drive (\"RSVP Reader\"). Entre com uma conta para conectar; desconectar neste dispositivo não apaga os arquivos no Drive.';
+      'Os metadados da biblioteca, progresso de leitura e configurações sincronizam através de uma pasta que o app cria no seu Google Drive (\"Ledor\"). Entre com uma conta para conectar; desconectar neste dispositivo não apaga os arquivos no Drive.';
 
   @override
   String get statsTitle => 'Estatísticas';

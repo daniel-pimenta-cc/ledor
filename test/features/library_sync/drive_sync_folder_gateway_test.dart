@@ -427,13 +427,13 @@ void main() {
         () async {
       final id = await gateway.ensureRootFolder();
 
-      expect(drive.folders[id]?.name, 'RSVP Reader');
+      expect(drive.folders[id]?.name, 'Ledor');
       expect(drive.folders[id]?.parent, 'root');
 
       final again = await gateway.ensureRootFolder();
       expect(again, id, reason: 'second call must find, not recreate');
       expect(
-        drive.folders.values.where((f) => f.name == 'RSVP Reader').length,
+        drive.folders.values.where((f) => f.name == 'Ledor').length,
         1,
       );
     });

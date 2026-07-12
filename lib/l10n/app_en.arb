@@ -181,7 +181,7 @@
       "fileName": { "type": "String" }
     }
   },
-  "syncHelp": "Your library metadata, reading progress and settings sync through a folder the app creates in your Google Drive (\"RSVP Reader\"). Sign in to connect an account; signing out on this device keeps the Drive files intact.",
+  "syncHelp": "Your library metadata, reading progress and settings sync through a folder the app creates in your Google Drive (\"Ledor\"). Sign in to connect an account; signing out on this device keeps the Drive files intact.",
   "statsTitle": "Reading stats",
   "statsTabWeekly": "Last 7 days",
   "statsTabMonthly": "Last 30 days",

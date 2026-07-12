@@ -410,7 +410,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get syncHelp =>
-      'Your library metadata, reading progress and settings sync through a folder the app creates in your Google Drive (\"RSVP Reader\"). Sign in to connect an account; signing out on this device keeps the Drive files intact.';
+      'Your library metadata, reading progress and settings sync through a folder the app creates in your Google Drive (\"Ledor\"). Sign in to connect an account; signing out on this device keeps the Drive files intact.';
 
   @override
   String get statsTitle => 'Reading stats';

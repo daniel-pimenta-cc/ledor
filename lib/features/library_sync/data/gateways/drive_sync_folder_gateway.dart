@@ -304,12 +304,11 @@ class DriveSyncFolderGateway implements SyncFolderGateway {
   /// so the lookup is safe even if the user also has unrelated folders
   /// with the same name.
   ///
-  /// The folder name predates the Ledor rename. Kept as-is on purpose:
-  /// devices already syncing look this folder up by name when their cached
-  /// [SyncConfig] id is lost, and a renamed default would create a second,
-  /// empty root folder (split-brain). If this ever needs to change, add a
-  /// lookup-by-old-name fallback that renames the folder via the Drive API.
-  Future<String> ensureRootFolder({String name = 'RSVP Reader'}) async {
+  /// Renamed from "RSVP Reader" together with the move to the Ledor OAuth
+  /// client: `drive.file` visibility is per-client, so no device on the new
+  /// client can see the old folder anyway — every install starts fresh here
+  /// and there is no split-brain risk in changing the default.
+  Future<String> ensureRootFolder({String name = 'Ledor'}) async {
     final api = await _api();
     if (api == null) {
       throw StateError('Drive client unavailable — not signed in');

@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Conta conectada — Ledor</title>
+  <meta name="robots" content="noindex">
+  <link rel="icon" type="image/png" href="../assets/icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400..700;1,400..700&family=Inter:wght@400..700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../style.css">
+  <style>
+    .auth-wrap {
+      min-height: 100dvh;
+      display: grid;
+      place-items: center;
+      padding: 2rem 1.5rem;
+    }
+    .auth-card {
+      max-width: 30rem;
+      text-align: center;
+    }
+    .auth-check {
+      width: 64px;
+      height: 64px;
+      margin: 0 auto 1.5rem;
+      border-radius: 50%;
+      background: var(--accent-soft);
+      color: var(--accent);
+      display: grid;
+      place-items: center;
+    }
+    .auth-card h1 { font-size: 1.8rem; margin-bottom: 0.75rem; }
+    .auth-card p { color: var(--muted); }
+    .auth-card .en { font-size: 0.9rem; margin-top: 0.5rem; }
+    .auth-brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 2rem;
+      font-family: 'Lora', Georgia, serif;
+      font-weight: 600;
+      font-size: 1.1rem;
+    }
+    .auth-card .btn { margin-top: 2rem; }
+  </style>
+</head>
+<body>
+  <main class="auth-wrap">
+    <div class="auth-card">
+      <span class="auth-brand">
+        <img src="../assets/icon-192.png" alt="" width="26" height="26">
+        <span>L<span class="orp">e</span>dor</span>
+      </span>
+      <div class="auth-check" aria-hidden="true">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+      </div>
+      <h1>Conta conectada</h1>
+      <p>O Ledor já pode sincronizar sua biblioteca pelo Google Drive.
+         Pode fechar esta aba e voltar ao app.</p>
+      <p class="en" lang="en">Account connected — Ledor can now sync your library
+         through Google Drive. You can close this tab and return to the app.</p>
+      <a class="btn btn-ghost" href="https://ledor.app/">ledor.app</a>
+    </div>
+  </main>
+</body>
+</html>

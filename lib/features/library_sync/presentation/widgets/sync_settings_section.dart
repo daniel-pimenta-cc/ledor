@@ -195,8 +195,12 @@ class _DriveAccountRow extends ConsumerWidget {
       final folderId = await gateway.ensureRootFolder();
       await ref.read(syncConfigProvider.notifier).setDriveFolderId(folderId);
     } catch (e) {
+      // A silent signOut here reads as "nothing happened" in the UI —
+      // surface the failure (e.g. Drive API disabled on the project).
+      debugPrint('[auth] ensureRootFolder failed after sign-in: $e');
       if (!context.mounted) return;
       await ref.read(driveAuthProvider.notifier).signOut();
+      ref.read(driveAuthProvider.notifier).reportError(e.toString());
       return;
     }
 

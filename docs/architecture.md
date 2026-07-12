@@ -52,7 +52,7 @@ Pipeline: EPUB bytes → `epub_pro` → chapters → `HtmlStripper` → `TextTok
 Pipeline: URL → `http.get` → HTML → `ReadabilityExtractor` → `HtmlStripper` → `TextTokenizer` → `ParsedBook` (1 chapter) → `persistParsedBook(source: BookSource.article)`. Details in [article-import.md](article-import.md).
 
 ### library_sync
-Syncs the library manifest, `reading_progress`, `DisplaySettings`, ratings, and reading sessions through an "RSVP Reader" folder the app creates in the user's Google Drive (scope `drive.file` — it only sees files the app itself created). Available on **Android** and **Linux desktop**.
+Syncs the library manifest, `reading_progress`, `DisplaySettings`, ratings, and reading sessions through a "Ledor" folder the app creates in the user's Google Drive (scope `drive.file` — it only sees files the app itself created). Available on **Android** and **Linux desktop**.
 
 Single gateway via `DriveSyncFolderGateway` (implements `SyncFolderGateway`); the per-platform auth is abstracted behind `DriveAuthBackend` (`lib/features/library_sync/data/auth/`): `GoogleSignInDriveAuthBackend` on mobile, `DesktopOAuthDriveAuthBackend` on desktop (loopback OAuth via `googleapis_auth.clientViaUserConsent`, system browser via `url_launcher`, refresh token in `flutter_secure_storage`/libsecret). `DriveAuthNotifier` only depends on the abstraction, so the gateway / sync service / manifest code is identical across platforms. `SyncConfig.driveFolderId` caches the root folder id. **Filters `source='epub'`** — articles are always local.
 
@@ -172,7 +172,7 @@ Share sheet:    Android intent → ShareIntentHandler → ArticleImportNotifier 
 Reading:        SQLite cache → Chapter[] → RsvpEngine (Ticker) → RsvpWordDisplay / ContextScrollView
 Config:         SharedPreferences ↔ DisplaySettingsNotifier ↔ RsvpEngine.displaySettings
 Theme:          ThemeModeNotifier ↔ DisplaySettingsNotifier.applyBrightness() → reader palette swap
-Sync (EPUB):    SQLite (source=epub) ↔ library.json manifest + books/ in RSVP Reader/ on Drive
+Sync (EPUB):    SQLite (source=epub) ↔ library.json manifest + books/ in Ledor/ on Drive
 Telemetry:      RsvpEngine._flushSession() on pause/end/ereader/dispose → reading_session row
 Stats:          reading_session[] → buildSnapshot / buildMonthlyRecap / buildCompletionSummary → UI + PNG
 Completion:     engine end-of-book (_advanceWord) → finishTicket++ → ref.listen → context.push(/completion)

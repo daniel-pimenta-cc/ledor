@@ -59,6 +59,12 @@ class DriveAuthNotifier extends StateNotifier<DriveAuthState> {
     }
   }
 
+  /// Surface a post-sign-in setup failure (e.g. resolving the Drive root
+  /// folder) in the same error slot sign-in failures use.
+  void reportError(String message) {
+    state = DriveAuthState(errorMessage: message);
+  }
+
   Future<void> signOut() async {
     try {
       await _backend.signOut();

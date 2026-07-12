@@ -55,16 +55,15 @@ Ativos só em desktop, ligados via `CallbackShortcuts` em `RsvpReaderScreen`:
 O sync usa o mesmo `DriveSyncFolderGateway` do Android — só a auth muda. No Linux, `DesktopOAuthDriveAuthBackend` (em `lib/features/library_sync/data/auth/`) faz o fluxo OAuth 2.0 "installed app":
 
 1. Usuário clica **Connect Drive** em Settings.
-2. App abre o navegador padrão (via `url_launcher`) na URL de consent do Google.
-3. App escuta em `http://127.0.0.1:<porta-aleatória>/`.
-4. Após aprovação, Google redireciona pro loopback; `googleapis_auth.clientViaUserConsent` captura o code, troca por tokens e devolve um `AutoRefreshingAuthClient`.
-5. Refresh token é gravado no keyring (libsecret) via `flutter_secure_storage`. Próximas execuções restauram silenciosamente em `trySilentSignIn()`.
+2. App sobe um loopback server próprio em `http://localhost:<porta-aleatória>/` e abre o navegador padrão (via `url_launcher`) na URL de consent do Google, montada com `access_type=offline&prompt=consent` (um client "Web" só devolve refresh token com ambos presentes).
+3. Após aprovação, Google redireciona pro loopback; o app captura o code, responde **302 → https://ledor.app/auth/** (landing page amigável) e troca o code por tokens via `googleapis_auth.obtainAccessCredentialsViaCodeExchange`.
+4. Refresh token é gravado no keyring (libsecret) via `flutter_secure_storage`. Próximas execuções restauram silenciosamente em `trySilentSignIn()`.
 
 ### Setup das credenciais
 
-Crie um OAuth Client ID **type "Web application"** no [Google Cloud Console](https://console.cloud.google.com/apis/credentials), no mesmo projeto/consent screen do Android. Em **Authorized redirect URIs** adicione **`http://localhost` E `http://127.0.0.1`** (ambos sem porta — pro host de loopback "pelado" o Google ignora a porta). O `googleapis_auth` abre o loopback em `http://localhost:<porta-aleatória>`, então o **`http://localhost` é o que realmente casa**; o `127.0.0.1` fica por garantia. Cadastrar só `127.0.0.1` (ou só com porta) causa `redirect_uri_mismatch`: client "Web" faz match exato de host, diferente de client "Desktop" que aceita qualquer porta de loopback sem registro.
+Crie um OAuth Client ID **type "Web application"** no [Google Cloud Console](https://console.cloud.google.com/apis/credentials), no mesmo projeto/consent screen do Android. Em **Authorized redirect URIs** adicione **`http://localhost` E `http://127.0.0.1`** (ambos sem porta — pro host de loopback "pelado" o Google ignora a porta). O app abre o loopback em `http://localhost:<porta-aleatória>`, então o **`http://localhost` é o que realmente casa**; o `127.0.0.1` fica por garantia. Cadastrar só `127.0.0.1` (ou só com porta) causa `redirect_uri_mismatch`: client "Web" faz match exato de host, diferente de client "Desktop" que aceita qualquer porta de loopback sem registro.
 
-> Por que "Web application" e não "Desktop"? O scope `drive.file` filtra visibilidade de arquivos **por OAuth client_id**. Pra Android e desktop verem a mesma pasta `RSVP Reader/` no Drive, ambos passam pelo mesmo client_id — Android usa `serverClientId` em `google_sign_in` apontando pra esse Web client. Clients "Desktop application" não funcionam como `serverClientId`.
+> Por que "Web application" e não "Desktop"? O scope `drive.file` filtra visibilidade de arquivos **por OAuth client_id**. Pra Android e desktop verem a mesma pasta `Ledor/` no Drive, ambos passam pelo mesmo client_id — Android usa `serverClientId` em `google_sign_in` apontando pra esse Web client. Clients "Desktop application" não funcionam como `serverClientId`.
 
 O Android também precisa de um **Android OAuth client** separado registrado no mesmo projeto (com package name + SHA-1 do certificado de signing); o `google_sign_in` usa esse pra verificar o app no dispositivo. Esse Android client não vai no `.env` — fica registrado no Cloud Console e o Play Services pega automaticamente.
 

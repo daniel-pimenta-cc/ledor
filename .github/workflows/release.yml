@@ -25,11 +25,17 @@ jobs:
         with:
           channel: stable
           cache: true
-      # .env is a declared asset (flutter_dotenv) but is gitignored. Public
-      # builds ship it empty: Drive sync UI stays hidden (PlatformCapabilities
-      # .supportsDriveSync) instead of baking OAuth credentials into the APK.
-      - name: Create empty .env
-        run: touch .env
+      # .env is a declared asset (flutter_dotenv) but is gitignored. Release
+      # builds bake in the shared Web OAuth client so Drive sync works out of
+      # the box (drive.file scope; Google documents that the secret is not
+      # confidential in installed apps). Missing secrets degrade gracefully:
+      # empty values keep the Sync UI hidden via PlatformCapabilities.
+      - name: Write .env
+        run: |
+          {
+            echo "LEDOR_OAUTH_CLIENT_ID=${{ secrets.LEDOR_OAUTH_CLIENT_ID }}"
+            echo "LEDOR_OAUTH_CLIENT_SECRET=${{ secrets.LEDOR_OAUTH_CLIENT_SECRET }}"
+          } > .env
       - name: Decode upload keystore
         run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/upload.jks"
       - run: flutter pub get
@@ -60,8 +66,12 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y clang cmake ninja-build pkg-config \
             libgtk-3-dev libsecret-1-dev libjsoncpp-dev liblzma-dev
-      - name: Create empty .env
-        run: touch .env
+      - name: Write .env
+        run: |
+          {
+            echo "LEDOR_OAUTH_CLIENT_ID=${{ secrets.LEDOR_OAUTH_CLIENT_ID }}"
+            echo "LEDOR_OAUTH_CLIENT_SECRET=${{ secrets.LEDOR_OAUTH_CLIENT_SECRET }}"
+          } > .env
       - run: flutter pub get
       - run: flutter build linux --release
       - name: Pack bundle
