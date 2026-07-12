@@ -5,7 +5,7 @@ description: >-
   four reading modes (RSVP, scroll, ereader, TTS), EPUB + web articles,
   reading stats, and offline-first storage with optional Drive sync.
 publish_to: 'none'
-version: 0.2.0+2
+version: 0.2.1+3
 repository: https://github.com/daniel-pimenta-cc/ledor
 homepage: https://github.com/daniel-pimenta-cc/ledor
 issue_tracker: https://github.com/daniel-pimenta-cc/ledor/issues

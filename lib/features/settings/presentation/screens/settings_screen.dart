@@ -66,7 +66,7 @@ class SettingsScreen extends ConsumerWidget {
                   style: TextStyle(color: settings.wordColor)),
               // ponytail: manual, bump junto com o pubspec a cada release;
               // package_info_plus se cansar de esquecer
-              subtitle: Text('v0.2.0',
+              subtitle: Text('v0.2.1',
                   style:
                       TextStyle(color: settings.wordColor.withAlpha(160))),
             ),

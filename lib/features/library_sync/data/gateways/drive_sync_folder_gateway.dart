@@ -19,6 +19,13 @@ const _folderMime = 'application/vnd.google-apps.folder';
 class DriveSyncFolderGateway implements SyncFolderGateway {
   final Future<ga.AuthClient?> Function() _clientFactory;
   final Map<String, String> _folderIdCache = {};
+  // In-flight folder resolves keyed by "<create>|<path>". The sharded push
+  // writes every shard under `library/` concurrently; on a fresh Drive each
+  // write used to run its own find-or-create and race duplicate `library/`
+  // folders into existence (2 copies on 2026-05-13, 4 on 2026-07-12 —
+  // shards scattered across the copies and a peer re-imported every book as
+  // an unread orphan). Concurrent resolves now await the same future.
+  final Map<String, Future<String?>> _pendingResolves = {};
   // Cached file IDs keyed by "<parentId>/<fileName>". Populated opportunistically
   // by listFiles, readBytes, and the create/update branches of writeBytes so
   // subsequent reads/writes/deletes of the same file skip the ~500-700ms
@@ -56,7 +63,9 @@ class DriveSyncFolderGateway implements SyncFolderGateway {
   /// Walk [segments] starting at [rootId], resolving each folder. When
   /// [create] is true, missing folders are created; otherwise returns null
   /// as soon as a segment isn't found. Results are cached by the full
-  /// relative path so repeat calls within a session are cheap.
+  /// relative path so repeat calls within a session are cheap, and
+  /// concurrent calls for the same path share a single in-flight resolve
+  /// (see [_pendingResolves]).
   Future<String?> _resolveFolder(
     drive.DriveApi api,
     String rootId,
@@ -68,6 +77,26 @@ class DriveSyncFolderGateway implements SyncFolderGateway {
     final cached = _folderIdCache[cacheKey];
     if (cached != null) return cached;
 
+    final pendingKey = '$create|$cacheKey';
+    final pending = _pendingResolves[pendingKey];
+    if (pending != null) return pending;
+    final future =
+        _resolveFolderUncached(api, rootId, segments, create: create);
+    _pendingResolves[pendingKey] = future;
+    try {
+      return await future;
+    } finally {
+      unawaited(_pendingResolves.remove(pendingKey));
+    }
+  }
+
+  Future<String?> _resolveFolderUncached(
+    drive.DriveApi api,
+    String rootId,
+    List<String> segments, {
+    required bool create,
+  }) async {
+    final cacheKey = segments.join('/');
     String parentId = rootId;
     for (final seg in segments) {
       final q = "'${_esc(parentId)}' in parents "
@@ -332,5 +361,6 @@ class DriveSyncFolderGateway implements SyncFolderGateway {
   void clearCache() {
     _folderIdCache.clear();
     _fileIdCache.clear();
+    _pendingResolves.clear();
   }
 }

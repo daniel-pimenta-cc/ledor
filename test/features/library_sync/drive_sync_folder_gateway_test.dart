@@ -297,6 +297,33 @@ void main() {
       expect(utf8.decode(drive.files[id]!.bytes), 'new');
     });
 
+    test('parallel writes under a missing folder create it exactly once',
+        () async {
+      // The sharded push writes all shards concurrently (Future.wait). On a
+      // fresh Drive each write used to run its own find-or-create for
+      // `library/` and race duplicate folders into existence, scattering the
+      // shards across them — a peer then resolved one copy, missed
+      // books.json, and re-imported every EPUB as an unread orphan.
+      await Future.wait([
+        gateway.writeText(drive.rootId, 'library/books.json', '{}'),
+        gateway.writeText(drive.rootId, 'library/settings.json', '{}'),
+        gateway.writeText(drive.rootId, 'library/sessions.json', '{}'),
+        gateway.writeText(drive.rootId, 'library/bookmarks.json', '{}'),
+      ]);
+
+      expect(
+        drive.folders.values.where((f) => f.name == 'library').length,
+        1,
+        reason: 'concurrent shard writes must share one library/ folder',
+      );
+      expect(drive.files.values.map((f) => f.name).toSet(), {
+        'books.json',
+        'settings.json',
+        'sessions.json',
+        'bookmarks.json',
+      });
+    });
+
     test('creates missing subfolders on demand', () async {
       await gateway.writeText(drive.rootId, 'library/books.json', 'shard');
 
