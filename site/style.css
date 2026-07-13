@@ -1,6 +1,7 @@
 /* Ledor promo site — tokens espelham lib/core/theme/app_colors.dart */
 
-:root {
+:root,
+:root[data-theme="light"] {
   --paper: #F8F3EA;
   --surface: #FFFCF5;
   --surface-2: #F1EADD;
@@ -13,8 +14,20 @@
   --shadow: 0 10px 30px rgba(43, 37, 32, 0.08);
 }
 
+:root[data-theme="dark"] {
+  --paper: #15120F;
+  --surface: #1C1815;
+  --surface-2: #241E19;
+  --ink: #EDE6DB;
+  --muted: #A69B8A;
+  --line: #3A322A;
+  --accent-soft: #472014;
+  --on-accent-soft: #FFD9C8;
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+}
+
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme]) {
     --paper: #15120F;
     --surface: #1C1815;
     --surface-2: #241E19;
@@ -105,6 +118,35 @@ a { color: inherit; }
 }
 
 .lang-toggle:hover { color: var(--accent); border-color: var(--accent); }
+
+.theme-toggle {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.8rem;
+  padding: 0.4rem 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  line-height: 0;
+}
+
+.theme-toggle:hover { color: var(--accent); border-color: var(--accent); }
+
+.theme-toggle svg { display: block; }
+
+.theme-toggle .ic-sun { display: none; }
+
+:root[data-theme="dark"] .theme-toggle .ic-moon { display: none; }
+
+:root[data-theme="dark"] .theme-toggle .ic-sun { display: block; }
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) .theme-toggle .ic-moon { display: none; }
+  :root:not([data-theme]) .theme-toggle .ic-sun { display: block; }
+}
 
 /* ---------- buttons ---------- */
 

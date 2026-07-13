@@ -87,6 +87,8 @@ const I18N = {
     'a11y.play': 'Reproduzir',
     'a11y.pause': 'Pausar',
     'a11y.lang': 'Switch to English',
+    'a11y.themeLight': 'Mudar para tema claro',
+    'a11y.themeDark': 'Mudar para tema escuro',
   },
   en: {
     'meta.title': 'Ledor — words come to you',
@@ -174,6 +176,8 @@ const I18N = {
     'a11y.play': 'Play',
     'a11y.pause': 'Pause',
     'a11y.lang': 'Mudar para português',
+    'a11y.themeLight': 'Switch to light theme',
+    'a11y.themeDark': 'Switch to dark theme',
   },
 };
 
@@ -196,12 +200,37 @@ function applyLang() {
   toggle.setAttribute('aria-label', dict['a11y.lang']);
   demo.setText(dict['demo.text']);
   updatePlayLabel();
+  applyTheme();
 }
 
 document.getElementById('lang-toggle').addEventListener('click', () => {
   lang = lang === 'pt' ? 'en' : 'pt';
   localStorage.setItem('ledor-lang', lang);
   applyLang();
+});
+
+/* ---------- theme toggle ---------- */
+
+const prefersDark = window.matchMedia('(prefers-color-scheme: dark)');
+let theme = document.documentElement.dataset.theme || (prefersDark.matches ? 'dark' : 'light');
+
+function applyTheme() {
+  document.documentElement.setAttribute('data-theme', theme);
+  document.getElementById('theme-toggle')
+    .setAttribute('aria-label', I18N[lang][theme === 'dark' ? 'a11y.themeLight' : 'a11y.themeDark']);
+}
+
+document.getElementById('theme-toggle').addEventListener('click', () => {
+  theme = theme === 'dark' ? 'light' : 'dark';
+  localStorage.setItem('ledor-theme', theme);
+  applyTheme();
+});
+
+prefersDark.addEventListener('change', (e) => {
+  if (!localStorage.getItem('ledor-theme')) {
+    theme = e.matches ? 'dark' : 'light';
+    applyTheme();
+  }
 });
 
 /* ---------- ORP: port de lib/core/utils/orp_calculator.dart ---------- */

@@ -13,6 +13,13 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400..700;1,400..700&family=Inter:wght@400..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script>
+    (function () {
+      var t = localStorage.getItem('ledor-theme');
+      if (!t) t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      document.documentElement.setAttribute('data-theme', t);
+    })();
+  </script>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -23,12 +30,14 @@
     <span>L<span class="orp">e</span>dor</span>
   </a>
   <nav class="nav-links" aria-label="Seções">
-    <a href="#modos" data-i18n="nav.modes">Modos</a>
     <a href="#sync" data-i18n="nav.sync">Sync</a>
     <a href="#stats" data-i18n="nav.stats">Estatísticas</a>
-    <a href="#opensource" data-i18n="nav.oss">Open source</a>
   </nav>
   <div class="nav-actions">
+    <button class="theme-toggle" id="theme-toggle" aria-label="Switch to dark theme">
+      <svg class="ic-moon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      <svg class="ic-sun" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+    </button>
     <button class="lang-toggle" id="lang-toggle" aria-label="Switch to English">EN</button>
     <a class="btn btn-ghost btn-sm" href="https://github.com/daniel-pimenta-cc/ledor">GitHub</a>
   </div>
