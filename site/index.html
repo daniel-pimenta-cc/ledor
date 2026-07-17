@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Ledor · as palavras vêm até você</title>
   <meta name="description" content="Leia mais rápido com RSVP. Leitor open source de EPUB e artigos web para Android e Linux. Sync entre aparelhos, estatísticas, TTS. Grátis e sem anúncios.">
+  <link rel="canonical" href="https://ledor.app/">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Ledor">
   <meta property="og:url" content="https://ledor.app/">
@@ -13,6 +14,9 @@
   <meta property="og:image" content="https://ledor.app/assets/og-card.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Ledor — leitor RSVP: uma palavra por vez com a letra de foco em laranja">
+  <meta property="og:locale" content="pt_BR">
+  <meta property="og:locale:alternate" content="en_US">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" type="image/png" href="assets/icon-192.png">
   <link rel="apple-touch-icon" href="assets/icon-192.png">
@@ -27,6 +31,23 @@
     })();
   </script>
   <link rel="stylesheet" href="style.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Ledor",
+    "applicationCategory": "BookApplication",
+    "operatingSystem": "Android, Linux",
+    "description": "Leitor de EPUB e artigos web com RSVP: leia mais rápido, uma palavra de cada vez. Sync entre aparelhos, estatísticas e narração TTS. Grátis, sem anúncios, código aberto.",
+    "url": "https://ledor.app/",
+    "image": "https://ledor.app/assets/og-card.png",
+    "author": { "@type": "Person", "name": "Daniel Pimenta" },
+    "license": "https://opensource.org/licenses/MIT",
+    "isAccessibleForFree": true,
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "sameAs": "https://github.com/daniel-pimenta-cc/ledor"
+  }
+  </script>
 </head>
 <body>
 
@@ -56,7 +77,7 @@
     <div class="hero-copy">
       <p class="eyebrow" data-i18n="hero.eyebrow">Leitura RSVP · EPUB + artigos web · código aberto</p>
       <h1 data-i18n-html="hero.title">As palavras <em>vêm até você.</em></h1>
-      <p class="lead" data-i18n="hero.lead">Uma palavra de cada vez, no ritmo que você escolher, com a letra de foco sempre no mesmo lugar. Seus olhos param de correr atrás do texto, a distração some e a velocidade sobe sem esforço. Aperte o play e sinta a diferença.</p>
+      <p class="lead" data-i18n="hero.lead">Uma palavra de cada vez, no ritmo que você escolher, com a letra de foco sempre no mesmo lugar. Seus olhos param de correr atrás do texto, a distração some e a velocidade sobe sem esforço. Aperte o play aí do lado.</p>
       <div class="cta-row">
         <a class="btn btn-primary" href="https://github.com/daniel-pimenta-cc/ledor/releases/latest" data-i18n="hero.download">Baixar · Android &amp; Linux</a>
         <a class="btn btn-ghost" href="https://github.com/daniel-pimenta-cc/ledor" data-i18n="hero.github">Ver no GitHub</a>
@@ -138,7 +159,7 @@
         <p class="section-lead" data-i18n="sync.lead">Comece no celular no ônibus, continue no tablet no sofá, termine no desktop. Biblioteca, progresso, marcadores e até o tema chegam juntos em todos os aparelhos, pelo seu próprio Google Drive.</p>
         <ul class="checklist">
           <li data-i18n="sync.li1">Sem servidor nosso, sem conta nova: a pasta fica no seu Drive, e o app só enxerga arquivos que ele mesmo criou.</li>
-          <li data-i18n="sync.li2">Sincroniza biblioteca, progresso por livro, marcadores, notas, sessões de leitura e configurações de exibição.</li>
+          <li data-i18n="sync.li2">Sincroniza biblioteca, progresso por livro, marcadores, avaliações, sessões de leitura e configurações de exibição.</li>
           <li data-i18n="sync.li3">Android, tablet e Linux desktop com o mesmo app. No tablet, biblioteca e leitor abrem lado a lado.</li>
           <li data-i18n="sync.li4">Offline-first: o sync é opcional e o app funciona 100% sem internet.</li>
         </ul>
@@ -213,7 +234,7 @@
       <div class="split-copy">
         <span class="tag mono"><s data-i18n="tag.strike">assinatura</s> <em data-i18n="tag.rest">incluso</em></span>
         <h2 data-i18n="stats.h">Sua leitura, em números</h2>
-        <p class="section-lead" data-i18n="stats.lead">Quantas palavras você leu essa semana? Em que velocidade? O Ledor registra cada sessão e transforma sua leitura em gráficos da semana e do mês. E no fim do mês ainda sai uma retrospectiva pronta pra compartilhar.</p>
+        <p class="section-lead" data-i18n="stats.lead">Quantas palavras você leu esta semana? Em que velocidade? O Ledor registra cada sessão e transforma sua leitura em gráficos da semana e do mês. E no fim do mês ainda sai uma retrospectiva pronta pra compartilhar.</p>
         <ul class="checklist">
           <li data-i18n="stats.li1">Gráficos semanais e mensais de palavras por dia, tempo de leitura e tendência de WPM.</li>
           <li data-i18n="stats.li2">Recap mensal em imagem 9:16 pronta pra stories, com livros terminados e em andamento.</li>
