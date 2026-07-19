@@ -2,7 +2,7 @@
 
 const I18N = {
   pt: {
-    'meta.title': 'Ledor · as palavras vêm até você',
+    'meta.title': 'Ledor — leitor RSVP open source · as palavras vêm até você',
     'meta.desc': 'Leia mais rápido com RSVP. Leitor open source de EPUB e artigos web para Android e Linux. Sync entre aparelhos, estatísticas, TTS. Grátis e sem anúncios.',
     'nav.modes': 'Modos',
     'nav.sync': 'Sync',
@@ -91,7 +91,7 @@ const I18N = {
     'a11y.themeDark': 'Mudar para tema escuro',
   },
   en: {
-    'meta.title': 'Ledor · words come to you',
+    'meta.title': 'Ledor — open source RSVP reader · words come to you',
     'meta.desc': 'Read faster with RSVP. Open-source EPUB and web article reader for Android and Linux. Cross-device sync, reading stats, TTS. Free, no ads.',
     'nav.modes': 'Modes',
     'nav.sync': 'Sync',

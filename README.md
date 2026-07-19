@@ -17,7 +17,7 @@
 
 *Ledor* is Portuguese for someone who reads aloud to another person — and that's what this app does: instead of your eyes chasing the words, the words come to your eyes.
 
-An open-source EPUB and web-article speed reader built with Flutter, running on **Android, Linux desktop, and iOS**. Words are displayed one at a time at a configurable WPM, with the **Optimal Recognition Point (ORP)** highlighted so your eye doesn't need to saccade — letting you read faster while preserving comprehension. Formerly known as *RSVP Reader*.
+An open-source RSVP reader for EPUB and web articles, built with Flutter and running on **Android, Linux desktop, and iOS**. Words are displayed one at a time at a configurable WPM, with the **Optimal Recognition Point (ORP)** highlighted so your eye doesn't need to saccade — letting you read faster while preserving comprehension. Formerly known as *RSVP Reader*.
 
 ## Download
 
