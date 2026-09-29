@@ -75,14 +75,39 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
           context.push('/reader/${next.importedBookId}');
         }
         ref.read(epubImportProvider.notifier).reset();
+      } else if (next.status == ImportStatus.done) {
+        // Batch import: stay in the library and summarise what happened.
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Text(
+                next.failedCount == 0
+                    ? l10n.importBatchDone(next.importedCount)
+                    : l10n.importBatchPartial(
+                        next.importedCount,
+                        next.failedCount,
+                      ),
+              ),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        ref.read(epubImportProvider.notifier).reset();
       } else if (next.status == ImportStatus.error) {
         ScaffoldMessenger.of(context)
           ..hideCurrentSnackBar()
           ..showSnackBar(
             SnackBar(
-              content: Text(l10n.importError),
+              content: Text(
+                next.filePickerUnavailable
+                    ? l10n.importNoFilePicker
+                    : l10n.importError,
+              ),
               behavior: SnackBarBehavior.floating,
               backgroundColor: Theme.of(context).colorScheme.error,
+              duration: next.filePickerUnavailable
+                  ? const Duration(seconds: 10)
+                  : const Duration(milliseconds: 4000),
             ),
           );
         ref.read(epubImportProvider.notifier).reset();

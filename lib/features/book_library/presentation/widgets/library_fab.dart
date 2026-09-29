@@ -42,7 +42,14 @@ class LibraryFab extends StatelessWidget {
     } else {
       busy = importState.status == ImportStatus.processing;
       onPressed = busy ? null : onImportEpub;
-      label = busy ? l10n.importing : l10n.importBook;
+      label = !busy
+          ? l10n.importBook
+          : importState.totalCount > 1
+              ? l10n.importingProgress(
+                  importState.currentIndex,
+                  importState.totalCount,
+                )
+              : l10n.importing;
       idleIcon = Icons.add;
     }
 
