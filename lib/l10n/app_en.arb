@@ -4,6 +4,27 @@
   "library": "Library",
   "settings": "Settings",
   "importBook": "Import Book",
+  "importNoFilePicker": "No file dialog found. Install zenity or kdialog to pick files, or drag EPUB files onto the window.",
+  "importingProgress": "Importing {current}/{total}",
+  "@importingProgress": {
+    "placeholders": {
+      "current": { "type": "int" },
+      "total": { "type": "int" }
+    }
+  },
+  "importBatchDone": "{count, plural, =1{1 book imported} other{{count} books imported}}",
+  "@importBatchDone": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "importBatchPartial": "{imported} imported, {failed} failed",
+  "@importBatchPartial": {
+    "placeholders": {
+      "imported": { "type": "int" },
+      "failed": { "type": "int" }
+    }
+  },
   "emptyLibrary": "Your library is empty",
   "emptyLibrarySubtitle": "Import an EPUB to get started",
   "deleteBook": "Delete Book",
