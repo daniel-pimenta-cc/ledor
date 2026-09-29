@@ -96,8 +96,28 @@ void main() {
         container.read(displaySettingsProvider).wordColorValue,
         AppPalette.dark.onSurface.toARGB32(),
       );
-      final prefs = await SharedPreferences.getInstance();
-      expect(prefs.getString('settings_theme_mode'), 'dark');
+      expect(
+        await SharedPreferencesAsync().getString('settings_theme_mode'),
+        'dark',
+      );
+    });
+
+    test('a saved mode survives a restart', () async {
+      await container.read(themeModeProvider.notifier).set(ThemeMode.dark);
+
+      final restarted = ProviderContainer(
+        overrides: [
+          librarySyncProvider.overrideWith((ref) {
+            return _StubLibrarySyncNotifier(ref);
+          }),
+        ],
+      );
+      addTearDown(restarted.dispose);
+      restarted.read(themeModeProvider);
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(restarted.read(themeModeProvider), ThemeMode.dark);
     });
   });
 }

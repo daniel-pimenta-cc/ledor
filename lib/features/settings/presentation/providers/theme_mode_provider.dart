@@ -10,14 +10,22 @@ const _kThemeModeKey = 'settings_theme_mode';
 
 class ThemeModeNotifier extends StateNotifier<ThemeMode> {
   final Ref _ref;
+  final SharedPreferencesAsync _prefs;
+  bool _chosen = false;
 
-  ThemeModeNotifier(this._ref) : super(ThemeMode.system) {
+  // Must be SharedPreferencesAsync like every other settings store: the legacy
+  // SharedPreferences API keeps its own in-memory copy of the JSON file, so on
+  // Linux it and the async API overwrite each other's keys.
+  ThemeModeNotifier(this._ref, {SharedPreferencesAsync? prefs})
+      : _prefs = prefs ?? SharedPreferencesAsync(),
+        super(ThemeMode.system) {
     _load();
   }
 
   Future<void> _load() async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_kThemeModeKey);
+    final raw = await _prefs.getString(_kThemeModeKey);
+    // A pick made while the stored value was still loading wins.
+    if (_chosen) return;
     state = ThemeMode.values.asNameMap()[raw] ?? ThemeMode.system;
   }
 
@@ -38,9 +46,9 @@ class ThemeModeNotifier extends StateNotifier<ThemeMode> {
   Future<void> set(ThemeMode mode) async {
     final oldBrightness = _resolve(state);
     final newBrightness = _resolve(mode);
+    _chosen = true;
     state = mode;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_kThemeModeKey, mode.name);
+    await _prefs.setString(_kThemeModeKey, mode.name);
 
     // Only invert the reader's word/background when the effective brightness
     // actually changes — picking the same theme back-to-back shouldn't rewrite
