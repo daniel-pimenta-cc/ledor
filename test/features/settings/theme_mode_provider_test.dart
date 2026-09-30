@@ -102,22 +102,21 @@ void main() {
       );
     });
 
-    test('a saved mode survives a restart', () async {
-      await container.read(themeModeProvider.notifier).set(ThemeMode.dark);
-
-      final restarted = ProviderContainer(
+    test('upgrade keeps a mode saved by the legacy API', () async {
+      SharedPreferences.setMockInitialValues({'settings_theme_mode': 'dark'});
+      final upgraded = ProviderContainer(
         overrides: [
           librarySyncProvider.overrideWith((ref) {
             return _StubLibrarySyncNotifier(ref);
           }),
         ],
       );
-      addTearDown(restarted.dispose);
-      restarted.read(themeModeProvider);
-      await Future<void>.delayed(Duration.zero);
-      await Future<void>.delayed(Duration.zero);
-
-      expect(restarted.read(themeModeProvider), ThemeMode.dark);
+      addTearDown(upgraded.dispose);
+      upgraded.read(themeModeProvider);
+      for (var i = 0; i < 5; i++) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      expect(upgraded.read(themeModeProvider), ThemeMode.dark);
     });
   });
 }
