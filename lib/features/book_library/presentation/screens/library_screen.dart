@@ -107,7 +107,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
               backgroundColor: Theme.of(context).colorScheme.error,
               duration: next.filePickerUnavailable
                   ? const Duration(seconds: 10)
-                  : const Duration(milliseconds: 4000),
+                  : const Duration(seconds: 4),
             ),
           );
         ref.read(epubImportProvider.notifier).reset();

@@ -4,6 +4,7 @@ import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ledor/core/di/providers.dart';
+import 'package:ledor/core/utils/platform_capabilities.dart';
 import 'package:ledor/database/app_database.dart';
 import 'package:ledor/features/epub_import/presentation/providers/epub_import_provider.dart';
 import 'package:ledor/features/library_sync/presentation/providers/library_sync_provider.dart';
@@ -12,17 +13,7 @@ import 'package:shared_preferences_platform_interface/in_memory_shared_preferenc
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
 import '../../fixtures/build_minimal_epub.dart';
-
-class _FakePathProvider extends PathProviderPlatform {
-  _FakePathProvider(this.docs);
-  final Directory docs;
-
-  @override
-  Future<String?> getApplicationDocumentsPath() async => docs.path;
-
-  @override
-  Future<String?> getTemporaryPath() async => docs.path;
-}
+import '../../fixtures/fake_path_provider.dart';
 
 /// Counts pushes so the test can assert a batch schedules exactly one.
 class _StubLibrarySyncNotifier extends LibrarySyncNotifier {
@@ -78,7 +69,7 @@ void main() {
 
   setUp(() async {
     tmp = await Directory.systemTemp.createTemp('rsvp_batch_import_test_');
-    PathProviderPlatform.instance = _FakePathProvider(tmp);
+    PathProviderPlatform.instance = FakePathProvider(tmp);
     SharedPreferencesAsyncPlatform.instance =
         InMemorySharedPreferencesAsync.empty();
     db = AppDatabase(NativeDatabase.memory());
@@ -202,8 +193,8 @@ void main() {
   });
 
   group('file dialog failures', () {
-    test('missing dialog tool is flagged so the UI can explain it', () async {
-      pickerImpl = () async => throw const FilePickerUnavailableException();
+    test('a picker failure is flagged as unavailable only on Linux', () async {
+      pickerImpl = () async => throw Exception('no dialog backend');
       final container = makeContainer();
       addTearDown(container.dispose);
 
@@ -211,19 +202,29 @@ void main() {
 
       final state = container.read(epubImportProvider);
       expect(state.status, ImportStatus.error);
-      expect(state.filePickerUnavailable, isTrue);
+      expect(state.filePickerUnavailable, PlatformCapabilities.isLinux);
     });
 
-    test('any other picker failure is a plain error', () async {
-      pickerImpl = () async => throw Exception('boom');
+    test('importFromPaths (drag-and-drop) imports every path in one batch',
+        () async {
+      final a = await writeEpub('a.epub', 'Book A');
+      final b = await writeEpub('b.epub', 'Book B');
       final container = makeContainer();
       addTearDown(container.dispose);
+      final notifier = container.read(epubImportProvider.notifier);
+      final statuses = <ImportStatus>[];
+      container.listen(
+        epubImportProvider,
+        (_, next) => statuses.add(next.status),
+      );
 
-      await container.read(epubImportProvider.notifier).importFromFilePicker();
+      await notifier.importFromPaths([a.path, b.path]);
 
+      expect(statuses.first, ImportStatus.processing);
       final state = container.read(epubImportProvider);
-      expect(state.status, ImportStatus.error);
-      expect(state.filePickerUnavailable, isFalse);
+      expect(state.status, ImportStatus.done);
+      expect(state.importedCount, 2);
+      expect(pushes, hasLength(1));
     });
   });
 }
