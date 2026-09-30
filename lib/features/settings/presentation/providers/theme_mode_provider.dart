@@ -10,20 +10,22 @@ const _kThemeModeKey = 'settings_theme_mode';
 
 class ThemeModeNotifier extends StateNotifier<ThemeMode> {
   final Ref _ref;
-  final SharedPreferencesAsync _prefs;
-  bool _chosen = false;
-
   // Must be SharedPreferencesAsync like every other settings store: the legacy
   // SharedPreferences API keeps its own in-memory copy of the JSON file, so on
   // Linux it and the async API overwrite each other's keys.
-  ThemeModeNotifier(this._ref, {SharedPreferencesAsync? prefs})
-      : _prefs = prefs ?? SharedPreferencesAsync(),
-        super(ThemeMode.system) {
+  final _prefs = SharedPreferencesAsync();
+  bool _chosen = false;
+
+  ThemeModeNotifier(this._ref) : super(ThemeMode.system) {
     _load();
   }
 
   Future<void> _load() async {
-    final raw = await _prefs.getString(_kThemeModeKey);
+    // Up to 0.3.0 this key lived in the legacy store, which is separate on
+    // Android/iOS. Read-only on purpose: a legacy write clobbers the async
+    // keys on Linux/Windows.
+    final raw = await _prefs.getString(_kThemeModeKey) ??
+        (await SharedPreferences.getInstance()).getString(_kThemeModeKey);
     // A pick made while the stored value was still loading wins.
     if (_chosen) return;
     state = ThemeMode.values.asNameMap()[raw] ?? ThemeMode.system;
