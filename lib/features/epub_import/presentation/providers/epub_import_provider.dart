@@ -7,7 +7,6 @@ import 'package:uuid/uuid.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/di/providers.dart';
-import '../../../../core/utils/linux_file_dialog.dart';
 import '../../../../core/utils/platform_capabilities.dart';
 import '../../../../core/utils/sync_file_name.dart';
 import '../../../book_library/data/services/book_persistence.dart';
@@ -37,8 +36,8 @@ class ImportState {
   final int currentIndex;
   final int totalCount;
 
-  /// Linux without qarma/kdialog/zenity: the file dialog can't open at all,
-  /// which deserves a different message than a bad EPUB.
+  /// Linux where the file dialog couldn't open at all (no dialog backend
+  /// installed), which deserves a different message than a bad EPUB.
   final bool filePickerUnavailable;
 
   const ImportState({
@@ -54,18 +53,10 @@ class ImportState {
   ImportState copyWith({
     ImportStatus? status,
     String? importedBookId,
-    int? importedCount,
-    int? failedCount,
-    int? currentIndex,
-    int? totalCount,
   }) {
     return ImportState(
       status: status ?? this.status,
       importedBookId: importedBookId ?? this.importedBookId,
-      importedCount: importedCount ?? this.importedCount,
-      failedCount: failedCount ?? this.failedCount,
-      currentIndex: currentIndex ?? this.currentIndex,
-      totalCount: totalCount ?? this.totalCount,
     );
   }
 }
@@ -75,14 +66,7 @@ typedef PickedFile = ({String path, String? displayName});
 /// Asks the user for EPUB files. Returns null/empty when they cancel.
 typedef EpubPicker = Future<List<PickedFile>?> Function();
 
-class FilePickerUnavailableException implements Exception {
-  const FilePickerUnavailableException();
-}
-
 Future<List<PickedFile>?> _pickEpubsWithFilePicker() async {
-  if (PlatformCapabilities.isLinux && !await hasLinuxFileDialogTool()) {
-    throw const FilePickerUnavailableException();
-  }
   final result = await FilePicker.platform.pickFiles(
     type: FileType.custom,
     allowedExtensions: ['epub'],
@@ -106,14 +90,12 @@ class EpubImportNotifier extends StateNotifier<ImportState> {
     final List<PickedFile>? files;
     try {
       files = await _pick();
-    } on FilePickerUnavailableException {
-      state = const ImportState(
-        status: ImportStatus.error,
-        filePickerUnavailable: true,
-      );
-      return;
     } catch (_) {
-      state = state.copyWith(status: ImportStatus.error);
+      // file_picker on Linux throws when it can't find a dialog backend.
+      state = ImportState(
+        status: ImportStatus.error,
+        filePickerUnavailable: PlatformCapabilities.isLinux,
+      );
       return;
     }
 
@@ -126,9 +108,10 @@ class EpubImportNotifier extends StateNotifier<ImportState> {
   }
 
   /// Entry point for drag-and-drop on desktop and any other caller that
-  /// already has a file path on disk.
-  Future<void> importFromPath(String path) =>
-      _importBatch([(path: path, displayName: null)]);
+  /// already has file paths on disk.
+  Future<void> importFromPaths(List<String> paths) => _importBatch([
+        for (final path in paths) (path: path, displayName: null),
+      ]);
 
   /// Imports [files] one after another. Sequential on purpose: parsing is
   /// heavy and `uniqueSyncFileName` must see the previous book to avoid
@@ -138,14 +121,14 @@ class EpubImportNotifier extends StateNotifier<ImportState> {
     var failed = 0;
     String? lastId;
 
-    state = ImportState(
-      status: ImportStatus.processing,
-      totalCount: files.length,
-      currentIndex: 1,
-    );
-
     for (var i = 0; i < files.length; i++) {
-      state = state.copyWith(currentIndex: i + 1);
+      // Rebuilt from scratch each iteration (not copyWith) so a reset() from
+      // elsewhere mid-batch doesn't leave the loop running over an idle state.
+      state = ImportState(
+        status: ImportStatus.processing,
+        currentIndex: i + 1,
+        totalCount: files.length,
+      );
       try {
         final id = await _importFromPath(
           files[i].path,

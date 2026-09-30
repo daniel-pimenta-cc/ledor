@@ -42,7 +42,19 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String importBatchPartial(int imported, int failed) {
-    return '$imported importados, $failed com falha';
+    String _temp0 = intl.Intl.pluralLogic(
+      imported,
+      locale: localeName,
+      other: '$imported importados',
+      one: '1 importado',
+    );
+    String _temp1 = intl.Intl.pluralLogic(
+      failed,
+      locale: localeName,
+      other: '$failed com falha',
+      one: '1 com falha',
+    );
+    return '$_temp0, $_temp1';
   }
 
   @override
