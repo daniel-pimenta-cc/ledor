@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io' show SocketException;
+import 'dart:io' show SocketException, TlsException;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
@@ -68,8 +68,10 @@ const _offlineRetryInterval = Duration(minutes: 1);
 
 /// IOClient rethrows socket failures as ClientException (which also
 /// implements SocketException), so this covers DNS / no-route / reset.
+/// TlsException covers captive portals (hotel Wi-Fi), which IOClient
+/// doesn't wrap.
 bool _isNetworkError(Object e) =>
-    e is SocketException || e is http.ClientException;
+    e is SocketException || e is TlsException || e is http.ClientException;
 
 /// A book deletion waiting to be propagated to the sync folder as a
 /// tombstone. Books are hard-deleted locally, so this queue is the only
@@ -214,11 +216,14 @@ class LibrarySyncNotifier extends StateNotifier<LibrarySyncState> {
     } catch (_) {/* best effort — queue stays in memory */}
   }
 
-  /// Drop the queued delete tombstones, memory and disk. Called on
-  /// disconnect: queued deletes belong to the account/folder they were
-  /// created against, and replaying them after connecting a different
-  /// account would write phantom tombstones into the new folder's shard.
-  Future<void> clearPendingDeletes() async {
+  /// Forget the disconnected account's sync state. Queued deletes belong
+  /// to the account/folder they were created against — replaying them
+  /// after connecting a different account would write phantom tombstones
+  /// into the new folder's shard — and an offline/error status would keep
+  /// promising a sync that will never run.
+  Future<void> resetForDisconnect() async {
+    _offlineRetry?.cancel();
+    state = const LibrarySyncState();
     _pendingDeletes.clear();
     // Mark the disk state as known-empty so neither a pending load nor a
     // future one resurrects the cleared entries.
@@ -303,7 +308,7 @@ class LibrarySyncNotifier extends StateNotifier<LibrarySyncState> {
       );
       // A settings change that landed mid-sync wasn't in this push; keep
       // its stamp for the queued re-run.
-      if (_settingsUpdatedAt == settingsDirtyAt) {
+      if (identical(_settingsUpdatedAt, settingsDirtyAt)) {
         _settingsUpdatedAt = null;
         try {
           await _prefs.remove(_kSettingsDirtyAt);

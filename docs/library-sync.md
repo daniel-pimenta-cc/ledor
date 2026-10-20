@@ -318,7 +318,7 @@ dependem de fetch de URL.
 
 ## Offline
 
-Erro de rede (`SocketException` / `http.ClientException`) nao e erro de
+Erro de rede (`SocketException` / `TlsException` / `http.ClientException`) nao e erro de
 sync: o `LibrarySyncNotifier` vai pra `SyncStage.offline` (sem snackbar,
 sem `errorMessage`) e agenda um retry a cada 1 min. Enquanto offline, as
 tentativas nao voltam pra `syncing` (a hairline piscaria a cada retry).

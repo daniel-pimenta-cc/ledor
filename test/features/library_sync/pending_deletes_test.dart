@@ -258,14 +258,14 @@ void main() {
     // were created against. Without the clear, a delete that failed to
     // push would be replayed against the NEXT connected account, writing
     // a phantom tombstone into that folder's shard.
-    test('clearPendingDeletes drops the queue so a later sync pushes '
+    test('resetForDisconnect drops the queue so a later sync pushes '
         'nothing', () async {
       gateway.readable = false;
       final notifier = container.read(librarySyncProvider.notifier);
       await notifier.pushDelete('book-1');
       expect(await readPendingPref(), contains('book-1'));
 
-      await notifier.clearPendingDeletes();
+      await notifier.resetForDisconnect();
       expect(await readPendingPref(), isNull);
 
       gateway.readable = true;
@@ -292,6 +292,16 @@ void main() {
       gateway.readError = null;
       await notifier.triggerSync();
       expect(container.read(librarySyncProvider).stage, SyncStage.done);
+    });
+
+    test('disconnecting while offline clears the offline status', () async {
+      gateway.readError = const SocketException('Failed host lookup');
+      final notifier = container.read(librarySyncProvider.notifier);
+      await notifier.triggerSync();
+      expect(container.read(librarySyncProvider).stage, SyncStage.offline);
+
+      await notifier.resetForDisconnect();
+      expect(container.read(librarySyncProvider).stage, SyncStage.idle);
     });
 
     test('a settings change made offline still wins after a restart',
