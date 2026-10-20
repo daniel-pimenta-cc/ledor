@@ -47,7 +47,7 @@ Ativos só em desktop, ligados via `CallbackShortcuts` em `RsvpReaderScreen`:
 
 `DesktopDropHandler` (em `lib/core/share/desktop_drop_handler.dart`) envolve toda a árvore via `MaterialApp.builder`. Aceita:
 
-- **`.epub`**: chama `EpubImportNotifier.importFromPath`, passando pelo mesmo pipeline (`persistParsedBook`) do `file_picker`.
+- **`.epub`**: chama `EpubImportNotifier.importFromPaths` com todos os `.epub` soltos (importação em lote), passando pelo mesmo pipeline (`persistParsedBook`) do `file_picker`.
 - **URL / texto contendo URL**: usa `UrlUtils.extractHttpUrl` e dispara `articleImportProvider.importFromUrl`. Mesmo pipeline da janela "Importar URL".
 
 ## Google Drive sync

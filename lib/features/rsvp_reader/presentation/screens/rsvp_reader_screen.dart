@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -11,6 +13,7 @@ import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/responsive.dart';
 import '../../../../core/utils/bookmark_snippet.dart';
+import '../../../../core/utils/keep_screen_on.dart';
 import '../../../../core/utils/platform_capabilities.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../epub_import/domain/entities/word_token.dart';
@@ -60,15 +63,22 @@ class _RsvpReaderScreenState extends ConsumerState<RsvpReaderScreen>
   /// already null/none.
   bool _pendingConsumed = false;
 
+  late final ProviderSubscription<bool> _keepScreenOn;
+
   @override
   void initState() {
     super.initState();
     ref
         .read(rsvpEngineProvider(widget.bookId).notifier)
         .attachVsync(this);
-    // Observer is only used to recover a stalled TTS stream when the OS
-    // backgrounded the app. Cheap to register unconditionally — the
-    // callback is a no-op for the RSVP/scroll/ereader path.
+    _keepScreenOn = ref.listenManual(
+      rsvpEngineProvider(widget.bookId)
+          .select((s) => s.isPlaying && s.mode == ReaderMode.rsvp),
+      (_, on) => unawaited(setKeepScreenOn(on)),
+      fireImmediately: true,
+    );
+    // Observer recovers a stalled TTS stream when the OS backgrounded the
+    // app and re-applies the keep-screen-on flag on resume.
     WidgetsBinding.instance.addObserver(this);
   }
 
@@ -78,12 +88,16 @@ class _RsvpReaderScreenState extends ConsumerState<RsvpReaderScreen>
       ref
           .read(rsvpEngineProvider(widget.bookId).notifier)
           .restartTtsIfStalled();
+      // The engine is cached across activities (audio_service), so a
+      // recreated window comes back without the flag.
+      unawaited(setKeepScreenOn(_keepScreenOn.read()));
     }
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    unawaited(setKeepScreenOn(false));
     _shortcutsFocusNode.dispose();
     // Snapshot the notifier before super.dispose() — `ref` becomes
     // invalid the moment the element is unmounted, so reading it inside

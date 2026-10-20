@@ -158,6 +158,36 @@ void main() {
       expect(span.style!.fontSize, lessThan(fontSize));
     });
 
+    testWidgets('focus line and notch stay put when a long word shrinks',
+        (tester) async {
+      const settings = DisplaySettings(fontSize: 80.0, showFocusLine: true);
+      // Mirrors the reader, which centers the display in a taller area — a
+      // per-word box height would re-center and move the indicators.
+      Future<(double, double)> indicatorTops(String text) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: SizedBox(
+                width: 200,
+                height: 400,
+                child: Align(
+                  child: RsvpWordDisplay(word: _token(text), settings: settings),
+                ),
+              ),
+            ),
+          ),
+        );
+        return (
+          tester.getTopLeft(focusLine()).dy,
+          tester.getTopLeft(find.byKey(orpIndicatorNotchKey)).dy,
+        );
+      }
+
+      final short = await indicatorTops('word');
+      final long = await indicatorTops('extraordinarily');
+      expect(long, short);
+    });
+
     testWidgets('horizontal position shifts the word anchor', (tester) async {
       Future<Offset> tapTarget(double horizontalPosition) async {
         await _pump(

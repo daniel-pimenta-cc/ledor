@@ -67,8 +67,14 @@ class RsvpWordDisplay extends StatelessWidget {
               : 1.0;
           var fontSize = settings.fontSize * scale;
           _Measurement m;
+          double? slotHeight;
           while (true) {
             m = _measure(beforeOrp, orpChar, afterOrp, fontSize);
+            // Line height at the configured size. Everything but the word is
+            // laid out against it, so a long word that shrinks to fit doesn't
+            // drag the focus line and ORP marks up with it (the parent
+            // centers this box, so its height must not change per word).
+            slotHeight ??= m.textHeight;
             if (m.totalWidth <= usableWidth ||
                 fontSize <= AppConstants.rsvpMinFontSize) {
               break;
@@ -114,7 +120,7 @@ class RsvpWordDisplay extends StatelessWidget {
 
           final wordTop = topSpace;
           final focusLineTop =
-              wordTop + m.textHeight + bottomTickSpace + focusLineGap;
+              wordTop + slotHeight + bottomTickSpace + focusLineGap;
 
           // Horizontal center of the ORP letter inside the laid-out word —
           // used to anchor the vertical ticks in `linesAround`.
@@ -126,7 +132,7 @@ class RsvpWordDisplay extends StatelessWidget {
 
           return SizedBox(
             width: maxWidth,
-            height: m.textHeight + topSpace + bottomTickSpace + lineTotalSpace,
+            height: slotHeight + topSpace + bottomTickSpace + lineTotalSpace,
             child: Stack(
               clipBehavior: Clip.none,
               children: [
@@ -163,7 +169,7 @@ class RsvpWordDisplay extends StatelessWidget {
                   ),
                   Positioned(
                     left: orpCenterX - orpTickThickness / 2,
-                    top: wordTop + m.textHeight + orpTickGap,
+                    top: wordTop + slotHeight + orpTickGap,
                     child: CustomPaint(
                       key: orpIndicatorBottomTickKey,
                       size: const Size(orpTickThickness, orpTickLength),
@@ -173,7 +179,7 @@ class RsvpWordDisplay extends StatelessWidget {
                 ],
                 Positioned(
                   left: offsetX,
-                  top: wordTop,
+                  top: wordTop + (slotHeight - m.textHeight) / 2,
                   child: RichText(
                     text: TextSpan(
                       children: [

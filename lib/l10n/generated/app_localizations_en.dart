@@ -21,6 +21,31 @@ class AppLocalizationsEn extends AppLocalizations {
   String get importBook => 'Import Book';
 
   @override
+  String get importNoFilePicker =>
+      'No file dialog found. Install zenity or kdialog to pick files, or drag EPUB files onto the window.';
+
+  @override
+  String importingProgress(int current, int total) {
+    return 'Importing $current/$total';
+  }
+
+  @override
+  String importBatchDone(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count books imported',
+      one: '1 book imported',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String importBatchPartial(int imported, int failed) {
+    return '$imported imported, $failed failed';
+  }
+
+  @override
   String get emptyLibrary => 'Your library is empty';
 
   @override

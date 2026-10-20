@@ -122,6 +122,30 @@ abstract class AppLocalizations {
   /// **'Import Book'**
   String get importBook;
 
+  /// No description provided for @importNoFilePicker.
+  ///
+  /// In en, this message translates to:
+  /// **'No file dialog found. Install zenity or kdialog to pick files, or drag EPUB files onto the window.'**
+  String get importNoFilePicker;
+
+  /// No description provided for @importingProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'Importing {current}/{total}'**
+  String importingProgress(int current, int total);
+
+  /// No description provided for @importBatchDone.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 book imported} other{{count} books imported}}'**
+  String importBatchDone(int count);
+
+  /// No description provided for @importBatchPartial.
+  ///
+  /// In en, this message translates to:
+  /// **'{imported} imported, {failed} failed'**
+  String importBatchPartial(int imported, int failed);
+
   /// No description provided for @emptyLibrary.
   ///
   /// In en, this message translates to:

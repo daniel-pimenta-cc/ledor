@@ -52,12 +52,13 @@ class _DesktopDropHandlerState extends ConsumerState<DesktopDropHandler> {
     setState(() => _hovering = false);
     if (details.files.isEmpty) return;
 
-    for (final file in details.files) {
-      final path = file.path;
-      if (path.toLowerCase().endsWith('.epub')) {
-        await ref.read(epubImportProvider.notifier).importFromPath(path);
-        return;
-      }
+    final epubPaths = [
+      for (final file in details.files)
+        if (file.path.toLowerCase().endsWith('.epub')) file.path,
+    ];
+    if (epubPaths.isNotEmpty) {
+      await ref.read(epubImportProvider.notifier).importFromPaths(epubPaths);
+      return;
     }
 
     // Anything that isn't an EPUB: treat as a URL drop. Some platforms

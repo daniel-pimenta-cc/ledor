@@ -100,7 +100,7 @@ void main() {
         await source.writeAsBytes(bytes);
 
         final notifier = container.read(epubImportProvider.notifier);
-        await notifier.importFromPath(source.path);
+        await notifier.importFromPaths([source.path]);
 
         final state = container.read(epubImportProvider);
         expect(state.status, ImportStatus.done);
@@ -153,7 +153,7 @@ void main() {
       await junk.writeAsString('definitely not an epub archive');
 
       final notifier = container.read(epubImportProvider.notifier);
-      await notifier.importFromPath(junk.path);
+      await notifier.importFromPaths([junk.path]);
 
       final state = container.read(epubImportProvider);
       expect(state.status, ImportStatus.error);
@@ -175,7 +175,7 @@ void main() {
         await source.writeAsBytes(bytes);
 
         final notifier = container.read(epubImportProvider.notifier);
-        await notifier.importFromPath(source.path);
+        await notifier.importFromPaths([source.path]);
 
         final state = container.read(epubImportProvider);
         expect(state.status, ImportStatus.done);
@@ -199,9 +199,7 @@ void main() {
       final source = File('${tmp.path}/rt.epub');
       await source.writeAsBytes(bytes);
 
-      await container.read(epubImportProvider.notifier).importFromPath(
-            source.path,
-          );
+      await container.read(epubImportProvider.notifier).importFromPaths([source.path]);
       final bookId =
           container.read(epubImportProvider).importedBookId!;
 
@@ -241,13 +239,13 @@ void main() {
           ));
 
         final notifier = container.read(epubImportProvider.notifier);
-        await notifier.importFromPath(src1.path);
+        await notifier.importFromPaths([src1.path]);
         final firstId =
             container.read(epubImportProvider).importedBookId!;
         // Move the notifier back to idle so the second import isn't a
         // dedupe pass on top of the first one's state.
         notifier.reset();
-        await notifier.importFromPath(src2.path);
+        await notifier.importFromPaths([src2.path]);
         final secondId =
             container.read(epubImportProvider).importedBookId!;
 
