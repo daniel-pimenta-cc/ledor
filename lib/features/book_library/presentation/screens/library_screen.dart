@@ -10,6 +10,7 @@ import '../../../article_import/presentation/providers/article_import_provider.d
 import '../../../article_import/presentation/widgets/import_article_dialog.dart';
 import '../../../epub_import/presentation/providers/epub_import_provider.dart';
 import '../../../library_sync/presentation/providers/library_sync_provider.dart';
+import '../../../library_sync/presentation/widgets/sync_now_with_feedback.dart';
 import '../../../rsvp_reader/presentation/screens/rsvp_reader_screen.dart';
 import '../providers/book_library_provider.dart';
 import '../widgets/library_appbar_bottom.dart';
@@ -102,18 +103,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
             IconButton(
               icon: const Icon(Icons.cloud_off_outlined),
               tooltip: l10n.syncOffline,
-              // Tooltips need a long-press on touch, so a tap explains too.
-              onPressed: () {
-                ScaffoldMessenger.of(context)
-                  ..hideCurrentSnackBar()
-                  ..showSnackBar(
-                    SnackBar(
-                      content: Text(l10n.syncOffline),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                ref.read(librarySyncProvider.notifier).triggerSync();
-              },
+              onPressed: () => syncNowWithFeedback(context, ref),
             ),
           IconButton(
             icon: const Icon(Icons.bookmark_outline),

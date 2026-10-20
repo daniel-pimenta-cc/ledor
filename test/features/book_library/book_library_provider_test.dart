@@ -31,7 +31,7 @@ class _StubLibrarySyncNotifier extends LibrarySyncNotifier {
   void markSettingsDirty() {}
 
   @override
-  Future<void> triggerSync() async {}
+  Future<void> triggerSync({bool quiet = false}) async {}
 
   @override
   Future<void> pushDelete(String bookId) async {

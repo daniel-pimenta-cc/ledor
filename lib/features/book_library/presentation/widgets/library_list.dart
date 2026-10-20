@@ -6,8 +6,8 @@ import '../../../../core/routing/selected_book_provider.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/responsive.dart';
 import '../../../../database/app_database.dart';
-import '../../../../features/library_sync/presentation/providers/library_sync_provider.dart';
 import '../../../../features/library_sync/presentation/providers/sync_config_provider.dart';
+import '../../../../features/library_sync/presentation/widgets/sync_now_with_feedback.dart';
 import '../../../../features/rsvp_reader/presentation/providers/bookmarks_provider.dart';
 import '../../../../features/rsvp_reader/presentation/providers/reader_side_panel_provider.dart';
 import '../../../../l10n/generated/app_localizations.dart';
@@ -80,7 +80,7 @@ class LibraryList extends ConsumerWidget {
 
     if (!syncConfigured) return scroll;
     return RefreshIndicator(
-      onRefresh: () => ref.read(librarySyncProvider.notifier).triggerSync(),
+      onRefresh: () => syncNowWithFeedback(context, ref),
       child: scroll,
     );
   }

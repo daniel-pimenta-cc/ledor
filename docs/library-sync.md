@@ -320,14 +320,17 @@ dependem de fetch de URL.
 
 Erro de rede (`SocketException` / `TlsException` / `http.ClientException`) nao e erro de
 sync: o `LibrarySyncNotifier` vai pra `SyncStage.offline` (sem snackbar,
-sem `errorMessage`) e agenda um retry a cada 1 min. Enquanto offline, as
-tentativas nao voltam pra `syncing` (a hairline piscaria a cada retry).
+sem `errorMessage`) e agenda um retry a cada 1 min. Esse retry roda com
+`triggerSync(quiet: true)` e nao volta pra `syncing` (a hairline piscaria a
+cada minuto); tentativa do usuario (icone, pull-to-refresh, Sincronizar
+agora) mostra o progresso normalmente.
 Nada precisa de fila: progresso, sessions, bookmarks e rating ja tem
 timestamp no DB, entao o proximo sync que passar empurra tudo. A excecao
 era settings — o stamp de "settings sujo" vivia so em memoria; agora vai
 pra `sync_settingsDirtyAt` no SharedPreferences e so e limpo depois de um
 push com sucesso. Indicador: icone `cloud_off` na AppBar da biblioteca
-(tap explica + re-tenta) e texto no status da secao de sync.
+(tap tenta de novo via `syncNowWithFeedback`, que so avisa se a tentativa
+terminar offline) e texto no status da secao de sync.
 
 ## Observabilidade
 

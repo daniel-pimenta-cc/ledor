@@ -266,7 +266,10 @@ class LibrarySyncNotifier extends StateNotifier<LibrarySyncState> {
 
   /// Run a sync now. Safe to call multiple times: concurrent calls are
   /// coalesced into one queued re-run after the current one finishes.
-  Future<void> triggerSync() async {
+  /// [quiet] is for the offline retry: it doesn't flip an `offline` stage
+  /// to `syncing`, which would flash the library's sync hairline every
+  /// minute. Anything the user triggered should show the attempt.
+  Future<void> triggerSync({bool quiet = false}) async {
     final config = _ref.read(syncConfigProvider);
     if (!config.isConfigured) return;
     if (!_ref.read(driveAuthProvider).isSignedIn) return;
@@ -278,9 +281,7 @@ class LibrarySyncNotifier extends StateNotifier<LibrarySyncState> {
     _running = true;
     _debounce?.cancel();
     _offlineRetry?.cancel();
-    // While offline, attempts run quietly: flipping to `syncing` and back
-    // every retry would flash the library's sync hairline.
-    if (state.stage != SyncStage.offline) {
+    if (!quiet || state.stage != SyncStage.offline) {
       state = state.copyWith(stage: SyncStage.syncing, clearError: true);
     }
 
@@ -326,7 +327,8 @@ class LibrarySyncNotifier extends StateNotifier<LibrarySyncState> {
           clearError: true,
           clearImport: true,
         );
-        _offlineRetry = Timer(_offlineRetryInterval, triggerSync);
+        _offlineRetry =
+            Timer(_offlineRetryInterval, () => triggerSync(quiet: true));
       } else {
         state = state.copyWith(
           stage: SyncStage.error,

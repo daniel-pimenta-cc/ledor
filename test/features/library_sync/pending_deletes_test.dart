@@ -294,6 +294,27 @@ void main() {
       expect(container.read(librarySyncProvider).stage, SyncStage.done);
     });
 
+    test('while offline only the background retry skips `syncing`',
+        () async {
+      gateway.readError = const SocketException('Failed host lookup');
+      final notifier = container.read(librarySyncProvider.notifier);
+      await notifier.triggerSync();
+      final stages = <SyncStage>[];
+      container.listen(
+        librarySyncProvider,
+        (_, next) => stages.add(next.stage),
+      );
+
+      await notifier.triggerSync(quiet: true);
+      expect(stages, isNot(contains(SyncStage.syncing)));
+
+      // A user-initiated attempt shows progress, so a tap right after the
+      // connection returns doesn't look like it did nothing.
+      gateway.readError = null;
+      await notifier.triggerSync();
+      expect(stages, containsAllInOrder([SyncStage.syncing, SyncStage.done]));
+    });
+
     test('disconnecting while offline clears the offline status', () async {
       gateway.readError = const SocketException('Failed host lookup');
       final notifier = container.read(librarySyncProvider.notifier);
