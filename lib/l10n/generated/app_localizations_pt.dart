@@ -383,6 +383,10 @@ class AppLocalizationsPt extends AppLocalizations {
   String get syncNever => 'Nunca';
 
   @override
+  String get syncOffline =>
+      'Offline — as alterações sincronizam quando a conexão voltar';
+
+  @override
   String syncFailed(String error) {
     return 'Falha ao sincronizar: $error';
   }

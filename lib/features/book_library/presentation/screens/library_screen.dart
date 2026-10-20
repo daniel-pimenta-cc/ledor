@@ -98,6 +98,23 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       appBar: AppBar(
         title: Text(l10n.appTitle),
         actions: [
+          if (syncState.stage == SyncStage.offline)
+            IconButton(
+              icon: const Icon(Icons.cloud_off_outlined),
+              tooltip: l10n.syncOffline,
+              // Tooltips need a long-press on touch, so a tap explains too.
+              onPressed: () {
+                ScaffoldMessenger.of(context)
+                  ..hideCurrentSnackBar()
+                  ..showSnackBar(
+                    SnackBar(
+                      content: Text(l10n.syncOffline),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                ref.read(librarySyncProvider.notifier).triggerSync();
+              },
+            ),
           IconButton(
             icon: const Icon(Icons.bookmark_outline),
             tooltip: l10n.bookmarksTooltip,

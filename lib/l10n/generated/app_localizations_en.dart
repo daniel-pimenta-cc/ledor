@@ -384,6 +384,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get syncNever => 'Never';
 
   @override
+  String get syncOffline =>
+      'Offline — changes will sync when you\'re back online';
+
+  @override
   String syncFailed(String error) {
     return 'Sync failed: $error';
   }

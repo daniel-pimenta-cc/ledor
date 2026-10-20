@@ -349,6 +349,13 @@ class _SyncStatusRow extends StatelessWidget {
       );
     }
 
+    if (state.stage == SyncStage.offline) {
+      return Text(
+        l10n.syncOffline,
+        style: TextStyle(color: mutedColor, fontSize: 12),
+      );
+    }
+
     final lastLabel = state.lastSyncedAt != null
         ? DateFormat.yMMMd().add_Hm().format(state.lastSyncedAt!.toLocal())
         : l10n.syncNever;

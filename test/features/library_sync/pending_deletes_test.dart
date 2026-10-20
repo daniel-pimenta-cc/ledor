@@ -23,7 +23,9 @@ import '../../fixtures/fake_path_provider.dart';
 import '../../fixtures/fake_sync_folder_gateway.dart';
 
 const _kBooksShard = 'library/books.json';
+const _kSettingsShard = 'library/settings.json';
 const _kPendingDeletesKey = 'sync_pendingDeletes';
+const _kSettingsDirtyAtKey = 'sync_settingsDirtyAt';
 
 /// Signed-in (or signed-out, with null email) auth backend stub.
 class _FakeAuthBackend extends DriveAuthBackend {
@@ -272,6 +274,54 @@ void main() {
       final shard = gateway.textFiles[_kBooksShard];
       expect(shard == null || !shard.contains('book-1'), isTrue,
           reason: 'no phantom tombstone for the cleared delete');
+    });
+  });
+
+  group('offline', () {
+    test('a network failure goes offline quietly and the next sync '
+        'recovers', () async {
+      gateway.readError = const SocketException('Failed host lookup');
+      final notifier = container.read(librarySyncProvider.notifier);
+      await notifier.triggerSync();
+
+      final offline = container.read(librarySyncProvider);
+      expect(offline.stage, SyncStage.offline);
+      expect(offline.errorMessage, isNull,
+          reason: 'offline must not surface as an error snackbar');
+
+      gateway.readError = null;
+      await notifier.triggerSync();
+      expect(container.read(librarySyncProvider).stage, SyncStage.done);
+    });
+
+    test('a settings change made offline still wins after a restart',
+        () async {
+      gateway.readError = const SocketException('Failed host lookup');
+      final coldNotifier = container.read(librarySyncProvider.notifier);
+      coldNotifier.markSettingsDirty();
+      await coldNotifier.triggerSync();
+      final stamp = await SharedPreferencesAsync().getString(
+        _kSettingsDirtyAtKey,
+      );
+      expect(stamp, isNotNull);
+
+      // "Restart": the in-memory stamp is gone, only the persisted one is
+      // left to make the local settings win the LWW.
+      gateway.readError = null;
+      final warmContainer = await buildContainer(signedIn: true);
+      addTearDown(warmContainer.dispose);
+      await warmContainer.read(librarySyncProvider.notifier).triggerSync();
+
+      final pushed =
+          SyncSettingsShard.decode(gateway.textFiles[_kSettingsShard]!);
+      expect(
+        pushed.settings!.updatedAt.isAtSameMomentAs(DateTime.parse(stamp!)),
+        isTrue,
+      );
+      expect(
+        await SharedPreferencesAsync().getString(_kSettingsDirtyAtKey),
+        isNull,
+      );
     });
   });
 }

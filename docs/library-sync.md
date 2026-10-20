@@ -316,6 +316,19 @@ Artigos (`source == article`) sao **sempre locais**, nao participam do
 sync. Razao: o manifest e um formato de biblioteca EPUB, e artigos
 dependem de fetch de URL.
 
+## Offline
+
+Erro de rede (`SocketException` / `http.ClientException`) nao e erro de
+sync: o `LibrarySyncNotifier` vai pra `SyncStage.offline` (sem snackbar,
+sem `errorMessage`) e agenda um retry a cada 1 min. Enquanto offline, as
+tentativas nao voltam pra `syncing` (a hairline piscaria a cada retry).
+Nada precisa de fila: progresso, sessions, bookmarks e rating ja tem
+timestamp no DB, entao o proximo sync que passar empurra tudo. A excecao
+era settings — o stamp de "settings sujo" vivia so em memoria; agora vai
+pra `sync_settingsDirtyAt` no SharedPreferences e so e limpo depois de um
+push com sucesso. Indicador: icone `cloud_off` na AppBar da biblioteca
+(tap explica + re-tenta) e texto no status da secao de sync.
+
 ## Observabilidade
 
 Quando o sync esta rodando, a UI mostra uma hairline de 2px logo abaixo

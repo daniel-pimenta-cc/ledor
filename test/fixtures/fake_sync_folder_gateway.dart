@@ -4,8 +4,9 @@ import 'package:ledor/features/library_sync/domain/repositories/sync_folder_gate
 
 /// In-memory [SyncFolderGateway] for driving the sync service in tests.
 ///
-/// Flip [readable] to simulate the folder being unreachable (offline,
-/// revoked permissions); set [writeError] to make every write throw.
+/// Flip [readable] to simulate the folder being gone (revoked permissions);
+/// set [readError] to make the readability probe throw (e.g. a
+/// SocketException for offline); set [writeError] to make every write throw.
 /// [writeLog] records the relative path of every successful write
 /// (text and bytes) in order, so tests can assert that unchanged shards
 /// are NOT re-pushed (the skip-write optimization).
@@ -15,10 +16,15 @@ class FakeSyncFolderGateway implements SyncFolderGateway {
   final List<String> writeLog = [];
   final List<String> deleteLog = [];
   bool readable = true;
+  Object? readError;
   Object? writeError;
 
   @override
-  Future<bool> isReadable(String folderPath) async => readable;
+  Future<bool> isReadable(String folderPath) async {
+    final err = readError;
+    if (err != null) throw err;
+    return readable;
+  }
 
   @override
   Future<String?> readText(String folderPath, String relativePath) async =>

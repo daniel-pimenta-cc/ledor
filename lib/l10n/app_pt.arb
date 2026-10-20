@@ -134,6 +134,7 @@
     }
   },
   "syncNever": "Nunca",
+  "syncOffline": "Offline — as alterações sincronizam quando a conexão voltar",
   "syncFailed": "Falha ao sincronizar: {error}",
   "@syncFailed": {
     "placeholders": {

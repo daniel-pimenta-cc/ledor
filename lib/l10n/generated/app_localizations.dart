@@ -782,6 +782,12 @@ abstract class AppLocalizations {
   /// **'Never'**
   String get syncNever;
 
+  /// No description provided for @syncOffline.
+  ///
+  /// In en, this message translates to:
+  /// **'Offline — changes will sync when you\'re back online'**
+  String get syncOffline;
+
   /// No description provided for @syncFailed.
   ///
   /// In en, this message translates to:

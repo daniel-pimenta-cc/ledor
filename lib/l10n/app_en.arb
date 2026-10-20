@@ -160,6 +160,7 @@
     }
   },
   "syncNever": "Never",
+  "syncOffline": "Offline — changes will sync when you're back online",
   "syncFailed": "Sync failed: {error}",
   "@syncFailed": {
     "placeholders": {
