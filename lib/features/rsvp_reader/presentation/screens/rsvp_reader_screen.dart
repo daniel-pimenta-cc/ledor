@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -11,6 +13,7 @@ import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/responsive.dart';
 import '../../../../core/utils/bookmark_snippet.dart';
+import '../../../../core/utils/keep_screen_on.dart';
 import '../../../../core/utils/platform_capabilities.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../epub_import/domain/entities/word_token.dart';
@@ -84,6 +87,7 @@ class _RsvpReaderScreenState extends ConsumerState<RsvpReaderScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    unawaited(setKeepScreenOn(false));
     _shortcutsFocusNode.dispose();
     // Snapshot the notifier before super.dispose() — `ref` becomes
     // invalid the moment the element is unmounted, so reading it inside
@@ -125,6 +129,12 @@ class _RsvpReaderScreenState extends ConsumerState<RsvpReaderScreen>
   Widget build(BuildContext context) {
     final state = ref.watch(rsvpEngineProvider(widget.bookId));
     final engine = ref.read(rsvpEngineProvider(widget.bookId).notifier);
+
+    ref.listen<bool>(
+      rsvpEngineProvider(widget.bookId)
+          .select((s) => s.isPlaying && s.mode == ReaderMode.rsvp),
+      (_, on) => unawaited(setKeepScreenOn(on)),
+    );
 
     ref.listen<RsvpState>(rsvpEngineProvider(widget.bookId), (prev, next) {
       if (prev != null && next.finishTicket > prev.finishTicket) {
