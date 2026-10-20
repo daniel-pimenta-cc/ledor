@@ -63,15 +63,22 @@ class _RsvpReaderScreenState extends ConsumerState<RsvpReaderScreen>
   /// already null/none.
   bool _pendingConsumed = false;
 
+  late final ProviderSubscription<bool> _keepScreenOn;
+
   @override
   void initState() {
     super.initState();
     ref
         .read(rsvpEngineProvider(widget.bookId).notifier)
         .attachVsync(this);
-    // Observer is only used to recover a stalled TTS stream when the OS
-    // backgrounded the app. Cheap to register unconditionally — the
-    // callback is a no-op for the RSVP/scroll/ereader path.
+    _keepScreenOn = ref.listenManual(
+      rsvpEngineProvider(widget.bookId)
+          .select((s) => s.isPlaying && s.mode == ReaderMode.rsvp),
+      (_, on) => unawaited(setKeepScreenOn(on)),
+      fireImmediately: true,
+    );
+    // Observer recovers a stalled TTS stream when the OS backgrounded the
+    // app and re-applies the keep-screen-on flag on resume.
     WidgetsBinding.instance.addObserver(this);
   }
 
@@ -81,6 +88,9 @@ class _RsvpReaderScreenState extends ConsumerState<RsvpReaderScreen>
       ref
           .read(rsvpEngineProvider(widget.bookId).notifier)
           .restartTtsIfStalled();
+      // The engine is cached across activities (audio_service), so a
+      // recreated window comes back without the flag.
+      unawaited(setKeepScreenOn(_keepScreenOn.read()));
     }
   }
 
@@ -129,12 +139,6 @@ class _RsvpReaderScreenState extends ConsumerState<RsvpReaderScreen>
   Widget build(BuildContext context) {
     final state = ref.watch(rsvpEngineProvider(widget.bookId));
     final engine = ref.read(rsvpEngineProvider(widget.bookId).notifier);
-
-    ref.listen<bool>(
-      rsvpEngineProvider(widget.bookId)
-          .select((s) => s.isPlaying && s.mode == ReaderMode.rsvp),
-      (_, on) => unawaited(setKeepScreenOn(on)),
-    );
 
     ref.listen<RsvpState>(rsvpEngineProvider(widget.bookId), (prev, next) {
       if (prev != null && next.finishTicket > prev.finishTicket) {
