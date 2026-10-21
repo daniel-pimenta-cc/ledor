@@ -70,5 +70,16 @@ void main() {
       final without = WordTiming.calculateMultiplier('end');
       expect(withQuote, greaterThan(without));
     });
+
+    test('leading dialogue dash adds a comma-like pause', () {
+      final merged = WordTiming.calculateMultiplier('— привет');
+      final bare = WordTiming.calculateMultiplier('привет');
+      expect(merged, closeTo(bare * 1.5, 0.01));
+    });
+
+    test('lone dash keeps the old quick timing', () {
+      final lone = WordTiming.calculateMultiplier('—');
+      expect(lone, closeTo(0.9, 0.01));
+    });
   });
 }

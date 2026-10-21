@@ -99,5 +99,49 @@ void main() {
       );
       expect(tokens, isEmpty);
     });
+
+    test('merges a standalone em-dash into the following word', () {
+      final tokens = ChapterParser.parse(
+        '<p>Он сказал — привет всем</p>',
+        chapterIndex: 0,
+        globalOffset: 0,
+        imageResolver: (_) => null,
+      );
+
+      expect(tokens.map((t) => t.text),
+          orderedEquals(['Он', 'сказал', '— привет', 'всем']));
+    });
+
+    test('merged unit keeps paragraph-start and reads longer', () {
+      final tokens = ChapterParser.parse(
+        '<p>— Привет</p>',
+        chapterIndex: 0,
+        globalOffset: 0,
+        imageResolver: (_) => null,
+      );
+
+      expect(tokens.map((t) => t.text), ['— Привет']);
+      expect(tokens.single.isParagraphStart, isTrue);
+      final bare = ChapterParser.parse(
+        '<p>Привет</p>',
+        chapterIndex: 0,
+        globalOffset: 0,
+        imageResolver: (_) => null,
+      ).single;
+      expect(tokens.single.timingMultiplier,
+          greaterThan(bare.timingMultiplier));
+    });
+
+    test('leaves hyphenated compounds untouched', () {
+      final tokens = ChapterParser.parse(
+        '<p>что-то пошло не так</p>',
+        chapterIndex: 0,
+        globalOffset: 0,
+        imageResolver: (_) => null,
+      );
+
+      expect(tokens.map((t) => t.text),
+          orderedEquals(['что-', 'то', 'пошло', 'не', 'так']));
+    });
   });
 }

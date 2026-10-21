@@ -51,6 +51,7 @@ Multipliers applied on top of `60000ms / WPM`:
 | Long word (>6) | +0.1x per extra char |
 | `.` `!` `?` | 2.0x |
 | `,` `;` | 1.5x |
+| Leading dash (`— word` merged unit) | 1.5x |
 | `:` | 1.8x |
 | `...` | 2.5x |
 | Paragraph start | 1.5x |
