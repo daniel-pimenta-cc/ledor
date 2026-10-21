@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ledor/core/constants/responsive_defaults.dart';
 import 'package:ledor/features/epub_import/domain/entities/word_token.dart';
 import 'package:ledor/features/rsvp_reader/domain/entities/display_settings.dart';
 import 'package:ledor/features/rsvp_reader/presentation/widgets/rsvp_word_display.dart';
@@ -205,8 +206,174 @@ void main() {
       expect(right.dx, greaterThan(left.dx));
     });
 
-    group('orpIndicator', () {
-      testWidgets('defaults to notch — triangle present, other marks absent',
+    group('orp centering', () {
+      /// Horizontal center of the rendered ORP letter in display-local
+      /// coordinates, measured with an independent layout of the spans the
+      /// widget actually rendered.
+      double letterCenterLocal(WidgetTester tester) {
+        final richText =
+            tester.widget<RichText>(find.byType(RichText).first);
+        final richBox = tester.renderObject<RenderBox>(
+          find.byType(RichText).first,
+        );
+        final displayBox = tester.renderObject<RenderBox>(
+          find.descendant(
+            of: find.byType(RsvpWordDisplay),
+            matching: find.byType(Stack),
+          ),
+        );
+        final spans =
+            (richText.text as TextSpan).children!.cast<TextSpan>();
+        final painter = TextPainter(
+          text: TextSpan(children: spans),
+          textDirection: TextDirection.ltr,
+        )..layout();
+        final beforeLen = (spans[0].text ?? '').length;
+        final orpLen = (spans[1].text ?? '').length;
+        final start = painter
+            .getOffsetForCaret(TextPosition(offset: beforeLen), Rect.zero)
+            .dx;
+        final end = painter
+            .getOffsetForCaret(
+              TextPosition(offset: beforeLen + orpLen),
+              Rect.zero,
+            )
+            .dx;
+        final letterGlobalX =
+            richBox.localToGlobal(Offset.zero).dx + (start + end) / 2;
+        return letterGlobalX - displayBox.localToGlobal(Offset.zero).dx;
+      }
+
+      double anchorX(
+        WidgetTester tester, {
+        required double width,
+        required double horizontalPosition,
+      }) {
+        final context = tester.element(find.byType(RsvpWordDisplay));
+        final margin = ResponsiveDefaults.rsvpWordMargin(context);
+        return margin + (width - margin * 2) * horizontalPosition;
+      }
+
+      testWidgets('short word: highlighted letter lands on the anchor',
+          (tester) async {
+        // Small explicit font so the word fits with room to spare (no
+        // clamp in any font environment) — pure anchor placement.
+        await _pump(
+          tester,
+          word: _token('reading', orpIndex: 2),
+          settings: const DisplaySettings(fontSize: 20.0),
+        );
+        expect(
+          letterCenterLocal(tester),
+          closeTo(anchorX(tester, width: 400, horizontalPosition: 0.5), 1.0),
+        );
+      });
+
+      testWidgets('long Russian word stays strictly centered', (tester) async {
+        // The reported case: a 21-char Russian word. The display shrinks
+        // the font (past the old 16px floor if needed) so that both the
+        // highlighted letter and the notch sit exactly on the anchor.
+        await _pump(
+          tester,
+          word: _token('достопримечательность', orpIndex: 7),
+        );
+        expect(
+          letterCenterLocal(tester),
+          closeTo(anchorX(tester, width: 400, horizontalPosition: 0.5), 1.0),
+        );
+        final notchCenter =
+            tester.getCenter(find.byKey(orpIndicatorNotchKey)).dx;
+        final displayLeft = tester
+            .renderObject<RenderBox>(
+              find.descendant(
+                of: find.byType(RsvpWordDisplay),
+                matching: find.byType(Stack),
+              ),
+            )
+            .localToGlobal(Offset.zero)
+            .dx;
+        expect(
+          notchCenter - displayLeft,
+          closeTo(anchorX(tester, width: 400, horizontalPosition: 0.5), 1.0),
+        );
+      });
+
+      testWidgets('long word shrinks the font to hold the anchor',
+          (tester) async {
+        await _pump(
+          tester,
+          word: _token('достопримечательность', orpIndex: 7),
+        );
+        final richText =
+            tester.widget<RichText>(find.byType(RichText).first);
+        final span =
+            (richText.text as TextSpan).children!.cast<TextSpan>().first;
+        // Keeps shrinking past the old 16px floor until the ORP letter
+        // fits exactly on the anchor.
+        expect(span.style!.fontSize!, lessThan(16.0));
+        expect(
+          letterCenterLocal(tester),
+          closeTo(anchorX(tester, width: 400, horizontalPosition: 0.5), 1.0),
+        );
+      });
+
+      testWidgets('notch follows the highlighted letter on a clamped word',
+          (tester) async {
+        // Narrow slot + huge font forces the word to shift to fit; the
+        // notch must track the letter instead of staying at the anchor.
+        await _pump(
+          tester,
+          word: _token('extraordinarily', orpIndex: 3),
+          settings: const DisplaySettings(fontSize: 80.0),
+          width: 200,
+        );
+        final notchCenter =
+            tester.getCenter(find.byKey(orpIndicatorNotchKey)).dx;
+        final displayLeft = tester
+            .renderObject<RenderBox>(
+              find.descendant(
+                of: find.byType(RsvpWordDisplay),
+                matching: find.byType(Stack),
+              ),
+            )
+            .localToGlobal(Offset.zero)
+            .dx;
+        expect(
+          notchCenter - displayLeft,
+          closeTo(letterCenterLocal(tester), 1.0),
+        );
+      });
+
+      testWidgets('lineAbove follows the highlighted letter on a clamped word',
+          (tester) async {
+        await _pump(
+          tester,
+          word: _token('extraordinarily', orpIndex: 3),
+          settings: const DisplaySettings(
+            fontSize: 80.0,
+            orpIndicator: OrpIndicatorStyle.lineAbove,
+          ),
+          width: 200,
+        );
+        final lineCenter =
+            tester.getCenter(find.byKey(orpIndicatorTopLineKey)).dx;
+        final displayLeft = tester
+            .renderObject<RenderBox>(
+              find.descendant(
+                of: find.byType(RsvpWordDisplay),
+                matching: find.byType(Stack),
+              ),
+            )
+            .localToGlobal(Offset.zero)
+            .dx;
+        expect(
+          lineCenter - displayLeft,
+          closeTo(letterCenterLocal(tester), 1.0),
+        );
+      });
+    });
+
+    group('orpIndicator', () {      testWidgets('defaults to notch — triangle present, other marks absent',
           (tester) async {
         await _pump(tester, word: _token('reading'));
         expect(find.byKey(orpIndicatorNotchKey), findsOneWidget);

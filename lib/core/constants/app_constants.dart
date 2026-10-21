@@ -58,8 +58,11 @@ abstract final class AppConstants {
   static const String bookImagesSubdir = 'book_images';
 
   // ---- RSVP word display layout ----
-  /// Minimum font size when auto-scaling long words down.
-  static const double rsvpMinFontSize = 16.0;
+  /// Absolute floor for auto-scaling long words down. The shrink loop keeps
+  /// going until the word sits with its ORP letter exactly on the anchor —
+  /// below this size the word is clamped into the margins (marks then follow
+  /// the letter) instead of becoming unreadably small.
+  static const double rsvpAbsoluteMinFontSize = 8.0;
 
   /// Step used to shrink the font when the word does not fit.
   static const double rsvpFontShrinkStep = 2.0;

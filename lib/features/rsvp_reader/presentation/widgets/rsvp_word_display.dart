@@ -75,8 +75,16 @@ class RsvpWordDisplay extends StatelessWidget {
             // drag the focus line and ORP marks up with it (the parent
             // centers this box, so its height must not change per word).
             slotHeight ??= m.textHeight;
-            if (m.totalWidth <= usableWidth ||
-                fontSize <= AppConstants.rsvpMinFontSize) {
+            // Keep shrinking until the word fits with its ORP letter exactly
+            // on the anchor — the letter and the indicator marks never move
+            // off-center, only the font size gives way. Below the absolute
+            // floor the word is clamped into the margins (marks then follow
+            // the letter) instead of becoming unreadably small.
+            final ideal = anchorX - m.beforeWidth - (m.orpWidth / 2);
+            final fitsWithAnchor = ideal >= margin &&
+                ideal + m.totalWidth <= maxWidth - margin;
+            if (fitsWithAnchor ||
+                fontSize <= AppConstants.rsvpAbsoluteMinFontSize) {
               break;
             }
             fontSize -= AppConstants.rsvpFontShrinkStep;
@@ -138,7 +146,11 @@ class RsvpWordDisplay extends StatelessWidget {
               children: [
                 if (style == OrpIndicatorStyle.notch)
                   Positioned(
-                    left: anchorX - 4,
+                    // Follows the actual ORP letter (orpCenterX), not the
+                    // anchor: on long words the word shifts to fit while the
+                    // anchor stays put, and a pinned notch would point at
+                    // the wrong letter.
+                    left: orpCenterX - 4,
                     top: 0,
                     child: CustomPaint(
                       key: orpIndicatorNotchKey,
@@ -149,7 +161,7 @@ class RsvpWordDisplay extends StatelessWidget {
                   ),
                 if (style == OrpIndicatorStyle.lineAbove)
                   Positioned(
-                    left: anchorX - orpLineWidth / 2,
+                    left: orpCenterX - orpLineWidth / 2,
                     top: notchHeight - orpLineHeight,
                     child: CustomPaint(
                       key: orpIndicatorTopLineKey,
@@ -234,27 +246,36 @@ class RsvpWordDisplay extends StatelessWidget {
       fontWeight: settings.showOrpHighlight ? FontWeight.w700 : FontWeight.w400,
     );
 
-    final bP = TextPainter(
-      text: TextSpan(text: before, style: baseStyle),
+    // Measure the exact span tree that gets rendered. Measuring the three
+    // fragments separately drifts apart at the span joints
+    // (letter-spacing/kerning apply differently across the boundary), with
+    // the error growing on long words. Caret offsets of the combined
+    // paragraph give the true on-screen ORP letter bounds.
+    final painter = TextPainter(
+      text: TextSpan(children: [
+        TextSpan(text: before, style: baseStyle),
+        TextSpan(text: orp, style: orpStyle),
+        TextSpan(text: after, style: baseStyle),
+      ]),
       textDirection: TextDirection.ltr,
     )..layout();
 
-    final oP = TextPainter(
-      text: TextSpan(text: orp, style: orpStyle),
-      textDirection: TextDirection.ltr,
-    )..layout();
-
-    final aP = TextPainter(
-      text: TextSpan(text: after, style: baseStyle),
-      textDirection: TextDirection.ltr,
-    )..layout();
+    final orpStart = painter
+        .getOffsetForCaret(TextPosition(offset: before.length), Rect.zero)
+        .dx;
+    final orpEnd = painter
+        .getOffsetForCaret(
+          TextPosition(offset: before.length + orp.length),
+          Rect.zero,
+        )
+        .dx;
 
     return _Measurement(
-      beforeWidth: bP.width,
-      orpWidth: oP.width,
-      afterWidth: aP.width,
-      totalWidth: bP.width + oP.width + aP.width,
-      textHeight: bP.height,
+      beforeWidth: orpStart,
+      orpWidth: orpEnd - orpStart,
+      afterWidth: painter.width - orpEnd,
+      totalWidth: painter.width,
+      textHeight: painter.height,
       baseStyle: baseStyle,
       orpStyle: orpStyle,
     );
