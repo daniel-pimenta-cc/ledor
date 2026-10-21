@@ -36,6 +36,18 @@ typedef ImageResolver = ResolvedImage? Function(String src);
 class ChapterParser {
   const ChapterParser._();
 
+  /// Raw-text elements whose self-closing form (`<title/>`) HTML parsers
+  /// treat as an *opening* tag: the self-closing flag is ignored and the
+  /// rest of the document is swallowed into the element. FB2EPUB-converted
+  /// books emit `<title/>` with no closing tag, which used to zero out every
+  /// chapter (the swallowed body lands in `<title>`, which we skip).
+  /// These elements carry no reader-facing content for us, so dropping the
+  /// self-closing form is a no-op for well-formed books too.
+  static final _selfClosingRawText = RegExp(
+    r'<\s*(title|style|script|textarea|iframe|noembed|noframes)(\s[^>]*)?/>',
+    caseSensitive: false,
+  );
+
   /// Block-level tags whose subtree is its own paragraph.
   static const _blockTags = {
     'p', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
@@ -64,12 +76,15 @@ class ChapterParser {
   }) {
     if (html.trim().isEmpty) return const [];
 
+    // Neutralize self-closing raw-text elements (see [_selfClosingRawText]).
+    final sanitized = html.replaceAll(_selfClosingRawText, '');
+
     final state = _ParseState(
       chapterIndex: chapterIndex,
       globalIndex: globalOffset,
     );
 
-    final fragment = html_parser.parseFragment(html);
+    final fragment = html_parser.parseFragment(sanitized);
     _walk(fragment, state, imageResolver);
     state.flushTextParagraph();
 

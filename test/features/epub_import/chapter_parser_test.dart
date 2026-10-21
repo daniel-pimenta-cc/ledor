@@ -99,5 +99,56 @@ void main() {
       );
       expect(tokens, isEmpty);
     });
+
+    test('recovers body text when head has a self-closing <title/> (FB2EPUB)',
+        () {
+      // FB2EPUB 0.5.x emits `<title/>` with no closing tag. HTML parsers
+      // treat it as an opening raw-text tag and swallow the whole body
+      // into the skipped title element — this used to yield zero tokens.
+      const fb2Chapter = '''<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title/>
+<link rel="stylesheet" href="style.css" type="text/css"/>
+</head>
+<body class="z">
+<span><p class="p1">Hello world.</p><p class="p1">Second paragraph here.</p></span>
+</body>
+</html>''';
+      final tokens = ChapterParser.parse(
+        fb2Chapter,
+        chapterIndex: 0,
+        globalOffset: 0,
+        imageResolver: (_) => null,
+      );
+
+      expect(tokens.map((t) => t.text),
+          orderedEquals(['Hello', 'world.', 'Second', 'paragraph', 'here.']));
+      expect(tokens.first.isChapterStart, isTrue);
+    });
+
+    test('self-closing style/script do not swallow body text', () {
+      final tokens = ChapterParser.parse(
+        '<head><style/><script src="x.js"/></head>'
+        '<body><p>Visible text.</p></body>',
+        chapterIndex: 0,
+        globalOffset: 0,
+        imageResolver: (_) => null,
+      );
+
+      expect(tokens.map((t) => t.text), orderedEquals(['Visible', 'text.']));
+    });
+
+    test('well-formed <title>text</title> is still skipped', () {
+      final tokens = ChapterParser.parse(
+        '<html><head><title>Real Title</title></head>'
+        '<body><p>Body words.</p></body></html>',
+        chapterIndex: 0,
+        globalOffset: 0,
+        imageResolver: (_) => null,
+      );
+
+      expect(tokens.map((t) => t.text), orderedEquals(['Body', 'words.']));
+    });
   });
 }
