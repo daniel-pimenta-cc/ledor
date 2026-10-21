@@ -28,38 +28,68 @@ class TextTokenizer {
       final words = trimmed.split(RegExp(r'\s+'));
       bool firstOfParagraph = true;
 
+      final paragraphWords = <String>[];
       for (final raw in words) {
         final word = raw.trim();
         if (word.isEmpty) continue;
+        paragraphWords.addAll(splitHyphenated(word));
+      }
 
-        for (final subWord in splitHyphenated(word)) {
-          final bool isParagraphStart = firstOfParagraph;
-          final bool isChapterStart =
-              (paragraphIndex == 0 && firstOfParagraph);
-          firstOfParagraph = false;
+      for (final unit in mergeStandaloneDashes(paragraphWords)) {
+        final bool isParagraphStart = firstOfParagraph;
+        final bool isChapterStart =
+            (paragraphIndex == 0 && firstOfParagraph);
+        firstOfParagraph = false;
 
-          tokens.add(WordToken(
-            text: subWord,
-            orpIndex: OrpCalculator.calculate(subWord),
-            timingMultiplier: WordTiming.calculateMultiplier(
-              subWord,
-              isParagraphStart: isParagraphStart,
-              isChapterStart: isChapterStart,
-            ),
-            globalIndex: globalIndex,
-            chapterIndex: chapterIndex,
-            paragraphIndex: paragraphIndex,
+        tokens.add(WordToken(
+          text: unit,
+          orpIndex: OrpCalculator.calculate(unit),
+          timingMultiplier: WordTiming.calculateMultiplier(
+            unit,
             isParagraphStart: isParagraphStart,
             isChapterStart: isChapterStart,
-          ));
-          globalIndex++;
-        }
+          ),
+          globalIndex: globalIndex,
+          chapterIndex: chapterIndex,
+          paragraphIndex: paragraphIndex,
+          isParagraphStart: isParagraphStart,
+          isChapterStart: isChapterStart,
+        ));
+        globalIndex++;
       }
 
       paragraphIndex++;
     }
 
     return tokens;
+  }
+
+  /// Merge standalone dash tokens into the following word so a dialogue
+  /// dash never flashes on its own (`сказал — привет` →
+  /// `[сказал, — привет]`). Consecutive dashes collapse into one unit; a
+  /// trailing dash with no following word stays standalone. Operates within
+  /// one paragraph — never merges across paragraph boundaries.
+  ///
+  /// Shared by [TextTokenizer.tokenize] and the image-aware [ChapterParser]
+  /// so EPUB and article imports behave identically.
+  static List<String> mergeStandaloneDashes(List<String> words) {
+    const dashTokens = {'—', '–', '-'};
+    final merged = <String>[];
+    final pending = <String>[];
+    for (final word in words) {
+      if (dashTokens.contains(word)) {
+        pending.add(word);
+        continue;
+      }
+      if (pending.isEmpty) {
+        merged.add(word);
+      } else {
+        merged.add('${pending.join(' ')} $word');
+        pending.clear();
+      }
+    }
+    merged.addAll(pending);
+    return merged;
   }
 
   /// Split an internal-hyphen compound into sub-words, keeping the hyphen

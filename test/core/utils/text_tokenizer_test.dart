@@ -143,13 +143,79 @@ void main() {
       expect(tokens[1].isChapterStart, false);
     });
 
-    test('keeps standalone hyphen as a single token', () {
+    test('merges standalone hyphen into the following word', () {
       final tokens = TextTokenizer.tokenize(
         'foo - bar',
         chapterIndex: 0,
         globalOffset: 0,
       );
-      expect(tokens.map((t) => t.text).toList(), ['foo', '-', 'bar']);
+      expect(tokens.map((t) => t.text).toList(), ['foo', '- bar']);
+    });
+
+    test('merges standalone em-dash into the following word', () {
+      final tokens = TextTokenizer.tokenize(
+        'Он сказал — привет всем',
+        chapterIndex: 0,
+        globalOffset: 0,
+      );
+      expect(tokens.map((t) => t.text).toList(),
+          ['Он', 'сказал', '— привет', 'всем']);
+    });
+
+    test('dialogue dash keeps paragraph-start flags on the merged unit', () {
+      final tokens = TextTokenizer.tokenize(
+        '— Привет',
+        chapterIndex: 0,
+        globalOffset: 0,
+      );
+      expect(tokens.map((t) => t.text).toList(), ['— Привет']);
+      expect(tokens.single.isParagraphStart, isTrue);
+      expect(tokens.single.isChapterStart, isTrue);
+    });
+
+    test('highlight of a merged unit lands on a word letter, not the dash',
+        () {
+      final tokens = TextTokenizer.tokenize(
+        '— привет',
+        chapterIndex: 0,
+        globalOffset: 0,
+      );
+      final unit = tokens.single;
+      final orpChar = unit.text[unit.orpIndex];
+      expect(orpChar, isNot(equals('—')));
+      expect(orpChar.trim().isNotEmpty, isTrue);
+    });
+
+    test('merged dash unit reads longer than the bare word', () {
+      final merged = TextTokenizer.tokenize(
+        '— привет',
+        chapterIndex: 0,
+        globalOffset: 0,
+      ).single;
+      final bare = TextTokenizer.tokenize(
+        'привет',
+        chapterIndex: 0,
+        globalOffset: 0,
+      ).single;
+      expect(merged.timingMultiplier, greaterThan(bare.timingMultiplier));
+    });
+
+    test('collapses consecutive dashes into one unit', () {
+      final tokens = TextTokenizer.tokenize(
+        '— — ну',
+        chapterIndex: 0,
+        globalOffset: 0,
+      );
+      expect(tokens.map((t) => t.text).toList(), ['— — ну']);
+    });
+
+    test('trailing dash with no following word stays standalone', () {
+      final tokens = TextTokenizer.tokenize(
+        'Он замолчал —',
+        chapterIndex: 0,
+        globalOffset: 0,
+      );
+      expect(tokens.map((t) => t.text).toList(), ['Он', 'замолчал', '—']);
     });
 
     test('timing multiplier is pre-calculated', () {

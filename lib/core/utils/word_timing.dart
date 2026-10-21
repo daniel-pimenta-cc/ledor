@@ -7,6 +7,10 @@ import 'dart:math';
 class WordTiming {
   const WordTiming._();
 
+  /// A merged dialogue unit starts with a dash followed by a space
+  /// ("— word"). Lone dashes (no trailing space) keep the old behavior.
+  static final _leadingDash = RegExp(r'^[—–-] ');
+
   /// Calculate the timing multiplier for [word].
   ///
   /// Returns a value typically between 0.5 and 5.0 where 1.0 = normal speed.
@@ -44,6 +48,12 @@ class WordTiming {
         word.endsWith('\u201D') ||
         word.endsWith('\u2019')) {
       multiplier *= 1.3;
+    }
+
+    // Leading dialogue dash ("— word" merged unit): a brief beat on top of
+    // the word, like a comma.
+    if (_leadingDash.hasMatch(word)) {
+      multiplier *= 1.5;
     }
 
     // Structural pauses
