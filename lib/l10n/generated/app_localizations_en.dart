@@ -309,6 +309,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'Show the seek bar with chapter markers above the playback controls';
 
   @override
+  String get settingsFocusMode => 'Focus mode';
+
+  @override
+  String get settingsFocusModeDesc =>
+      'Hide the interface while words are playing; tap to bring it back';
+
+  @override
   String get settingsTimeRemaining => 'Time remaining';
 
   @override

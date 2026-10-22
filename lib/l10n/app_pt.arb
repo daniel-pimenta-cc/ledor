@@ -98,6 +98,8 @@
   "showLibraryPanel": "Mostrar biblioteca",
   "settingsProgressSlider": "Barra de progresso",
   "settingsProgressSliderDesc": "Exibe a barra de progresso com marcadores de capítulo acima dos controles",
+  "settingsFocusMode": "Modo de foco",
+  "settingsFocusModeDesc": "Esconde a interface enquanto as palavras passam; toque para mostrar",
   "settingsTimeRemaining": "Tempo restante",
   "settingsTimeRemainingDesc": "Como exibir o tempo restante ao lado do título do capítulo",
   "timeRemainingTotal": "Livro inteiro",

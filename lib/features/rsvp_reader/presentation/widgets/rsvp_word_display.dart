@@ -196,16 +196,19 @@ class RsvpWordDisplay extends StatelessWidget {
                     right: 0,
                     top: focusLineTop,
                     height: focusLineHeight,
-                    // Thin line below the word. When progress display is on it
-                    // fills to `progress` in the accent; otherwise value 0 keeps
-                    // the whole track in restColor as a plain focus aid.
+                    // Thin line below the word. Kept slightly dimmed so it
+                    // reads as a quiet anchor, not a second highlight: the
+                    // fill uses the accent at reduced opacity, the track is
+                    // barely-there word color. When progress display is on it
+                    // fills to `progress` in the dimmed accent; otherwise
+                    // value 0 keeps the whole track as a plain focus aid.
                     child: LinearProgressIndicator(
                       value: settings.focusLineShowsProgress
                           ? progress.clamp(0.0, 1.0)
                           : 0.0,
                       minHeight: focusLineHeight,
-                      color: settings.orpColor,
-                      backgroundColor: settings.wordColor.withAlpha(60),
+                      color: settings.orpColor.withAlpha(180),
+                      backgroundColor: settings.wordColor.withAlpha(45),
                     ),
                   ),
               ],

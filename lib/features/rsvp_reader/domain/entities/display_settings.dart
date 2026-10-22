@@ -52,6 +52,11 @@ class DisplaySettings {
   final bool showProgressSlider;
   final TimeRemainingMode timeRemainingMode;
 
+  /// Hides the surrounding reader chrome (top bar, controls dock, side
+  /// panel) a few seconds into RSVP playback; a tap brings it back.
+  /// Default on — the word should own the screen while it is playing.
+  final bool focusMode;
+
   /// Extra pause applied at the end of a sentence (`.`, `!`, `?`, `…`).
   /// Multiplied on top of [WordToken.timingMultiplier]. Default `1.0` keeps
   /// the existing baked-in behaviour; values above add a structural beat.
@@ -123,6 +128,7 @@ class DisplaySettings {
     this.orpIndicator = OrpIndicatorStyle.notch,
     this.showProgressSlider = true,
     this.timeRemainingMode = TimeRemainingMode.total,
+    this.focusMode = true,
     this.sentencePauseMultiplier = 1.0,
     this.chapterPauseMultiplier = 1.0,
     this.ttsLanguage = 'en-US',
@@ -156,6 +162,7 @@ class DisplaySettings {
     OrpIndicatorStyle? orpIndicator,
     bool? showProgressSlider,
     TimeRemainingMode? timeRemainingMode,
+    bool? focusMode,
     double? sentencePauseMultiplier,
     double? chapterPauseMultiplier,
     String? ttsLanguage,
@@ -184,6 +191,7 @@ class DisplaySettings {
       orpIndicator: orpIndicator ?? this.orpIndicator,
       showProgressSlider: showProgressSlider ?? this.showProgressSlider,
       timeRemainingMode: timeRemainingMode ?? this.timeRemainingMode,
+      focusMode: focusMode ?? this.focusMode,
       sentencePauseMultiplier:
           sentencePauseMultiplier ?? this.sentencePauseMultiplier,
       chapterPauseMultiplier:

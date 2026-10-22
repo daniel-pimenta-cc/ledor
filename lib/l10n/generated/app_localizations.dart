@@ -626,6 +626,18 @@ abstract class AppLocalizations {
   /// **'Show the seek bar with chapter markers above the playback controls'**
   String get settingsProgressSliderDesc;
 
+  /// No description provided for @settingsFocusMode.
+  ///
+  /// In en, this message translates to:
+  /// **'Focus mode'**
+  String get settingsFocusMode;
+
+  /// No description provided for @settingsFocusModeDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide the interface while words are playing; tap to bring it back'**
+  String get settingsFocusModeDesc;
+
   /// No description provided for @settingsTimeRemaining.
   ///
   /// In en, this message translates to:

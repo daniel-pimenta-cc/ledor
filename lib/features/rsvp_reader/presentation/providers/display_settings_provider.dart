@@ -45,6 +45,7 @@ class DisplaySettingsNotifier extends StateNotifier<DisplaySettings> {
       _prefs.getBool('${_prefix}focusLineProgress'),
       _prefs.getString('${_prefix}orpIndicator'),
       _prefs.getBool('${_prefix}showProgressSlider'),
+      _prefs.getBool('${_prefix}focusMode'),
       _prefs.getString('${_prefix}timeRemainingMode'),
       _prefs.getDouble('${_prefix}sentencePause'),
       _prefs.getDouble('${_prefix}chapterPause'),
@@ -76,14 +77,15 @@ class DisplaySettingsNotifier extends StateNotifier<DisplaySettings> {
       focusLineShowsProgress: results[14] as bool? ?? true,
       orpIndicator: _parseOrpIndicator(results[15] as String?),
       showProgressSlider: results[16] as bool? ?? true,
-      timeRemainingMode: _parseTimeRemainingMode(results[17] as String?),
-      sentencePauseMultiplier: results[18] as double? ?? 1.0,
-      chapterPauseMultiplier: results[19] as double? ?? 1.0,
-      ttsLanguage: results[20] as String? ?? 'en-US',
-      ttsVoiceName: results[21] as String?,
-      ttsPitch: results[22] as double? ?? 1.0,
-      ttsRate: results[23] as double? ?? AppConstants.defaultTtsRate,
-      ttsEngineId: results[24] as String?,
+      focusMode: results[17] as bool? ?? true,
+      timeRemainingMode: _parseTimeRemainingMode(results[18] as String?),
+      sentencePauseMultiplier: results[19] as double? ?? 1.0,
+      chapterPauseMultiplier: results[20] as double? ?? 1.0,
+      ttsLanguage: results[21] as String? ?? 'en-US',
+      ttsVoiceName: results[22] as String?,
+      ttsPitch: results[23] as double? ?? 1.0,
+      ttsRate: results[24] as double? ?? AppConstants.defaultTtsRate,
+      ttsEngineId: results[25] as String?,
     );
   }
 
@@ -153,6 +155,7 @@ class DisplaySettingsNotifier extends StateNotifier<DisplaySettings> {
       _prefs.setString('${_prefix}orpIndicator', state.orpIndicator.name),
       _prefs.setBool(
           '${_prefix}showProgressSlider', state.showProgressSlider),
+      _prefs.setBool('${_prefix}focusMode', state.focusMode),
       _prefs.setString(
           '${_prefix}timeRemainingMode', state.timeRemainingMode.name),
       _prefs.setDouble(

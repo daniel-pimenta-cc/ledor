@@ -140,6 +140,22 @@ void main() {
       },
     );
 
+    testWidgets('focus line is dimmed, not full accent', (tester) async {
+      const settings = DisplaySettings(
+        showFocusLine: true,
+        focusLineShowsProgress: true,
+      );
+      await _pump(
+        tester,
+        word: _token('reading'),
+        settings: settings,
+        progress: 0.5,
+      );
+      final bar = tester.widget<LinearProgressIndicator>(focusLine());
+      expect(bar.color, settings.orpColor.withAlpha(180));
+      expect(bar.backgroundColor, settings.wordColor.withAlpha(45));
+    });
+
     testWidgets('scales down the font when the word does not fit',
         (tester) async {
       const fontSize = 80.0;
