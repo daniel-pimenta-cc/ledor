@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ledor/core/constants/app_constants.dart';
 import 'package:ledor/core/constants/responsive_defaults.dart';
 import 'package:ledor/features/epub_import/domain/entities/word_token.dart';
 import 'package:ledor/features/rsvp_reader/domain/entities/display_settings.dart';
@@ -269,13 +270,25 @@ void main() {
         );
       });
 
-      testWidgets('long Russian word stays strictly centered', (tester) async {
-        // The reported case: a 21-char Russian word. The display shrinks
-        // the font (past the old 16px floor if needed) so that both the
-        // highlighted letter and the notch sit exactly on the anchor.
+      testWidgets('word that needs a small shrink stays strictly centered',
+          (tester) async {
+        // At 40px the word fits but can't hold the anchor; a shrink within
+        // the anchor-hold floor puts both the highlighted letter and the
+        // notch exactly on it.
         await _pump(
           tester,
-          word: _token('достопримечательность', orpIndex: 7),
+          word: _token('reading', orpIndex: 2),
+          settings: const DisplaySettings(fontSize: 40.0),
+        );
+        final span = (tester.widget<RichText>(find.byType(RichText).first).text
+                as TextSpan)
+            .children!
+            .cast<TextSpan>()
+            .first;
+        expect(span.style!.fontSize!, lessThan(40.0));
+        expect(
+          span.style!.fontSize!,
+          greaterThanOrEqualTo(40.0 * AppConstants.rsvpAnchorHoldMinScale),
         );
         expect(
           letterCenterLocal(tester),
@@ -298,8 +311,10 @@ void main() {
         );
       });
 
-      testWidgets('long word shrinks the font to hold the anchor',
+      testWidgets('long word stops shrinking at the floor; notch follows it',
           (tester) async {
+        // Holding the anchor would need a tiny font, so the word keeps a
+        // readable size and shifts; the notch must track the letter.
         await _pump(
           tester,
           word: _token('достопримечательность', orpIndex: 7),
@@ -308,12 +323,24 @@ void main() {
             tester.widget<RichText>(find.byType(RichText).first);
         final span =
             (richText.text as TextSpan).children!.cast<TextSpan>().first;
-        // Keeps shrinking past the old 16px floor until the ORP letter
-        // fits exactly on the anchor.
-        expect(span.style!.fontSize!, lessThan(16.0));
         expect(
-          letterCenterLocal(tester),
-          closeTo(anchorX(tester, width: 400, horizontalPosition: 0.5), 1.0),
+          span.style!.fontSize!,
+          greaterThanOrEqualTo(AppConstants.rsvpMinFontSize),
+        );
+        final notchCenter =
+            tester.getCenter(find.byKey(orpIndicatorNotchKey)).dx;
+        final displayLeft = tester
+            .renderObject<RenderBox>(
+              find.descendant(
+                of: find.byType(RsvpWordDisplay),
+                matching: find.byType(Stack),
+              ),
+            )
+            .localToGlobal(Offset.zero)
+            .dx;
+        expect(
+          notchCenter - displayLeft,
+          closeTo(letterCenterLocal(tester), 1.0),
         );
       });
 
@@ -373,7 +400,8 @@ void main() {
       });
     });
 
-    group('orpIndicator', () {      testWidgets('defaults to notch — triangle present, other marks absent',
+    group('orpIndicator', () {
+      testWidgets('defaults to notch — triangle present, other marks absent',
           (tester) async {
         await _pump(tester, word: _token('reading'));
         expect(find.byKey(orpIndicatorNotchKey), findsOneWidget);

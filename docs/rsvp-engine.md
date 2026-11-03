@@ -90,7 +90,7 @@ the same head-start.
 
 ## Auto-Scale for long words
 
-In `RsvpWordDisplay`, if the word does not fit with its ORP letter exactly on the anchor, the font shrinks by 2px at a time until it does — the letter and the indicator marks never move off-center, only the font size gives way. Absolute floor `rsvpAbsoluteMinFontSize` (8px); below that the word is clamped into the margins (marks then follow the letter) instead of becoming unreadably small. Prevents cropping for long Portuguese/Russian words while keeping the fixation point stable.
+In `RsvpWordDisplay`, the font shrinks by 2px at a time until the ORP letter sits exactly on the anchor, but only down to `rsvpAnchorHoldMinScale` (70%) of the configured size. Past that, it shrinks only until the word fits the width (minimum `rsvpMinFontSize`, 16px) and the word is shifted into the margins, with the indicator marks following the letter instead of staying on the anchor. Keeps long Portuguese/Russian words readable without moving the fixation point for typical words.
 
 ## Reading modes
 

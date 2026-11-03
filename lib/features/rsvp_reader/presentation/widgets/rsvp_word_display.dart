@@ -66,6 +66,8 @@ class RsvpWordDisplay extends StatelessWidget {
               ? ResponsiveDefaults.rsvpFontScale(context)
               : 1.0;
           var fontSize = settings.fontSize * scale;
+          final anchorHoldFloor =
+              fontSize * AppConstants.rsvpAnchorHoldMinScale;
           _Measurement m;
           double? slotHeight;
           while (true) {
@@ -75,16 +77,17 @@ class RsvpWordDisplay extends StatelessWidget {
             // drag the focus line and ORP marks up with it (the parent
             // centers this box, so its height must not change per word).
             slotHeight ??= m.textHeight;
-            // Keep shrinking until the word fits with its ORP letter exactly
-            // on the anchor — the letter and the indicator marks never move
-            // off-center, only the font size gives way. Below the absolute
-            // floor the word is clamped into the margins (marks then follow
-            // the letter) instead of becoming unreadably small.
+            // Shrink until the ORP letter sits exactly on the anchor, but
+            // only down to [anchorHoldFloor]; below it, shrink just until the
+            // word fits and let the clamp below shift it (marks follow the
+            // letter).
             final ideal = anchorX - m.beforeWidth - (m.orpWidth / 2);
             final fitsWithAnchor = ideal >= margin &&
                 ideal + m.totalWidth <= maxWidth - margin;
+            final fits = m.totalWidth <= usableWidth;
             if (fitsWithAnchor ||
-                fontSize <= AppConstants.rsvpAbsoluteMinFontSize) {
+                (fits && fontSize <= anchorHoldFloor) ||
+                fontSize <= AppConstants.rsvpMinFontSize) {
               break;
             }
             fontSize -= AppConstants.rsvpFontShrinkStep;
