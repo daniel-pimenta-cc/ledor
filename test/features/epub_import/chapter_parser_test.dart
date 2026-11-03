@@ -139,6 +139,20 @@ void main() {
       expect(tokens.map((t) => t.text), orderedEquals(['Visible', 'text.']));
     });
 
+    test('self-closing noscript/object/template do not swallow body text', () {
+      for (final tag in ['noscript', 'object data="x.swf"', 'template']) {
+        final tokens = ChapterParser.parse(
+          '<body><$tag/><p>Visible text.</p></body>',
+          chapterIndex: 0,
+          globalOffset: 0,
+          imageResolver: (_) => null,
+        );
+
+        expect(tokens.map((t) => t.text), orderedEquals(['Visible', 'text.']),
+            reason: '<$tag/>');
+      }
+    });
+
     test('well-formed <title>text</title> is still skipped', () {
       final tokens = ChapterParser.parse(
         '<html><head><title>Real Title</title></head>'
