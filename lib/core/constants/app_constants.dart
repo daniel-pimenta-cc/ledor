@@ -61,6 +61,12 @@ abstract final class AppConstants {
   /// Minimum font size when auto-scaling long words down.
   static const double rsvpMinFontSize = 16.0;
 
+  /// How far (fraction of the configured size) the font may shrink just to
+  /// keep the ORP letter on the anchor. Past it, a word that still fits is
+  /// shifted instead (marks follow the letter): holding the anchor all the
+  /// way down shrank 12+ letter words by a third or more.
+  static const double rsvpAnchorHoldMinScale = 0.7;
+
   /// Step used to shrink the font when the word does not fit.
   static const double rsvpFontShrinkStep = 2.0;
 
