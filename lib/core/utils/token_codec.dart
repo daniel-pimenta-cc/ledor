@@ -2,38 +2,39 @@ import 'dart:convert';
 
 import '../../features/epub_import/domain/entities/word_token.dart';
 
-/// Serialização dos tokens de um capítulo para a coluna `tokensJson`.
+/// Serializes a chapter's tokens for the `tokensJson` column.
 ///
-/// Formato v2 (compacto): em vez de um map JSON com 9+ chaves por palavra
-/// (~150 bytes/palavra), grava só o que não é derivável da estrutura:
+/// v2 format (compact): instead of a JSON map with 9+ keys per word
+/// (~150 bytes/word), it stores only what can't be derived from structure:
 ///
 /// ```json
-/// {"v":2,"g":123,"p":[[["palavra",2,1.0], ...], [{"i":"path"}]]}
+/// {"v":2,"g":123,"p":[[["word",2,1.0], ...], [{"i":"path"}]]}
 /// ```
 ///
-/// - `g`: globalIndex do primeiro token do capítulo (os demais são
-///   sequenciais — invariante dos dois parsers).
-/// - `p`: lista de parágrafos; `paragraphIndex` = posição na lista,
-///   `isParagraphStart` = primeiro token do parágrafo, `isChapterStart` =
-///   primeiro token do capítulo.
-/// - palavra = `[text, orpIndex, timingMultiplier]`; imagem = map
-///   `{"i": path}` (imagens têm sempre `text:'', orp:0, mult:1.0`).
-/// - `chapterIndex` vem da própria row de `cached_tokens` no decode.
+/// - `g`: globalIndex of the chapter's first token (the rest are
+///   sequential — an invariant of both parsers).
+/// - `p`: list of paragraphs; `paragraphIndex` = position in the list,
+///   `isParagraphStart` = first token of the paragraph, `isChapterStart` =
+///   first token of the chapter.
+/// - word = `[text, orpIndex, timingMultiplier]`; image = map
+///   `{"i": path}` (images always have `text:'', orp:0, mult:1.0`).
+/// - `chapterIndex` comes from the `cached_tokens` row itself on decode.
 ///
-/// Isso reduz o JSON ~8-10x e corta o custo de parse na abertura do livro.
-/// [encode] valida as invariantes acima token a token; qualquer desvio cai
-/// no formato v1 (lista de maps via `WordToken.toJson`) — nunca perde dados.
-/// [decode] detecta o formato pelo primeiro caractere (`{` = v2, `[` = v1).
+/// This shrinks the JSON ~8-10x and cuts parse cost when opening a book.
+/// [encode] checks the invariants above token by token; any violation
+/// falls back to the v1 format (list of maps via `WordToken.toJson`) — no
+/// data is ever lost. [decode] detects the format from the first character
+/// (`{` = v2, `[` = v1).
 abstract final class TokenCodec {
   static const _version = 2;
 
-  /// True quando [tokensJson] já está no formato compacto v2.
+  /// True when the string is already in the compact v2 format.
   static bool isCompact(String s) => s.trimLeft().startsWith('{');
 
   static String encode(List<WordToken> tokens) {
     final compact = _tryEncodeCompact(tokens);
     if (compact != null) return compact;
-    // Fallback: formato v1 legado, sem suposição estrutural.
+    // Fallback: legacy v1 format, no structural assumptions.
     return jsonEncode([for (final t in tokens) t.toJson()]);
   }
 
@@ -95,9 +96,9 @@ abstract final class TokenCodec {
     return tokens;
   }
 
-  /// Encode v2, ou `null` se os tokens violarem alguma invariante que o
-  /// decode reconstrói (sequência de globalIndex, paragraphIndex denso,
-  /// flags de início, campos fixos de imagem).
+  /// v2 encoding, or `null` if the tokens break an invariant that decode
+  /// reconstructs (globalIndex sequence, dense paragraphIndex, start flags,
+  /// fixed image fields).
   static String? _tryEncodeCompact(List<WordToken> tokens) {
     if (tokens.isEmpty) {
       return jsonEncode({'v': _version, 'g': 0, 'p': const []});

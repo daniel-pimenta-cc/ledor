@@ -1,8 +1,8 @@
 import 'package:flutter/foundation.dart';
 
 /// Engine-facing voice descriptor. Backends translate this to whatever shape
-/// the underlying TTS engine expects (Map for `flutter_tts`, name + module
-/// args for `spd-say`).
+/// the underlying TTS engine expects (Map for `flutter_tts`, an SSIP
+/// `SET SELF SYNTHESIS_VOICE` name for speech-dispatcher).
 class TtsVoice {
   final String name;
   final String locale;

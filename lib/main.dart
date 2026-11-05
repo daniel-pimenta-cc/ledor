@@ -51,9 +51,9 @@ void main() async {
   // themselves as the user navigates between books. Linux / Web skip this
   // (audio_service has no implementation there).
   //
-  // Intencionalmente NÃO aguardado: o init faz IPC com o MediaSession do
-  // Android e segurava o primeiro frame do app. Engines aguardam o future
-  // só na hora do bind (entrada em modo TTS), bem depois do startup.
+  // Deliberately NOT awaited: init does IPC with Android's MediaSession and
+  // used to hold the app's first frame. Engines await the future only when
+  // binding (entering TTS mode), well after startup.
   Future<TtsAudioHandler?> audioHandlerFuture = Future.value(null);
   if (PlatformCapabilities.supportsBackgroundAudio) {
     audioHandlerFuture = AudioService.init(

@@ -152,7 +152,8 @@ class _RsvpReaderScreenState extends ConsumerState<RsvpReaderScreen>
     });
 
     // Surface TTS errors as a snackbar. The engine writes to ttsErrorProvider
-    // when the backend reports a problem (e.g. spd-say missing on Linux).
+    // when the backend reports a problem (e.g. speech-dispatcher missing on
+    // Linux).
     ref.listen<String?>(ttsErrorProvider, (prev, next) {
       if (next == null || next == prev) return;
       final l10n = AppLocalizations.of(context)!;

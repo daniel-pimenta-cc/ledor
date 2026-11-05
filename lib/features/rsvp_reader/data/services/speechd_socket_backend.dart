@@ -13,8 +13,7 @@ import 'tts_backend.dart';
 /// Holding a persistent socket connection lets the daemon's internal queue
 /// handle back-to-back utterances seamlessly — same outcome that
 /// `flutter_tts.setQueueMode(1)` gives us on Android / iOS. When the daemon
-/// isn't running yet, [init] spawns it (as the old `spd-say` CLI did
-/// implicitly) rather than failing.
+/// isn't running yet, [init] spawns it rather than failing.
 ///
 /// Word boundaries are emulated via a periodic timer (no INDEX_MARK
 /// integration yet — see follow-ups in `docs/tts-mode.md`). Accuracy:
@@ -80,11 +79,10 @@ class SpeechdSocketBackend implements TtsBackend {
   Future<void> init() async {
     if (_initialised) return;
 
-    // ponytail: autospawn substitui o backend spd-say de uma-sessão-só.
-    // spd-say arrancava o daemon implicitamente na 1ª fala; aqui, quando o
-    // socket não está presente (ou o connect falha), pedimos
-    // `speech-dispatcher --spawn` e re-tentamos conectar. Pulado quando um
-    // teste fixa socketPathOverride.
+    // ponytail: when the socket is missing (or connect fails), run
+    // `speech-dispatcher --spawn` and retry the connect instead of failing,
+    // since nothing else starts the daemon for us. Skipped when a test pins
+    // socketPathOverride.
     final override = _socketPathOverride;
     _socket = await _connect(override ?? _resolveSocketPath());
     if (_socket == null && override == null) {
@@ -159,8 +157,7 @@ class SpeechdSocketBackend implements TtsBackend {
     }
   }
 
-  /// Starts the `speech-dispatcher` daemon (as `spd-say` did implicitly) and
-  /// polls by *connecting* — a stale socket file left by a dead daemon
+  /// Starts the `speech-dispatcher` daemon and polls by *connecting* — a stale socket file left by a dead daemon
   /// passes an existence check but refuses connections. A cold daemon start
   /// loads its output modules and can take a few seconds.
   ///

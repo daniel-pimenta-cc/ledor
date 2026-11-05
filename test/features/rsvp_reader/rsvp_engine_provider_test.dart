@@ -606,7 +606,7 @@ void main() {
           chapterRows: _twoChapterRows(),
           savedProgress: ReadingProgressTableData(
             bookId: 'book-1',
-            // Índices válidos na tokenização do outro device, não na local.
+            // Valid in the other device's tokenization, not the local one.
             chapterIndex: 7,
             wordIndex: 99,
             wpm: 300,

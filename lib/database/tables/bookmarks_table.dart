@@ -4,16 +4,17 @@ import 'package:drift/drift.dart';
 /// long-press on a word; tapping it later seeks the reader back to that
 /// word.
 ///
-/// Why no foreign key to BooksTable: bookmarks survive a temporary local
-/// delete (or a re-import with a different `bookId` — should not happen,
-/// but harmless). The DAO filters orphans defensively, and the sync layer
-/// emits a tombstone row separately for each deleted bookmark so other
-/// devices converge.
+/// Why no foreign key to BooksTable: sync can deliver a bookmark before
+/// its book row exists locally (the peer hasn't uploaded the EPUB yet);
+/// the global bookmarks screen still lists it, just without a title.
+/// A deleted book's bookmarks get no per-bookmark tombstones: the book's
+/// tombstone in `library/books.json` carries the delete, and each peer
+/// applying it drops the rows outright via `BookmarksDao.deleteAllForBook`.
 ///
-/// `deletedAt` carries tombstone semantics — the row stays so the next
-/// sync push can ship the deletion to peers. The DAO's `watch*` /
-/// `getAllForBook` queries hide tombstoned rows from the UI; sync queries
-/// see them.
+/// `deletedAt` carries tombstone semantics for individually deleted
+/// bookmarks — the row stays so the next sync push can ship the deletion
+/// to peers. The DAO's `watch*` queries hide tombstoned rows from the UI;
+/// `getAllIncludingTombstones` (sync) sees them.
 @TableIndex(name: 'bookmarks_book_id_idx', columns: {#bookId})
 class BookmarksTable extends Table {
   TextColumn get id => text()();

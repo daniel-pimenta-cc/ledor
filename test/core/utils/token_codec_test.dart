@@ -54,8 +54,8 @@ void main() {
         chapterIndex: 1,
         globalOffset: 11,
       );
-      // A imagem ocupa o parágrafo 0; o texto começa no parágrafo 1 e não
-      // é mais chapter start — espelha o que o ChapterParser produz.
+      // The image takes paragraph 0; the text starts at paragraph 1 and is
+      // no longer the chapter start — mirrors what ChapterParser produces.
       final tokens = [
         image,
         for (final t in words)
@@ -90,7 +90,7 @@ void main() {
         chapterIndex: 0,
         globalOffset: 0,
       );
-      // Quebra a sequência de globalIndex no último token.
+      // Break the globalIndex sequence on the last token.
       final broken = [
         ...tokens.sublist(0, tokens.length - 1),
         tokens.last.copyWith(globalIndex: tokens.last.globalIndex + 5),

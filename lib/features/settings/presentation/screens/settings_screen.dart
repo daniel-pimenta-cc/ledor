@@ -64,8 +64,8 @@ class SettingsScreen extends ConsumerWidget {
               contentPadding: EdgeInsets.zero,
               title: Text('Ledor',
                   style: TextStyle(color: settings.wordColor)),
-              // ponytail: manual, bump junto com o pubspec a cada release;
-              // package_info_plus se cansar de esquecer
+              // ponytail: manual, bump together with pubspec on every
+              // release; switch to package_info_plus if forgetting gets old
               subtitle: Text('v0.3.1',
                   style:
                       TextStyle(color: settings.wordColor.withAlpha(160))),

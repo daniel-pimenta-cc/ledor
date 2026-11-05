@@ -68,7 +68,7 @@ class DisplaySettings {
 
   /// BCP-47 / ISO language code used by the TTS backend (`en-US`, `pt-BR`,
   /// …). Determines which voices the picker can pre-filter and which engine
-  /// locale `flutter_tts` / `spd-say` will request.
+  /// locale `flutter_tts` / speech-dispatcher will request.
   final String ttsLanguage;
 
   /// Name of the synthesis voice selected by the user. `null` means "use the
@@ -80,13 +80,14 @@ class DisplaySettings {
 
   /// Voice pitch passed to the TTS engine. Range `[0.5, 2.0]`, default `1.0`.
   /// `flutter_tts` accepts this range directly; the Linux backend maps it to
-  /// `spd-say -p <-100..+100>`.
+  /// SSIP `SET SELF PITCH <-100..+100>`.
   final double ttsPitch;
 
   /// Speech rate multiplier for the TTS engine, expressed as the natural
   /// "1.0x / 1.25x / 1.5x …" scale users expect from audiobook players.
-  /// Backends translate this to their native units (`flutter_tts.setSpeechRate`
-  /// takes it as-is; the Linux backend maps it to `spd-say -r`).
+  /// Backends translate this to their native units (`FlutterTtsBackend`
+  /// halves it via `flutterTtsRate`, since flutter_tts treats 0.5 as normal;
+  /// the Linux backend maps it to SSIP `SET SELF RATE <-100..+100>`).
   /// Range `[0.5, 3.0]`, default `1.0`.
   final double ttsRate;
 
