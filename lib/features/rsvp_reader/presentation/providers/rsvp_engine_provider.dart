@@ -9,8 +9,10 @@ import 'package:uuid/uuid.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/di/providers.dart';
+import '../../../../core/utils/orp_calculator.dart';
 import '../../../../core/utils/sentence_boundary.dart';
 import '../../../../core/utils/token_codec.dart';
+import '../../../../core/utils/word_timing.dart';
 import '../../../../database/app_database.dart';
 import '../../../../database/daos/cached_tokens_dao.dart';
 import '../../../epub_import/domain/entities/chapter.dart';
@@ -719,11 +721,24 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
       }
     }
 
+    final tokens = state.chapters[chapterIdx].tokens;
+    var word = tokens[wordIdx];
+    var steps = 1;
+    final merged = wordIdx + 1 < tokens.length
+        ? mergeDialogueDash(word, tokens[wordIdx + 1])
+        : null;
+    if (merged != null) {
+      wordIdx++;
+      steps++;
+      word = merged;
+      _wordsInSession++;
+    }
+
     state = state.copyWith(
       currentChapterIndex: chapterIdx,
       currentWordIndex: wordIdx,
-      globalWordIndex: state.globalWordIndex + 1,
-      currentWord: state.chapters[chapterIdx].tokens[wordIdx],
+      globalWordIndex: state.globalWordIndex + steps,
+      currentWord: word,
     );
 
     // Inline image at the new cursor. RSVP path stops so the reader can
@@ -911,6 +926,40 @@ double computeEffectiveWpm({
   final eased = 1.0 - inv * inv * inv;
   final startWpm = target * AppConstants.rampUpStartFraction;
   return startWpm + (target - startWpm) * eased;
+}
+
+final _standaloneDash = RegExp(r'^[—–―‒-]+$');
+final _leadingDigit = RegExp(r'^\d');
+
+/// The "— word" unit RSVP flashes in place of a standalone dialogue dash
+/// and the word after it, or `null` when the pair shouldn't merge (a range
+/// like "10 - 20" stays split). Display-only on purpose: the cached tokens
+/// keep the dash as its own index, so progress, bookmarks and Drive sync
+/// (which travel as global word indices) never shift, and books imported
+/// before this existed get it too.
+WordToken? mergeDialogueDash(WordToken dash, WordToken next) {
+  if (!_standaloneDash.hasMatch(dash.text) ||
+      next.isImage ||
+      next.chapterIndex != dash.chapterIndex ||
+      next.paragraphIndex != dash.paragraphIndex ||
+      _leadingDigit.hasMatch(next.text)) {
+    return null;
+  }
+  final text = '${dash.text} ${next.text}';
+  return WordToken(
+    text: text,
+    orpIndex: OrpCalculator.calculate(text),
+    timingMultiplier: WordTiming.calculateMultiplier(
+      text,
+      isParagraphStart: dash.isParagraphStart,
+      isChapterStart: dash.isChapterStart,
+    ),
+    globalIndex: next.globalIndex,
+    chapterIndex: next.chapterIndex,
+    paragraphIndex: next.paragraphIndex,
+    isParagraphStart: dash.isParagraphStart,
+    isChapterStart: dash.isChapterStart,
+  );
 }
 
 /// Returns the multiplier applied to the base ms-per-word interval.

@@ -161,32 +161,31 @@ class _ParseState {
     }
 
     bool firstOfParagraph = true;
-    final words = <String>[];
-    for (final raw in trimmed.split(RegExp(r'\s+'))) {
+    final words = trimmed.split(RegExp(r'\s+'));
+    for (final raw in words) {
       final word = raw.trim();
       if (word.isEmpty) continue;
-      words.addAll(TextTokenizer.splitHyphenated(word));
-    }
-    for (final unit in TextTokenizer.mergeStandaloneDashes(words)) {
-      final paraStart = firstOfParagraph && paragraphStartPending;
-      final chapStart = paraStart && chapterStartPending;
-      tokens.add(WordToken(
-        text: unit,
-        orpIndex: OrpCalculator.calculate(unit),
-        timingMultiplier: WordTiming.calculateMultiplier(
-          unit,
+      for (final subWord in TextTokenizer.splitHyphenated(word)) {
+        final paraStart = firstOfParagraph && paragraphStartPending;
+        final chapStart = paraStart && chapterStartPending;
+        tokens.add(WordToken(
+          text: subWord,
+          orpIndex: OrpCalculator.calculate(subWord),
+          timingMultiplier: WordTiming.calculateMultiplier(
+            subWord,
+            isParagraphStart: paraStart,
+            isChapterStart: chapStart,
+          ),
+          globalIndex: globalIndex++,
+          chapterIndex: chapterIndex,
+          paragraphIndex: paragraphIndex,
           isParagraphStart: paraStart,
           isChapterStart: chapStart,
-        ),
-        globalIndex: globalIndex++,
-        chapterIndex: chapterIndex,
-        paragraphIndex: paragraphIndex,
-        isParagraphStart: paraStart,
-        isChapterStart: chapStart,
-      ));
-      firstOfParagraph = false;
-      if (paragraphStartPending) paragraphStartPending = false;
-      if (chapterStartPending) chapterStartPending = false;
+        ));
+        firstOfParagraph = false;
+        if (paragraphStartPending) paragraphStartPending = false;
+        if (chapterStartPending) chapterStartPending = false;
+      }
     }
 
     paragraphIndex++;

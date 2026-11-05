@@ -8,8 +8,9 @@ class WordTiming {
   const WordTiming._();
 
   /// A merged dialogue unit starts with a dash followed by a space
-  /// ("— word"). Lone dashes (no trailing space) keep the old behavior.
-  static final _leadingDash = RegExp(r'^[—–-] ');
+  /// ("— word", see `mergeDialogueDash`). Lone dashes (no trailing space)
+  /// keep the old behavior.
+  static final _leadingDash = RegExp(r'^[—–―‒-]+ ');
 
   /// Calculate the timing multiplier for [word].
   ///

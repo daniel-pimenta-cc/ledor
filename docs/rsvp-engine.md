@@ -51,7 +51,7 @@ Multipliers applied on top of `60000ms / WPM`:
 | Long word (>6) | +0.1x per extra char |
 | `.` `!` `?` | 2.0x |
 | `,` `;` | 1.5x |
-| Leading dash (`— word` merged unit) | 1.5x |
+| Leading dash (`— word` unit, see Dialogue dashes) | 1.5x |
 | `:` | 1.8x |
 | `...` | 2.5x |
 | Paragraph start | 1.5x |
@@ -92,6 +92,10 @@ the same head-start.
 ## Auto-Scale for long words
 
 In `RsvpWordDisplay`, the font shrinks by 2px at a time until the ORP letter sits exactly on the anchor, but only down to `rsvpAnchorHoldMinScale` (70%) of the configured size. Past that, it shrinks only until the word fits the width (minimum `rsvpMinFontSize`, 16px) and the word is shifted into the margins, with the indicator marks following the letter instead of staying on the anchor. Keeps long Portuguese/Russian words readable without moving the fixation point for typical words.
+
+## Dialogue dashes
+
+A standalone dialogue dash (`—`, `–`, `-`, `―`, `‒`, `--`) is never flashed on its own in RSVP: `_advanceWord` swaps it and the next word of the same paragraph for one `— word` unit built by `mergeDialogueDash` (ORP and timing recomputed, +1.5x beat) and steps the cursor over both. A next word starting with a digit (`10 - 20`) stays split. This is display-only on purpose: the cached tokens keep the dash as its own index, so progress, bookmarks and Drive sync (global word indices) never shift, and books imported before it get it too. Seeking straight onto a dash still shows it alone for one word.
 
 ## Reading modes
 

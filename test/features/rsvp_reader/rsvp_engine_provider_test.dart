@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ledor/core/constants/app_constants.dart';
 import 'package:ledor/core/di/providers.dart';
+import 'package:ledor/core/utils/word_timing.dart';
 import 'package:ledor/database/app_database.dart';
 import 'package:ledor/database/daos/books_dao.dart';
 import 'package:ledor/database/daos/cached_tokens_dao.dart';
@@ -501,6 +502,62 @@ void main() {
         ),
       );
       expect(m, 1.0);
+    });
+  });
+
+  group('mergeDialogueDash', () {
+    WordToken dash(String text, {bool paragraphStart = false}) => _token(
+          text: text,
+          globalIndex: 4,
+          chapterIndex: 0,
+          paragraphIndex: 2,
+          isParagraphStart: paragraphStart,
+        );
+    WordToken next(String text, {int paragraphIndex = 2}) => _token(
+          text: text,
+          globalIndex: 5,
+          chapterIndex: 0,
+          paragraphIndex: paragraphIndex,
+        );
+
+    test('joins a standalone dash with the next word', () {
+      for (final d in ['—', '–', '-', '―', '‒', '--']) {
+        final merged = mergeDialogueDash(dash(d), next('привет'))!;
+        expect(merged.text, '$d привет');
+        expect(merged.globalIndex, 5);
+        // ORP skips the leading dash and lands inside the word.
+        expect(merged.text[merged.orpIndex], isNot(d[0]));
+      }
+    });
+
+    test('carries the dash paragraph-start pause and adds the dash beat', () {
+      final merged =
+          mergeDialogueDash(dash('—', paragraphStart: true), next('Olá'))!;
+      expect(merged.isParagraphStart, isTrue);
+      expect(
+        merged.timingMultiplier,
+        greaterThan(
+          WordTiming.calculateMultiplier('Olá', isParagraphStart: true),
+        ),
+      );
+    });
+
+    test('leaves non-dash words, numeric ranges and paragraph seams alone',
+        () {
+      expect(mergeDialogueDash(dash('disse'), next('ela')), isNull);
+      expect(mergeDialogueDash(dash('—x'), next('ela')), isNull);
+      expect(mergeDialogueDash(dash('-'), next('20')), isNull);
+      expect(
+        mergeDialogueDash(dash('—'), next('ela', paragraphIndex: 3)),
+        isNull,
+      );
+      expect(
+        mergeDialogueDash(
+          dash('—'),
+          _imageToken(globalIndex: 5, chapterIndex: 0, paragraphIndex: 2),
+        ),
+        isNull,
+      );
     });
   });
 
