@@ -680,10 +680,10 @@ class _ErrorState extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final ink = settings.wordColor as Color;
-    // Spd-say not installed is the only error we have a canned UI for;
-    // anything else gets the raw message so the user can paste it into
-    // a bug report.
-    final detail = error.contains('spd-say')
+    // A missing speech-dispatcher is the only error with a canned UI;
+    // anything else gets the raw message so the user can paste it into a
+    // bug report.
+    final detail = error.contains('speech-dispatcher not available')
         ? l10n.ttsLinuxRequiresSpeechDispatcher
         : error;
     return Padding(

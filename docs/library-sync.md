@@ -1,21 +1,22 @@
 # Library sync
 
-EPUBs + reading progress + display settings sincronizados via Google Drive.
-Disponivel em Android (via `google_sign_in` nativo) e Linux desktop (via
-fluxo OAuth loopback — ver [linux-desktop.md](linux-desktop.md#google-drive-sync)).
-Opt-in, scope `drive.file` (o app so enxerga arquivos que ele proprio criou).
+EPUBs, reading progress, ratings, reading sessions, bookmarks and display
+settings are synced through Google Drive. Available on Android (native
+`google_sign_in`) and Linux desktop (loopback OAuth flow — see
+[linux-desktop.md](linux-desktop.md#google-drive-sync)). Opt-in, scope
+`drive.file` (the app only sees files it created itself).
 
-A camada de auth é abstraída por `DriveAuthBackend`
-(`lib/features/library_sync/data/auth/`), com duas implementações concretas:
-`GoogleSignInDriveAuthBackend` (mobile) e `DesktopOAuthDriveAuthBackend`
-(desktop). Tudo abaixo de `DriveAuthNotifier` — incluindo o gateway, o sync
-service e o manifest — é idêntico entre as plataformas; só o `AuthClient`
-muda de fornecedor.
+Auth is abstracted by `DriveAuthBackend`
+(`lib/features/library_sync/data/auth/`), with two implementations:
+`GoogleSignInDriveAuthBackend` (mobile) and `DesktopOAuthDriveAuthBackend`
+(desktop). Everything below `DriveAuthNotifier` — gateway, sync service,
+shards — is identical across platforms; only the `AuthClient` provider
+changes.
 
-## Visao geral
+## Overview
 
-O sync usa uma pasta `Ledor/` no Drive do usuario, com tres
-arquivos de metadata + uma pasta de EPUBs:
+Sync uses a `Ledor/` folder in the user's Drive with four metadata shards
+plus a folder of EPUBs:
 
 ```
 Ledor/
@@ -23,38 +24,35 @@ Ledor/
     books.json          ← per-book metadata + progress + rating + tombstones
     settings.json       ← display settings
     sessions.json       ← reading_session rows (append-only)
+    bookmarks.json      ← bookmarks + bookmark tombstones
   books/
-    <user-chosen>.epub  ← um EPUB por livro ativo
+    <user-chosen>.epub  ← one EPUB per active book
     ...
 ```
 
-O layout atual e *sharded*: cada concern vive no seu proprio arquivo, e o
-push so reescreve o shard que mudou (typical case: so progresso → so
-`books.json` sobe). A versao anterior usava um unico `library.json`
-monolitico; ele e migrado uma vez no primeiro sync apos upgrade e depois
-deletado.
+Each concern lives in its own file and a sync only rewrites the shards whose
+content changed (typical case: progress only → only `books.json` is
+uploaded). Older builds used a single monolithic `library.json`; it is
+migrated once in memory and then deleted (see [Legacy](#legacy-libraryjson)).
 
-Livros sao a fonte da verdade do shard `books.json`; os EPUBs sao payload.
-Um livro "existe" quando tem entrada em `books.json` E (opcionalmente) o
-EPUB correspondente em `books/`.
+`books.json` is the source of truth for which books exist; the EPUBs are
+payload. A book exists when it has an entry in `books.json`; the matching
+file in `books/` is optional.
 
-Cada dispositivo roda o mesmo algoritmo de merge last-write-wins ao sincronizar:
+EPUB file sync is optional (`SyncConfig.syncEpubs`, default on). Without it,
+only the shards are synced; books that arrive from remote are inserted as
+placeholder rows (no tokens).
 
-1. **Pull** do manifest remoto + listagem de `books/`
-2. **Snapshot** do estado local (livros + progress + settings)
-3. **Merge** com regras determinísticas
-4. **Apply** as mudancas no DB local
-5. **Push** o manifest merged de volta + upload de EPUBs faltando
-
-A sincronizacao de EPUBs e opcional (`SyncConfig.syncEpubs`). Sem ela, so
-manifest (metadata + progress + settings) sobe/desce.
+Only EPUBs take part: `_buildLocalShards` filters `source == BookSource.epub`.
+Articles are always local — the shards describe an EPUB library and articles
+depend on fetching a URL.
 
 ## Shards
 
-Serializados em `lib/features/library_sync/domain/entities/sync_library.dart`.
-Cada shard tem seu proprio `schemaVersion` (`syncShardSchemaVersion = 1`)
-mais um meta block (`updatedAt`/`updatedBy`) que muda todo push e e
-ignorado no skip-write check.
+Serialized in `lib/features/library_sync/domain/entities/sync_library.dart`.
+Every shard carries `schemaVersion` (`syncShardSchemaVersion = 1`) plus a
+meta block (`updatedAt`/`updatedBy`) that changes on every push and is
+ignored by the skip-write check.
 
 ### `library/books.json`
 
@@ -74,292 +72,320 @@ ignorado no skip-write check.
       "lastReadAt": "...",
       "hasEpubFile": true,
       "syncFileName": "user-visible.epub",
-      "progress": { "chapterIndex": 3, "wordIndex": 512, "wpm": 425, "updatedAt": "..." },
+      "progress": {
+        "chapterIndex": 3, "wordIndex": 512, "wpm": 425, "updatedAt": "...",
+        "globalWordIndex": 20871,   // optional; absent in rows from older builds
+        "readerMode": "ereader"     // optional; 'rsvp' | 'ereader' | 'tts'
+      },
       "deletedAt": null,
       "updatedAt": "...",
-      "rating": 4,                  // 1..5 ou null
-      "ratingUpdatedAt": "..."     // timestamp dedicado pro LWW de rating
+      "rating": 4,                  // 1..5 or null
+      "ratingUpdatedAt": "..."     // dedicated timestamp for rating LWW
     }
   ]
 }
 ```
+
+A local book's `updatedAt` is `lastReadAt ?? importedAt`; local rows always
+set `hasEpubFile: true`.
 
 ### `library/settings.json`
 
-```jsonc
-{
-  "schemaVersion": 1,
-  "updatedAt": "...",
-  "updatedBy": "<deviceId>",
-  "settings": {
-    "values": { /* DisplaySettings serializado */ },
-    "updatedAt": "..."
-  }
-}
-```
+Envelope + `"settings": { "values": {...}, "updatedAt": "..." }`. `values` is a plain map (`displaySettingsToMap` / `displaySettingsFromMap` in
+`library_sync_service.dart`) so new `DisplaySettings` fields don't need a
+schema bump — but a new field must be added to both functions to sync.
+`ttsVoiceName` / `ttsEngineId` are written even when null so "use default"
+propagates; an id unknown on this device is kept and ignored by the backend.
 
 ### `library/sessions.json`
 
-```jsonc
-{
-  "schemaVersion": 1,
-  "updatedAt": "...",
-  "updatedBy": "<deviceId>",
-  "sessions": [
-    {
-      "id": "<uuid>",
-      "bookId": "<uuid>",
-      "startedAt": "...",
-      "endedAt": "...",
-      "durationMs": 60000,
-      "wordsRead": 200,
-      "startWordIndex": 0,
-      "endWordIndex": 200,
-      "avgWpm": 300
-    }
-  ]
-}
-```
+Rows of `SyncReadingSession`, mirroring the `reading_session` table: `id,
+bookId, startedAt, endedAt, durationMs, wordsRead, startWordIndex,
+endWordIndex, avgWpm`. Append-only by id.
 
-Sessions sao **append-only por id**: uma vez emitida, uma session nunca
-muda. O merge entre devices e a uniao por id.
+### `library/bookmarks.json`
 
-### Legado: `library.json`
+Rows of `SyncLibraryBookmark`: `id, bookId, globalWordIndex, chapterIndex,
+endGlobalWordIndex?, endChapterIndex?, label?, contextSnippet?, createdAt,
+updatedAt, deletedAt?`. The local snapshot comes from
+`BookmarksDao.getAllIncludingTombstones()` so peers receive deletes.
 
-O monolitico antigo (`schemaVersion: 1`, com `books` + `settings`)
-continua sendo lido na primeira sync apos o upgrade: seu conteudo e
-carregado em memoria como shards, e o arquivo e deletado no proximo push
-para nao confundir devices que ja migraram.
+### Legacy `library.json`
 
-## Regras de merge
+The old monolith (`books` + `settings`, decoded by `SyncLibrary`) is only
+read when **none** of the shards exist remotely. Its contents are loaded into
+in-memory books/settings shards (sessions and bookmarks start empty) and the
+file is deleted (best-effort) in the same sync, before the shard writes.
+When shards already exist, a leftover `library.json` is ignored for merging
+but still deleted.
 
-Definidas em `mergeBooksShard` / `mergeSettingsShard` / `mergeSessionsShard`
-(que reusam `mergeBook` / `mergeProgress`), em
-`lib/features/library_sync/domain/entities/sync_library.dart`. Todo o
-codigo de merge e puro (sem I/O) e coberto por
-`test/features/library_sync/sync_library_test.dart`.
+## Merge rules
 
-**Per-book** (`mergeBook(a, b)`):
-- `updatedAt`: o maior dos dois (wins determina varios outros campos).
-- Campos que seguem o "newer": `title`, `author`, `syncFileName` (com fallback
-  pro older se newer for null).
-- `importedAt`: o **menor** (preserva data de import original).
-- `lastReadAt`: o **maior** (progresso nunca volta).
+`mergeBooksShard` / `mergeSettingsShard` / `mergeSessionsShard` /
+`mergeBookmarksShard` (built on `mergeBook` / `mergeProgress` /
+`mergeBookmark`) in `sync_library.dart`. All merge code is pure (no I/O);
+tests in `test/features/library_sync/sync_library_test.dart` and
+`bookmark_merge_test.dart`.
+
+**Per book** (`mergeBook(a, b)`):
+- `updatedAt`: the later of the two; the side with the later one is "newer".
+- `title` from newer; `author` and `syncFileName` from newer, falling back to
+  older when null; `totalWords` / `chapterCount` from newer unless it is 0.
+- `importedAt`: the **earlier** (keeps the original import date).
+- `lastReadAt`: the **later**.
 - `hasEpubFile`: `a.hasEpubFile || b.hasEpubFile`.
-- `progress`: `mergeProgress` — dentro de 60s, prefere o `wordIndex` maior
-  (resistencia a clock skew); alem disso, LWW.
-- `deletedAt`: `_laterNullable` — **tombstone e monotonico**. Uma vez
-  marcado deletado de um lado, merged fica tombstoned pra sempre. Nao ha
-  "ressurreicao".
-- `rating`/`ratingUpdatedAt`: LWW **pelo proprio timestamp**, nao pelo
-  `updatedAt` do livro. Sem isso, uma alteracao em outro campo
-  (progresso, lastReadAt) em outro device bumparia `updatedAt` e
-  sobrescreveria um rating mais novo. O timestamp dedicado da imunidade.
+- `progress`: `mergeProgress` — LWW by `updatedAt`, except when the two are
+  within 60s of each other (clock-skew tolerance): then the one further into
+  the book wins, compared by `globalWordIndex` when both sides have it,
+  otherwise by `(chapterIndex, wordIndex)`.
+- `deletedAt`: the later non-null — **tombstones are monotonic**. Once one
+  side is deleted, the merged book stays tombstoned. No resurrection.
+- `rating` / `ratingUpdatedAt`: LWW **by `ratingUpdatedAt`**, not the book's
+  `updatedAt`. Otherwise an unrelated change (progress, lastReadAt) on another
+  device would bump `updatedAt` and overwrite a newer rating. A side without
+  a timestamp (pre-v7 data) loses to a side with one.
 
-**Books shard (`mergeBooksShard`)**: uniao por `id`, cada lado passa pelo
-`mergeBook`. Sort por id na saida pra estabilizar serializacao.
+**Books shard**: union by `id`, collisions go through `mergeBook`. Output is
+sorted by id for stable serialization.
 
-**Settings shard (`mergeSettingsShard`)**: o lado com `settings.updatedAt`
-mais recente vence; preserva o lado nao-nulo quando o outro e nulo.
+**Settings shard**: the side with the later `settings.updatedAt` wins; a
+non-null side wins over a null one. The local timestamp is the persisted
+"settings dirty" stamp (`sync_settingsDirtyAt`, set by `markSettingsDirty`);
+when settings weren't touched locally, the remote timestamp is reused so the
+local copy never wins by accident.
 
-**Sessions shard (`mergeSessionsShard`)**: uniao por `id`. Sessions sao
-append-only — uma vez gravadas com um id no DB nunca mudam. Colisao por
-id e tratada deterministicamente (preserva o lado `a`).
+**Sessions shard**: union by `id`. Sessions never change after insert, so an
+id collision is the same row (side `a` is kept). Apply only inserts ids the
+local DB doesn't have.
+
+**Bookmarks shard**: union by `id`, LWW by `updatedAt` per bookmark,
+including its `deletedAt`. On apply, a remote tombstone for a bookmark the
+local DB never had is skipped (the shard already carries it).
+`_deleteBookLocally` cascades through `BookmarksDao.deleteAllForBook`, so a
+deleted book needs no per-bookmark tombstones.
+
+## Progress travels as a global cursor
+
+`(chapterIndex, wordIndex)` only means something within the tokenization
+that produced it. The same EPUB parsed by a different build can split into a
+different number of chapters (image tokens, front-matter sections), so the
+raw pair lands on the wrong word on the other device. Therefore:
+
+- `_buildLocalShards` fills `globalWordIndex` via `localToGlobalWordIndex`
+  over the local `cached_tokens` chapter word counts.
+- `_applyRemoteProgress` re-anchors with `globalToLocalWordIndex` over the
+  **local** counts; it falls back to the raw pair when `globalWordIndex` is
+  null (rows from older builds) or the book has no tokens.
+- `_sameCursor` compares in global space when both sides have it; comparing
+  the pair would rewrite the same position on every sync.
+
+Conversions live in `lib/core/utils/progress_index.dart`. Accepted residual:
+if two tokenizations differ by N tokens before the cursor, the position
+shifts by N words.
 
 ## Tombstones
 
-Quando o usuario deleta um livro (`deleteBookProvider`), alem de remover a
-row local, disparamos um `pushTombstone`:
+Deleting a book (`deleteBookProvider`) hard-deletes it locally and calls
+`LibrarySyncNotifier.pushDelete`, which appends a `PendingDelete` to a queue
+persisted in SharedPreferences (`sync_pendingDeletes`) **before** any network
+I/O. At the start of every `triggerSync`, `_flushPendingDeletes` calls
+`LibrarySyncService.pushTombstone` for each entry:
 
-1. Le manifest atual.
-2. Marca a entrada do livro com `deletedAt = now` (ou adiciona uma nova se
-   nao existir).
-3. Reescreve manifest.
-4. Deleta o arquivo fisico em `books/`.
+1. Reads `library/books.json` (returns false if the folder isn't readable).
+2. Stamps the book's entry with `deletedAt` and `updatedAt` = the queued
+   delete time, or appends a bare tombstone entry if it isn't there.
+3. Rewrites `books.json`.
+4. When `syncEpubs` is on, deletes the EPUB in `books/`.
 
-Outros dispositivos que sincronizarem depois veem a entrada tombstoned e
-fazem `_deleteBookLocally` no proprio DB.
+Entries leave the queue only after a successful push. If any remain, the
+sync **aborts**: running the full merge without the tombstone would
+re-import the deleted book from the still-active remote entry.
+`resetForDisconnect` clears the queue so tombstones never leak into another
+account's folder.
 
-### Compactacao de tombstones zumbis
+Other devices see the tombstoned entry on their next sync and run
+`_deleteBookLocally` (tokens, progress, bookmarks, local EPUB, book row,
+inline images).
 
-A manifest acumulava tombstones "zumbis": entradas com `deletedAt` cujo
-`syncFileName` era o mesmo de um livro ativo em merged. Origem tipica:
+### Zombie tombstone compaction
 
-1. Usuario deletou livro X em algum dispositivo → `deletedAt` + arquivo
-   removido do Drive.
-2. Se o `deleteFile` falhou por rede, arquivo ficou orfao no Drive.
-3. Sync seguinte: `_autoImportOrphanFiles` viu o arquivo, nao encontrou na
-   manifest como ativo (so tombstoned), importou como livro novo com
-   **UUID novo** mas **mesmo syncFileName**.
-4. Agora merged tem dois registros apontando pro mesmo filename: X-tombstone
-   e Y-ativo.
-5. `_uploadMissingEpubs` apagava o arquivo do tombstone (que era
-   fisicamente o arquivo de Y), depois re-uploadava Y na proxima iteracao.
-   Eterno flip-flop.
+"Zombie" tombstones share a `syncFileName` with an active book. Typical
+origin: book X is deleted but the Drive `deleteFile` fails, leaving the file
+orphaned; the next sync auto-imports it as book Y with a **new UUID** and the
+**same `syncFileName`**. `_uploadMissingEpubs` then deleted X's file
+(physically Y's) and re-uploaded Y on the following sync — forever.
 
-**Fix** (em `library_sync_service.sync()`): apos o merge dos shards, um step
-de compactacao remove do manifest todo tombstone cujo `syncFileName` ja e
-reivindicado por um livro ativo em merged. O ativo "herdou" a posse do
-filename; o tombstone nao propaga nada util e so polui as comparacoes.
+Two guards:
+- `_compactZombieTombstones` (in `sync()`, right after `mergeBooksShard`)
+  drops every tombstone whose filename (`syncFileName ?? '<id>.epub'`) is
+  claimed by an active merged book. The active book owns the filename.
+- `_uploadMissingEpubs` skips a tombstone's delete when an active book
+  claims the same filename, and only calls `deleteFile` when the file is
+  actually in the `books/` listing.
 
-Tombstones **legitimos** (sem colisao de filename) ficam ate propagar pra
-todos os devices. Nao ha GC por idade hoje — seria o proximo passo.
+**Invariant:** an active book always wins a `syncFileName` dispute against a
+tombstone. New code that iterates merged books and acts per filename must
+respect it.
 
-### Prevencao do re-import-como-orfao
+Legitimate tombstones (no filename collision) stay forever; there is no
+age-based GC.
 
-`_autoImportOrphanFiles` ja trata `syncFileName` tombstonado na manifest
-como "conhecido" (como se fosse ativo). Assim, um arquivo orfao com nome
-igual a um tombstone nao vira um livro novo; o proximo `_uploadMissingEpubs`
-respeita o tombstone e deleta o arquivo.
+### No re-import of tombstoned files
 
-## Ordem da pipeline de sync
+`_autoImportOrphanFiles` treats a filename tombstoned in the remote shard as
+"known", so an orphan file with that name never becomes a new book; the
+next `_uploadMissingEpubs` honours the tombstone and deletes the file.
 
-`LibrarySyncService.sync()`, em alto nivel:
+## Sync pipeline
+
+`LibrarySyncService.sync()`:
 
 ```
-┌ em paralelo ─────────────────────────────────────┐
-│ 1a. isReadable(folder)                           │
-│ 1b. readText(library.json)        ← legacy probe │
-│ 1c. readText(library/books.json)                 │
-│ 1d. readText(library/settings.json)              │
-│ 1e. readText(library/sessions.json)              │
-│ 1f. listFiles(books/)                            │
+1. await isReadable(folder)   ← retries transient errors 3x, rethrows the real
+                                cause; false only on 404
+┌ in parallel ─────────────────────────────────────┐
+│ readText(library.json)          ← legacy probe   │
+│ readText(library/books.json)                     │
+│ readText(library/settings.json)                  │
+│ readText(library/sessions.json)                  │
+│ readText(library/bookmarks.json)                 │
+│ listFiles(books/)               ← only if syncEpubs │
 └──────────────────────────────────────────────────┘
-2. _loadRemoteShards (legacy migra in-memory se shards ausentes)
-3. autoImportOrphanFiles  ← so quando config.syncEpubs
-4. buildLocalShards (books + settings + sessions)
-5. merge*Shard + compactacao de zumbis (no books shard)
-6. _applyShardsToLocal (progress, lastReadAt, rating, novas sessions, tombstones, settings)
-7. writes em paralelo:
-   - delete library.json   ← so quando legacy ainda esta presente
-   - writeText library/books.json    ← SKIP se _booksShardEquals
-   - writeText library/settings.json ← SKIP se _settingsShardEquals
-   - writeText library/sessions.json ← SKIP se _sessionsShardEquals
-8. uploadMissingEpubs      ← so quando config.syncEpubs
+2. _loadRemoteShards (legacy migrated in memory only if no shard exists)
+3. _autoImportOrphanFiles       ← only if syncEpubs
+4. _buildLocalShards (books + settings + sessions + bookmarks)
+5. merge*Shard + _compactZombieTombstones (books)
+6. _applyShardsToLocal (progress, lastReadAt, rating, new sessions,
+   bookmarks, tombstones, settings)
+7. delete library.json if present, then parallel writes (Future.wait):
+   - books.json      ← skipped if _rowsEqual(merged, remote)
+   - settings.json   ← skipped if _settingsShardEquals(merged, remote)
+   - sessions.json   ← skipped if _rowsEqual(merged, remote)
+   - bookmarks.json  ← skipped if _rowsEqual(merged, remote)
+8. _uploadMissingEpubs          ← only if syncEpubs
 ```
 
-Em modo idle (nada mudou), o passo 7 reduz a um no-op por shard: os tres
-`_*ShardEquals` retornam true e nenhum write sobe. Os passos 5 e 6 sao
-puros / locais e custam ms.
+`isReadable` is awaited before the parallel reads so a thrown error doesn't
+leave them as unhandled rejections.
 
-### Paralelizacao
+### Per-shard write skip
 
-As leituras iniciais sao independentes e disparadas juntas; o wall-clock
-e dominado pela mais lenta. Os writes da fase 7 tambem sao paralelizados
-(`Future.wait`) — quando dois shards mudaram simultaneamente, o custo
-e `max(write1, write2)` em vez de soma.
+`_rowsEqual` sorts both row lists by id and compares each row's JSON
+encoding; `_settingsShardEquals` compares the encoded `settings` payload.
+Both ignore the meta block (`updatedAt`/`updatedBy`). An idle sync writes
+nothing; a progress-only change uploads only `books.json`. Because these
+compare `toJson()` output, **every new field on a shard row must be added to
+its `toJson`**, or changes to it never get pushed.
 
-### Skip de writes por shard
+## DateTime comparison
 
-`_booksShardEquals` / `_settingsShardEquals` / `_sessionsShardEquals`
-comparam o conteudo do shard ignorando `updatedAt`/`updatedBy` (que
-mudam todo sync por natureza). Quando identicos, o write nao acontece —
-um sync idle nao gera trafego de write nenhum. Para mudancas isoladas
-(so progresso, por exemplo), apenas o `books.json` sobe.
+**Trap**: `DateTime.==` compares `(microsecondsSinceEpoch, isUtc)`. In sync:
 
-## Comparacao de DateTime
+- **Local** times come from Drift (unix seconds) → `isUtc: false`.
+- **Remote** times come from shard JSON; `toJson` calls `toUtc()` before
+  `toIso8601String()`, so they parse back with `isUtc: true`.
 
-**Armadilha importante**: `DateTime.==` compara `(microsSinceEpoch, isUtc)`.
-No nosso sync:
+Same instant, different `isUtc` → `==` is `false`. In the apply step this
+once caused a DB write per book on every sync. **Always use
+`isAtSameMomentAs` for DateTimes that cross the local/remote boundary.**
 
-- Horarios **locais** vem do Drift, que por padrao armazena como unix
-  seconds → reconstrui com `isUtc: false`.
-- Horarios **remotos** vem do JSON manifest. `toJson` faz `toUtc()` antes
-  do `toIso8601String()`, entao o parse resulta em `isUtc: true`.
+The skip-write checks are immune because they compare JSON, which already
+goes through `toUtc()`.
 
-Mesmo instante, `isUtc` diferente → `==` retorna `false`.
+## DriveSyncFolderGateway caches
 
-Em `_applyToLocal` isso causava um write pra cada livro todo sync (11
-livros × ~60ms = 660ms jogados fora). **Use sempre `isAtSameMomentAs` para
-comparar DateTimes que cruzam a fronteira local/remoto** — normaliza TZ.
+Any operation on a Drive file needs its `fileId`, and resolving it costs a
+name-filtered `files.list` (~500-700ms, `_findFile`).
 
-O `_libraryContentEquals` nao sofre porque compara JSON encoding, que ja
-passa por `toUtc()`.
+`_fileIdCache` (keyed by `"<parentId>/<fileName>"`) is filled by:
+- `_findFile` (when it has to resolve)
+- `listFiles` (free — the response already has id + name)
+- the create branch of `writeBytes`
 
-## Cache de fileId (DriveSyncFolderGateway)
+`readBytes`, `writeBytes` and `deleteFile` skip `_findFile` on a cache hit.
 
-Qualquer operacao em um arquivo no Drive exige saber o `fileId`, e para
-descobri-lo o gateway faz `api.files.list` filtrado por nome/pasta — uma
-round-trip de ~500-700ms ("find" nos logs). Esse custo era pago antes de
-cada `read`/`write`/`delete`.
+Invalidation:
+- `deleteFile` removes the entry.
+- `clearCache()` drops everything (called on disconnect, together with
+  `resetForDisconnect`).
+- No detection of concurrent renames by another device.
 
-`_fileIdCache` (keyed por `"<parentId>/<fileName>"`) e populado por:
-- `_findFile` (quando precisa resolver na marra)
-- `listFiles` (de gracca — a resposta ja traz id+name)
-- branch "create" do `writeBytes` (acabou de criar, sabe o id)
+Folders are cached in `_folderIdCache`, and concurrent resolves of the same
+path share one in-flight future (`_pendingResolves`). Without that, the
+parallel shard writes on a fresh Drive each ran find-or-create and created
+duplicate `library/` folders. When duplicates already exist, `_pickStable`
+picks the one with the lowest id so every device converges on the same one.
 
-Consumido por `readBytes`, `writeBytes`, `deleteFile` — se tiver cache,
-pula o `_findFile`.
+The caches are not thread-safe; they assume one sync at a time per gateway,
+which `LibrarySyncNotifier` guarantees.
 
-Invalidacao:
-- `deleteFile` remove a entrada do cache.
-- `clearCache()` dropa tudo (chamado no disconnect).
-- **Nao** ha detection de renomeacao concorrente por outro device; na
-  pratica o sync e efemero o suficiente pra isso nao ser problema.
+## Orphans in `books/`
 
-## Orfaos na pasta `books/`
+`_autoImportOrphanFiles` imports EPUBs in `books/` that no book entry
+claims. Under `drive.file` the app can't see files the user drops in
+manually, so in practice these are EPUBs uploaded by the app on another
+device whose shard entry is missing or lost:
+- Keeps `.epub` files (extension check is case-insensitive; name matching
+  is exact and case-sensitive).
+- Excludes filenames already known: active or tombstoned in the remote
+  shard, or a local book's `syncFileName`.
+- Excludes files that failed before (`SyncImportFailuresDao`, so a corrupt
+  EPUB isn't retried every sync; `retainOnly` prunes records for files no
+  longer in the folder; the user can retry from Settings).
+- Imports the rest as new books (fresh local UUID), storing the filename in
+  `syncFileName` so it isn't imported twice.
 
-Se o usuario largar um EPUB direto na pasta do Drive (fora do app),
-`_autoImportOrphanFiles` detecta no proximo sync:
-- Filtra `.epub` (case-insensitive).
-- Exclui filenames ja conhecidos (ativos + tombstones na manifest +
-  `syncFileName`s locais).
-- Exclui arquivos que falharam antes (`SyncImportFailuresDao` pra nao
-  thrashar em EPUB corrompido).
-- Import o resto como novos livros (UUID local novo), preservando o
-  filename em `syncFileName` pra nao duplicar no proximo sync.
+Known limitation: renaming a file in Drive looks like "delete + new orphan"
+and produces a duplicate book.
 
-## Sync so de EPUB
+## Scheduling, concurrency and offline
 
-`LibrarySyncService._buildLocalSnapshot` filtra `source == BookSource.epub`.
-Artigos (`source == article`) sao **sempre locais**, nao participam do
-sync. Razao: o manifest e um formato de biblioteca EPUB, e artigos
-dependem de fetch de URL.
+`LibrarySyncNotifier` (`library_sync_provider.dart`):
+- `schedulePush()` debounces local changes (progress, settings, bookmarks,
+  imports, mark-as-read) into one sync 2s later; it is a no-op unless
+  `SyncConfig.isActive` (configured + auto-sync) and signed in. Rating
+  changes don't call it — they ship with the next sync.
+- `triggerSync()` serializes runs: a call during a running sync sets a flag
+  and re-runs once afterwards.
 
-## Offline
+Network errors (`SocketException` / `TlsException` / `http.ClientException`)
+are not sync errors: the notifier moves to `SyncStage.offline` (no snackbar,
+no `errorMessage`) and retries every minute with `triggerSync(quiet: true)`,
+which doesn't flip back to `syncing` (the hairline would flash every
+minute). User-initiated attempts (AppBar icon, pull-to-refresh, "Sync now")
+go through `syncNowWithFeedback`, which shows a snackbar only if that
+attempt ends offline. The library AppBar shows a `cloud_off` icon while
+offline.
 
-Erro de rede (`SocketException` / `TlsException` / `http.ClientException`) nao e erro de
-sync: o `LibrarySyncNotifier` vai pra `SyncStage.offline` (sem snackbar,
-sem `errorMessage`) e agenda um retry a cada 1 min. Esse retry roda com
-`triggerSync(quiet: true)` e nao volta pra `syncing` (a hairline piscaria a
-cada minuto); tentativa do usuario (icone, pull-to-refresh, Sincronizar
-agora) mostra o progresso normalmente.
-Nada precisa de fila: progresso, sessions, bookmarks e rating ja tem
-timestamp no DB, entao o proximo sync que passar empurra tudo. A excecao
-era settings — o stamp de "settings sujo" vivia so em memoria; agora vai
-pra `sync_settingsDirtyAt` no SharedPreferences e so e limpo depois de um
-push com sucesso. Indicador: icone `cloud_off` na AppBar da biblioteca
-(tap tenta de novo via `syncNowWithFeedback`, que so avisa se a tentativa
-terminar offline) e texto no status da secao de sync.
+Nothing needs a queue besides deletes: progress, sessions, bookmarks and
+ratings carry timestamps in the DB, so the next successful sync pushes them.
+Settings used to be the exception — the dirty stamp lived only in memory; it
+is now persisted as `sync_settingsDirtyAt` and cleared only after a
+successful sync (a change that lands mid-sync keeps its stamp for the
+re-run).
 
-## Observabilidade
+While syncing, the library shows a 2px hairline under the TabBar
+(`LibraryAppBarBottom`, `stage == SyncStage.syncing`); during orphan
+auto-import it becomes the detailed `LibraryImportProgressBar`.
 
-Quando o sync esta rodando, a UI mostra uma hairline de 2px logo abaixo
-da TabBar da biblioteca (via `LibraryAppBarBottom` + `LibrarySyncState.stage
-== SyncStage.syncing`). Durante auto-import de orfaos, a hairline e
-substituida pela `LibraryImportProgressBar` mais detalhada.
+## Key files
 
-Para diagnostico no dev, os logs `[sync]` / `[drive]` dao:
-- Fase + duracao de cada etapa do pipeline.
-- `writes: progress=N lastRead=N deletes=N imports=N` em `_applyToLocal`.
-- `uploads=N deletes=N skippedTombstones=N` em `_uploadMissingEpubs`.
-- `[sync] diff: ...` quando o skip do manifest falha.
-
-## Arquivos chave
-
-- `lib/features/library_sync/data/services/library_sync_service.dart` — o
+- `lib/features/library_sync/data/services/library_sync_service.dart` —
   `sync()`, `pushTombstone()`, `_loadRemoteShards`, `_buildLocalShards`,
-  `_applyShardsToLocal`, `_uploadMissingEpubs`, `_autoImportOrphanFiles`,
-  `_booksShardEquals` / `_settingsShardEquals` / `_sessionsShardEquals`.
+  `_applyShardsToLocal`, `_applyRemoteProgress`, `_uploadMissingEpubs`,
+  `_autoImportOrphanFiles`, `_compactZombieTombstones`, `_rowsEqual` /
+  `_settingsShardEquals`, `displaySettingsToMap` / `displaySettingsFromMap`.
 - `lib/features/library_sync/data/gateways/drive_sync_folder_gateway.dart`
-  — wrapper da Drive API com caches (folder + file).
-- `lib/features/library_sync/domain/entities/sync_library.dart` — schemas
-  (`SyncBooksShard`, `SyncSettingsShard`, `SyncSessionsShard`,
-  `SyncReadingSession`) + merges puros. A classe legada `SyncLibrary` e
-  mantida so para a leitura unica do monolito migrado.
+  — Drive API wrapper with folder + file caches.
+- `lib/features/library_sync/domain/entities/sync_library.dart` — shard
+  schemas (`SyncBooksShard`, `SyncSettingsShard`, `SyncSessionsShard`,
+  `SyncBookmarksShard`) and pure merges. `SyncLibrary` is kept only to
+  decode the legacy monolith.
 - `lib/features/library_sync/presentation/providers/library_sync_provider.dart`
-  — notifier que debouncing pushes (2s), faz flush de pending deletes,
-  serializa syncs concorrentes.
+  — debounce, sync serialization, pending-delete queue, offline retry.
 - `lib/features/library_sync/presentation/providers/drive_auth_provider.dart`
-  — sign-in silencioso no startup, manipulacao de `http.Client`
-  autenticado.
+  — silent sign-in at startup, authenticated `AuthClient`.
+- Tests: `test/features/library_sync/` (merge, gateway, pending deletes,
+  service apply/import/push/tombstones). `helpers/sync_service_harness.dart`
+  runs the service against a real in-memory Drift DB and
+  `test/fixtures/fake_sync_folder_gateway.dart`.

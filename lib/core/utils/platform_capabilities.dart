@@ -37,18 +37,16 @@ class PlatformCapabilities {
     return Platform.isAndroid || Platform.isIOS;
   }
 
-  /// Linux desktop. The TTS path uses a `speech-dispatcher` socket backend
-  /// (`spd-say` fallback) which can't pipeline as cleanly as `flutter_tts`,
-  /// so the reader feeds it larger chunks. Also used by drag-drop and the
-  /// keyboard-shortcut bindings that are Linux-only.
+  /// Linux desktop. Lets the EPUB importer report a missing `file_picker`
+  /// dialog backend; drag-drop and keyboard shortcuts gate on [isDesktop].
   static bool get isLinux {
     if (kIsWeb) return false;
     return Platform.isLinux;
   }
 
   /// Text-to-speech reader mode. Android/iOS/macOS/Windows use the
-  /// `flutter_tts` package; Linux desktop uses a custom backend on top of
-  /// `spd-say` (speech-dispatcher). On platforms where neither is wired up
+  /// `flutter_tts` package; Linux desktop uses a custom backend speaking
+  /// SSIP to speech-dispatcher. On platforms where neither is wired up
   /// (currently just web) the mode is hidden from the reader.
   static bool get supportsTts {
     if (kIsWeb) return false;

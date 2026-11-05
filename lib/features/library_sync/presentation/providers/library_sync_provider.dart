@@ -104,7 +104,7 @@ class LibrarySyncState {
   final DateTime? lastSyncedAt;
 
   /// When auto-importing books from the sync folder, these track progress
-  /// so the UI can render "Importando X de Y: file.epub". Null outside of
+  /// so the UI can render "Importing X of Y: file.epub". Null outside of
   /// an active import.
   final int? importCurrent;
   final int? importTotal;

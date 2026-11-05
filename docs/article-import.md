@@ -1,158 +1,160 @@
-# Import de artigos web
+# Web article import
 
-Permite ler qualquer artigo da web em RSVP. O usuario cola uma URL no
-dialog da tab "Articles" da biblioteca, ou compartilha uma URL do
-navegador via share sheet do Android — nos dois caminhos o app baixa
-a pagina, extrai o corpo do artigo, e cria um "livro sintetico" de 1
-capitulo que flui pelo mesmo pipeline de leitura usado pelos EPUBs.
+Lets the user read any web article with the same reader used for EPUBs. The
+user pastes a URL into the dialog on the library's "Articles" tab, shares a
+URL from a browser via the Android share sheet, or drops a URL onto the
+desktop window. In every case the app downloads the page, extracts the
+article body and creates a synthetic one-chapter "book" that flows through
+the same reading pipeline as EPUBs.
 
-## Motivacao
+## Why
 
-- O fluxo de RSVP (palavra-a-palavra com ORP) funciona bem pra texto
-  longo de qualquer origem, nao so livros.
-- Artigos web sao leituras curtas e descartaveis — ter eles numa tab
-  separada evita poluir a lista de livros do usuario.
-- Reaproveitar o pipeline existente (`WordToken`, cache de tokens, engine
-  RSVP, modos de leitura) custa quase nada.
+- Word-by-word RSVP works for long-form text from any source, not just books.
+- Articles are short and disposable; a separate tab keeps them out of the
+  book list.
+- Reusing the existing pipeline (`WordToken`, token cache, RSVP engine,
+  reader modes) costs almost nothing.
 
-## Arquitetura
+## Pipeline
 
 ```
 URL
   ↓
-[http.get com timeout 20s + UA desktop]
+UrlUtils.parseWithHttpsFallback (adds https:// when the scheme is missing)
   ↓
-HTML bytes → utf8.decode(bodyBytes, allowMalformed: true)
+http.get with 20s timeout + desktop User-Agent
+  ↓  non-2xx → ArticleExtractionException
+utf8.decode(bodyBytes, allowMalformed: true)
   ↓
-[ReadabilityExtractor.extract]
-  ├─ _stripNoise: remove script/style/nav/aside/footer/header/form/...
-  ├─ metadata: og:title, meta[name=author], og:site_name, h1, <title>
+ReadabilityExtractor.extract
+  ├─ title:  og:title → twitter:title → first <h1> → <title>
+  ├─ byline: meta[name=author] → meta[property=article:author] → [rel=author]
+  ├─ siteName: og:site_name
+  ├─ _stripNoise: drops _stripTags (script/style/nav/aside/header/footer/form/…)
+  │   and elements whose class/id matches _negativePatterns and have no <p>
   └─ _findBestCandidate:
-       1. se existir UM unico <article> ou <main> com >200 chars → vence
-       2. senao, se existir [role="main"] com >200 chars → vence
-       3. senao, scoring em div/section/article:
-            score += 1 por <p> com >25 chars
-            score += N virgulas por paragrafo
-            score += len/100 (clamped 0-3)
-            score += 25 se class/id match em "article|body|content|entry|main|page|post|story|text|blog"
-            score -= 25 se class/id match em "comment|meta|footer|sidebar|sponsor|ad|share|nav|menu|..."
-            score *= (1 - link_density)   # penaliza navs
+       1. exactly one <article> (then <main>) with >200 chars of text → wins
+       2. else [role="main"] with >200 chars → wins
+       3. else score every div/section/article:
+            per <p> with ≥25 chars: +1, +1 per comma, +len/100 (clamped 0-3)
+            +25 if class/id matches _positivePatterns
+            −25 if class/id matches _negativePatterns
+            score *= (1 − link density)
+          no positive score → whole <body>
   ↓
-content HTML (inner do vencedor)
+contentHtml (inner HTML of the winner)
   ↓
-HtmlStripper.strip  → texto limpo com paragrafos
+HtmlStripper.strip → clean text with paragraphs (empty → exception)
   ↓
-TextTokenizer.tokenize(chapterIndex: 0, globalOffset: 0) → WordToken[]
+TextTokenizer.tokenize(chapterIndex: 0, globalOffset: 0) → List<WordToken>
   ↓
-ParsedBook(title, byline, 1 Chapter, totalWords)
+ParsedBook(title, author: byline ?? '', 1 Chapter, totalWords)
+  (title falls back to the last URL path segment, then the host)
   ↓
-persistParsedBook(source: BookSource.article, sourceUrl, siteName, filePath: '')
+persistParsedBook(source: BookSource.article, sourceUrl, siteName)
   ↓
 SQLite: books row + cached_tokens (1 chapter)
 ```
 
-## Componentes
+## Components
 
 ### `lib/core/utils/readability_extractor.dart`
 
-Port Dart puro (sem deps nativas) do algoritmo do Mozilla Readability,
-simplificado. Entrada: HTML string. Saida: `ExtractedArticle {title?, byline?, siteName?, contentHtml}`.
+Pure-Dart, simplified port of Mozilla Readability (no native deps). Input:
+HTML string. Output: `ExtractedArticle {title?, byline?, siteName?, contentHtml}`.
 
-Heuristicas:
-- `_stripTags`: tags que sao sempre ruido (script, style, nav, aside,
-  footer, header, form, button, iframe, svg, etc.).
-- Tambem remove elementos com class/id matching `_negativePatterns`
-  SE o elemento nao tem descendentes `<p>` (evita comer sidebars com
-  pull quotes reais).
-- `_positivePatterns` / `_negativePatterns`: classes/ids que dao +25
-  / -25 de score por match (case-insensitive).
-- Link density penalty: `score *= (1 - total_link_text_len / total_text_len)` —
-  blocos que sao mostly links (navs sobreviventes) sao zerados.
+- `_stripTags`: tags that are always noise.
+- `_negativePatterns` elements are removed only when they have no `<p>`
+  descendants, so sidebars holding real pull quotes survive.
+- `_positivePatterns` / `_negativePatterns`: case-insensitive class/id
+  substrings worth ±25 points.
+- Link density penalty: `score *= (1 − link_text_len / text_len)` zeroes
+  link-heavy blocks (navs that survived stripping).
 
-Testes em `test/core/utils/readability_extractor_test.dart` cobrem
-8 casos (artigo unico, metadata, scoring div vs sidebar, script/style
-strip, fallback, comment penalty).
+Tests: `test/core/utils/readability_extractor_test.dart`.
 
 ### `lib/features/article_import/data/services/article_extraction_service.dart`
 
-Orquestra HTTP + extract. Expoe:
-- `extractFromUrl(String url) → ArticleExtractionResult` — faz o fetch
-  e chama `extractFromHtml`.
-- `extractFromHtml(String html, {required String url}) → ArticleExtractionResult` —
-  pure, sem rede. Util pra testes e para quando o share sheet entrega
-  HTML ao inves de URL.
+`ArticleExtractionService` orchestrates HTTP + extraction:
+- `extractFromUrl(String url) → ArticleExtractionResult`: fetches, then calls
+  `extractFromHtml`.
+- `extractFromHtml(String html, {required String url})`: pure, no network;
+  used by `test/features/article_import/article_extraction_service_test.dart`.
 
 Hardening:
-- Timeout de 20s no `http.get`.
-- `User-Agent` desktop para evitar redirecionamento para mobile landings
-  que frequentemente tem menos conteudo.
-- `utf8.decode(bodyBytes, allowMalformed: true)` — muitos sites servem
-  UTF-8 mas declaram charset errado; confiar no header produz mojibake.
+- 20s timeout on the request.
+- Desktop `User-Agent`, so sites don't redirect to mobile landing pages that
+  often carry less content.
+- `utf8.decode(bodyBytes, allowMalformed: true)`: many sites serve UTF-8 but
+  declare the wrong charset; trusting the header (`response.body`) produces
+  mojibake.
 
 ### `lib/features/article_import/presentation/providers/article_import_provider.dart`
 
-`ArticleImportNotifier` (StateNotifier) com estados
-`idle | fetching | processing | done | error`. `importFromUrl(String)`
-executa o pipeline inteiro e deixa o estado em `done` com
-`importedBookId`. O coordinator no `app.dart` observa e navega.
+`ArticleImportNotifier` (StateNotifier) with statuses
+`idle | fetching | processing | done | error`. `importFromUrl(String)` runs the
+whole pipeline and ends in `done` with `importedBookId`. It does not navigate;
+the app-level coordinator does.
 
 ### `lib/features/article_import/presentation/widgets/import_article_dialog.dart`
 
-Dialog com um `TextField` de URL. Pre-enche automaticamente se o
-clipboard tiver uma URL http(s). Submit chama
-`ArticleImportNotifier.importFromUrl`.
+Dialog with a URL `TextField`, pre-filled when the clipboard holds an http(s)
+URL. Submit calls `ArticleImportNotifier.importFromUrl`.
 
 ### `lib/core/share/share_intent_handler.dart`
 
-Widget que envolve `MaterialApp` e escuta `ReceiveSharingIntent`
-(cold start via `getInitialMedia` + warm start via `getMediaStream`).
-Filtra para `SharedMediaType.url` ou `.text` com uma URL http(s)
-dentro (via `UrlUtils.extractHttpUrl`, que tolera "Titulo\nhttps://…"
-que alguns navegadores mandam). Dispara `ArticleImportNotifier.importFromUrl`.
+`ShareIntentHandler` wraps the app and listens to `ReceiveSharingIntent`
+(cold start via `getInitialMedia`, warm start via `getMediaStream`). It is a
+no-op unless `PlatformCapabilities.supportsShareIntent`. It accepts
+`SharedMediaType.url` or `.text` containing an http(s) URL
+(`UrlUtils.extractHttpUrl` handles the "Title\nhttps://…" payload some
+browsers send) and calls `importFromUrl`.
 
-### `_ArticleImportCoordinator` em `lib/app.dart`
+### `lib/core/share/desktop_drop_handler.dart`
 
-`ref.listen(articleImportProvider)` no nivel do app. Mostra snackbar
-persistente de progresso (fetching / processing), navega para
-`/reader/:id` no done, snackbar de erro no error. Usa `rootMessengerKey`
-para acessar o `ScaffoldMessenger` de acima do `MaterialApp`.
+On desktop, dropped files that aren't `.epub` are read as text and the first
+http(s) URL found is passed to `importFromUrl`. See
+[linux-desktop.md](linux-desktop.md#drag-and-drop).
+
+### `_ArticleImportCoordinator` in `lib/app.dart`
+
+`ref.listen(articleImportProvider)` at app level. Shows a persistent progress
+snackbar (fetching / processing), pushes `/reader/:id` on `done`, shows an
+error snackbar on `error`, then `reset()`s the notifier. Uses
+`rootMessengerKey` because it sits above `MaterialApp`.
 
 ## Schema
 
-Article rows em `books` carregam:
-- `source = 'article'` (BookSource.article)
-- `sourceUrl = 'https://…'` — URL original
-- `siteName = 'Example News'` — se a pagina tinha `og:site_name`
-- `filePath = ''` — sem arquivo no disco (sentinel)
+Article rows in `books` have:
+- `source = BookSource.article`
+- `sourceUrl`: original URL
+- `siteName`: from `og:site_name`, when present
+- `filePath = ''`: no file on disk (sentinel)
 - `coverImage = null`
 
-`BookCard` usa `siteName` (ou o host da URL) como subtitulo, em vez
-de `author`.
+`BookCard` shows `siteName` as the subtitle, falling back to `author`, then
+the URL host.
 
 ## Sync
 
-`LibrarySyncService` filtra `source='epub'` em `_buildLocalSnapshot` —
-artigos nao participam do sync via Google Drive. Motivos:
-- Nao ha arquivo de artigo no disco para subir.
-- O manifesto `library.json` descreve metadata de livros EPUB.
-- Artigos sao leituras curtas, sincroniza-los traz pouco beneficio.
+`LibrarySyncService._buildLocalShards` keeps only `source == BookSource.epub`,
+so articles never sync through Google Drive: there is no file to upload, the
+shards describe EPUB libraries, and articles are short-lived.
 
-Se no futuro virar desejavel, seria preciso estender o schema do
-manifesto para carregar o HTML extraido (ou a URL + tokens) e adicionar
-uma secao `articles` paralela a `books`.
+## iOS share sheet
 
-## Share sheet iOS
+Android works through the `SEND` / `text/plain` intent-filter in
+`android/app/src/main/AndroidManifest.xml`. iOS needs a Share Extension
+target created in Xcode on a Mac, which is not set up yet; see
+[share-extension-ios.md](share-extension-ios.md).
 
-Android funciona hoje via `intent-filter` em `AndroidManifest.xml`. iOS
-precisa de um Share Extension target criado no Xcode num Mac — passos
-em [share-extension-ios.md](share-extension-ios.md).
+## Import entry points
 
-## Entry points de import (resumo)
-
-| Origem              | Entry point                             | Plataforma |
-|---------------------|------------------------------------------|------------|
-| File picker EPUB    | FAB na tab Books                         | todas      |
-| Google Drive sync   | Auto-import em `LibrarySyncService`      | Android    |
-| URL dialog          | FAB na tab Articles                      | todas      |
-| Share sheet         | `ShareIntentHandler` via intent-filter   | Android    |
-| Share extension     | `ShareIntentHandler` via app group       | iOS (TODO) |
+| Source            | Entry point                            | Platform        |
+|-------------------|----------------------------------------|-----------------|
+| EPUB file picker  | FAB on the Books tab                   | all             |
+| Google Drive sync | auto-import in `LibrarySyncService`    | Android, Linux  |
+| URL dialog        | FAB on the Articles tab                | all             |
+| Drag-and-drop     | `DesktopDropHandler` (EPUB or URL)     | desktop         |
+| Share sheet       | `ShareIntentHandler` via intent-filter | Android         |
+| Share extension   | `ShareIntentHandler` via App Group     | iOS (not set up)|

@@ -12,7 +12,7 @@ import '../../data/services/tts_backend.dart';
 ///
 /// - **Linux desktop**: [SpeechdSocketBackend] (persistent SSIP socket to
 ///   `speech-dispatcher`). When the daemon isn't running yet, the backend's
-///   `init()` spawns it (as the old `spd-say` CLI did implicitly).
+///   `init()` spawns it.
 /// - **Everywhere else**: [FlutterTtsBackend].
 ///
 /// The provider is `Provider` (not `autoDispose`) so the backend survives

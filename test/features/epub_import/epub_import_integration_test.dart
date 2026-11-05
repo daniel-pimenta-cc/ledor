@@ -211,12 +211,12 @@ void main() {
       expect(ch1, isNotNull);
       expect(ch0!.chapterTitle, 'A');
       expect(ch1!.chapterTitle, 'B');
-      // tokensJson é gravado no formato compacto v2 e decodifica de volta
-      // pros mesmos tokens (texto + posições estruturais).
+      // tokensJson is stored in the compact v2 format and decodes back to
+      // the same tokens (text + structural positions).
       expect(TokenCodec.isCompact(ch0.tokensJson), isTrue);
       final tokens0 = TokenCodec.decode(ch0.tokensJson, chapterIndex: 0);
-      // O fixture renderiza o título do capítulo como <h1> no body, então
-      // ele aparece como primeiro token.
+      // The fixture renders the chapter title as an <h1> in the body, so it
+      // shows up as the first token.
       expect(tokens0.map((t) => t.text), ['A', 'one', 'two', 'three.']);
       expect(tokens0.first.isChapterStart, isTrue);
       expect(ch0.wordCount, greaterThan(0));

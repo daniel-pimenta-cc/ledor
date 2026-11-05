@@ -134,11 +134,11 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
     if (!mounted) return;
     if (chapters.isEmpty) return;
 
-    // O progresso pode vir do Drive sync com índices de uma tokenização
-    // diferente (mesmo EPUB importado por uma versão mais antiga do parser
-    // no outro device). Sem clamp, `chapters[i].tokens[j]` estoura, o
-    // _loadBook morre sem catch e o reader fica preso num Scaffold vazio
-    // (tela preta em dark theme).
+    // Progress may arrive via Drive sync with indices from a different
+    // tokenization (same EPUB imported by an older parser on the other
+    // device). Without the clamp, `chapters[i].tokens[j]` throws, _loadBook
+    // dies uncaught and the reader is stuck on an empty Scaffold (a black
+    // screen in dark theme).
     final chapterIdx =
         math.min(progress?.chapterIndex ?? 0, chapters.length - 1);
     final wordIdx = math.min(
@@ -176,11 +176,11 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
       displaySettings: displaySettings,
     );
 
-    // Rows ainda no formato v1 (lista de maps) são re-encodadas pro formato
-    // compacto v2 em background — a próxima abertura deste livro decodifica
-    // ~10x menos JSON. Kickoff depois do state pra não competir com a
-    // primeira renderização; não toca em state/_ref depois dos awaits,
-    // então não depende do notifier continuar montado.
+    // Rows still in the v1 format (list of maps) are re-encoded to compact
+    // v2 in the background — the next open of this book decodes ~10x less
+    // JSON. Kicked off after the state write so it doesn't compete with the
+    // first render; it never touches state/_ref after its awaits, so it
+    // doesn't need the notifier to stay mounted.
     final legacyChapters = <(int, List<WordToken>)>[
       for (var i = 0; i < cachedRows.length; i++)
         if (!TokenCodec.isCompact(cachedRows[i].tokensJson))
@@ -202,9 +202,10 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
     }
   }
 
-  /// Reescreve em background os capítulos que ainda estavam no formato v1.
-  /// Estático em espírito: recebe tudo por parâmetro e nunca lê `_ref`
-  /// nem `state`, então é seguro continuar após o dispose do notifier.
+  /// Rewrites, in the background, the chapters still in the v1 format.
+  /// Static in spirit: takes everything as parameters and never reads
+  /// `_ref` or `state`, so it's safe to keep running after the notifier is
+  /// disposed.
   Future<void> _upgradeTokenCache(
     CachedTokensDao tokensDao,
     String bookId,
@@ -213,8 +214,8 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
     try {
       final encoded = await compute(_encodeChapters, legacyChapters);
       for (final (chapterIndex, tokensJson) in encoded) {
-        // Se o encode caiu no fallback v1 (invariante violada), não grava —
-        // reescrever o mesmo formato seria churn de DB a cada abertura.
+        // If encode fell back to v1 (an invariant was broken), skip the
+        // write — rewriting the same format would churn the DB on every open.
         if (!TokenCodec.isCompact(tokensJson)) continue;
         await tokensDao.updateChapterTokensJson(
           bookId: bookId,
@@ -223,7 +224,7 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
         );
       }
     } catch (_) {
-      // Upgrade é oportunista; o formato v1 continua legível pra sempre.
+      // The upgrade is opportunistic; the v1 format stays readable forever.
     }
   }
 
@@ -413,7 +414,7 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
   ///
   /// Lazy-initialises the backend on first call so users who never visit
   /// TTS don't pay the platform-channel cost. If init throws (e.g.
-  /// `spd-say` missing on Linux) the error is propagated via the
+  /// speech-dispatcher missing on Linux) the error is propagated via the
   /// [ttsErrorProvider] and we revert mode back to scroll.
   Future<void> enterTtsMode() async {
     if (state.mode == ReaderMode.tts) return;
@@ -657,13 +658,13 @@ class RsvpEngineNotifier extends StateNotifier<RsvpState> {
   // ---------- Audio handler wiring ----------
 
   Future<void> _bindAudioHandler() async {
-    // O provider expõe um Future: o AudioService.init roda em paralelo com
-    // o startup do app. Na prática já resolveu quando o usuário entra em
-    // TTS; o await só importa num cold start direto pra um livro em TTS.
+    // The provider exposes a Future: AudioService.init runs in parallel
+    // with app startup. In practice it has resolved by the time the user
+    // enters TTS; the await only matters on a cold start straight into a
+    // book restored in TTS mode.
     final handler = await _ref.read(ttsAudioHandlerProvider);
-    // O usuário pode ter saído do TTS enquanto o init não terminava —
-    // bindar agora ressuscitaria a notificação de lockscreen de uma
-    // sessão já abandonada.
+    // The user may have left TTS while init was still running — binding now
+    // would resurrect the lockscreen notification of an abandoned session.
     if (!mounted || state.mode != ReaderMode.tts) return;
     if (handler == null) return;
     final source = TtsAudioSource(

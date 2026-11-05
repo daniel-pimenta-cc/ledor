@@ -30,17 +30,18 @@ An open-source RSVP reader for EPUB and web articles, built with Flutter and run
 - **Three reading modes**
   - `rsvp` — single-word display with ORP highlight, active during playback
   - `ereader` — traditional continuous reading without highlights or controls
-  - `tts` — text-to-speech narration with word-synced highlighting; keeps playing in the background with lockscreen media controls
+  - `tts` — text-to-speech narration with word-synced highlighting; on Android/iOS it keeps playing in the background with lockscreen media controls
   - The last mode used is remembered per book
 - **Pause into the full text** — pausing RSVP or TTS drops you into a scrollable full-text view with the current word highlighted; tap any word to seek and continue from there
 - **TTS that feels like an audiobook player** — system voices with human-friendly names ("English (UK) · Female 1" instead of `en-gb-x-fis-network`), engine and voice pickers, and playback speed from 0.5× to 3× independent of the RSVP WPM. On Linux it speaks through `speech-dispatcher` (e.g. Piper voices)
 - **Two content sources, one pipeline** — import EPUB files or save any web article by URL (or share sheet on Android); both end up as the same tokenized read
-- **Bookmarks** — long-press any word in any mode to bookmark it with a context snippet; synced across devices
-- **Smart timing** — longer pauses on punctuation, paragraph starts, chapter starts, and long words (all pre-computed at import, zero work in the hot loop)
+- **Bookmarks** — long-press a word in any mode to bookmark it (in the full-text views, extend the selection to bookmark a whole passage); each keeps a context snippet, is listed per book and library-wide, and syncs across devices
+- **Smart timing** — longer pauses on punctuation, paragraph starts, chapter starts, and long words (pre-computed per word at import, so the hot loop only multiplies), plus adjustable sentence and chapter pauses
 - **Ramp-up** — starts at 70% of target WPM and accelerates over the first 30 words to help your eyes warm up
 - **Chapter-aware progress slider** with visual chapter markers and title tooltips while dragging
 - **Velocity-based scroll tracking** — in the paused full-text view, slow scrolling moves word-by-word while faster scrolling steps by sentence or paragraph
-- **Lock + recenter overlay** in the full-text view — pin the highlighted word in place so the engine keeps advancing without your hand reaching for it; tap to recenter when you scrolled away
+- **Inline images** — EPUB illustrations keep their place in the text; RSVP pauses on them with a zoomable viewer
+- **Lock + recenter overlay** in the full-text view — lock your place so you can scroll around without moving the highlight or seeking; recenter jumps back to it
 - **Light + dark editorial themes** — warm "ink on paper" palettes with a system/light/dark toggle
 - **Fully customizable reader** — colors, fonts (Google Fonts), sizes, layout positions, and a configurable focus line, all with live preview
 - **Reading stats** — local per-session tracking feeds a weekly/monthly dashboard with words-per-day, time, and WPM trend charts
@@ -62,13 +63,14 @@ An open-source RSVP reader for EPUB and web articles, built with Flutter and run
 
 ### Requirements
 
-- Flutter SDK `^3.10.1`
+- Flutter (stable channel) with Dart SDK `^3.10.1` (see `pubspec.yaml`)
 - Android Studio / Xcode for device builds
 - On Linux, `lld` must be installed to run tests (`sudo apt install lld`)
 
 ### Install & run
 
 ```bash
+cp .env.example .env                                      # .env is a bundled asset; empty values just disable Drive sync
 flutter pub get
 dart run build_runner build --delete-conflicting-outputs  # generate Drift code
 flutter gen-l10n                                          # generate i18n bindings
@@ -85,7 +87,7 @@ flutter build apk --release       # release Android build
 flutter build linux --release     # release Linux build
 ```
 
-Releases are cut by pushing a `vX.Y.Z` tag — CI builds the signed APK and the Linux tar.gz.
+Releases are cut by bumping `version:` in `pubspec.yaml` and pushing a `vX.Y.Z` tag — CI builds the signed APK and the Linux tar.gz, with release notes taken from the matching `CHANGELOG.md` section.
 
 ### Google Drive sync (optional)
 
@@ -106,11 +108,12 @@ provisioning your own OAuth client:
 1. Create a project at https://console.cloud.google.com/ and enable the **Google
    Drive API**.
 2. **OAuth consent screen** → External → Testing. Add yourself as a Test User.
-3. **Credentials → Create OAuth 2.0 Client ID → Web application**. Add
-   `http://127.0.0.1` to **Authorized redirect URIs** (no port — Google ignores
-   it for loopback IPs). This client_id is what desktop uses directly, and what
-   Android passes to `google_sign_in` as `serverClientId` so both platforms see
-   the same Drive folder.
+3. **Credentials → Create OAuth 2.0 Client ID → Web application**. Add both
+   `http://localhost` and `http://127.0.0.1` to **Authorized redirect URIs**
+   (no port). The desktop loopback redirects to `http://localhost:<port>`, so
+   the `localhost` entry is the one that matches. This client_id is what
+   desktop uses directly, and what Android passes to `google_sign_in` as
+   `serverClientId` so both platforms see the same Drive folder.
 4. **Credentials → Create OAuth 2.0 Client ID → Android** (in the same project):
    - Package name: `com.pimenta.ledor` (or your fork's `applicationId`
      from `android/app/build.gradle.kts`).
@@ -120,9 +123,9 @@ provisioning your own OAuth client:
        -alias androiddebugkey -storepass android -keypass android | grep SHA1
      ```
    - No client secret needed.
-5. For Linux desktop: copy `.env.example` → `.env` and paste the Web client_id +
-   client secret. The file is gitignored; `flutter_dotenv` loads it at startup.
-   Without both values present, the Sync section is hidden in Settings.
+5. Copy `.env.example` → `.env` and paste the Web client_id + client secret
+   (needed on both Android and Linux). The file is gitignored; `flutter_dotenv`
+   loads it at startup. Without both values, the Sync section is hidden in Settings.
 
 Scope used: `https://www.googleapis.com/auth/drive.file` (the app only sees
 files it created — never your other Drive contents).

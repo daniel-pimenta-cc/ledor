@@ -212,10 +212,10 @@ class _Cover extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     if (book.coverImage != null) {
-      // Decodifica no tamanho do card em vez da resolução nativa do cover
-      // (capas de EPUB chegam a 1600px+): menos CPU no primeiro layout da
-      // grade e menos memória por tile. 240dp cobre a maior célula da
-      // grade adaptativa com folga.
+      // Decode at card size instead of the cover's native resolution (EPUB
+      // covers reach 1600px+): less CPU on the grid's first layout and less
+      // memory per tile. 240dp comfortably covers the largest cell of the
+      // adaptive grid.
       final cacheWidth =
           (240 * MediaQuery.devicePixelRatioOf(context)).round();
       return Image.memory(
