@@ -53,6 +53,16 @@ class ChromeSection extends ConsumerWidget {
         ),
         const SizedBox(height: 12),
 
+        SwitchRow(
+          label: l10n.settingsFocusMode,
+          subtitle: l10n.settingsFocusModeDesc,
+          labelColor: settings.wordColor,
+          value: settings.focusMode,
+          onChanged: (v) => updateDisplaySetting(
+              ref, bookId, (s) => s.copyWith(focusMode: v)),
+        ),
+        const SizedBox(height: 12),
+
         TimeRemainingRow(
           label: l10n.settingsTimeRemaining,
           subtitle: l10n.settingsTimeRemainingDesc,

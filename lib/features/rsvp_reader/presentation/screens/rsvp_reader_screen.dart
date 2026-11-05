@@ -18,6 +18,7 @@ import '../../../../core/utils/platform_capabilities.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../epub_import/domain/entities/word_token.dart';
 import '../../domain/entities/rsvp_state.dart';
+import '../focus_mode_controller.dart';
 import '../providers/bookmarks_provider.dart';
 import '../providers/display_settings_provider.dart';
 import '../providers/reader_side_panel_provider.dart';
@@ -68,6 +69,7 @@ class _RsvpReaderScreenState extends ConsumerState<RsvpReaderScreen>
   @override
   void initState() {
     super.initState();
+    _focusController = FocusModeController();
     ref
         .read(rsvpEngineProvider(widget.bookId).notifier)
         .attachVsync(this);
@@ -97,6 +99,7 @@ class _RsvpReaderScreenState extends ConsumerState<RsvpReaderScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _focusController.dispose();
     unawaited(setKeepScreenOn(false));
     _shortcutsFocusNode.dispose();
     // Snapshot the notifier before super.dispose() — `ref` becomes
@@ -113,6 +116,29 @@ class _RsvpReaderScreenState extends ConsumerState<RsvpReaderScreen>
     super.dispose();
   }
 
+  /// Fades reader chrome in and out for focus mode. Opacity (not removal)
+  /// keeps the layout stable, and [IgnorePointer] routes taps on invisible
+  /// chrome down to the reveal layer beneath it, while screen readers keep
+  /// their handles via [ExcludeSemantics].
+  Widget _focusFade({required Widget child}) {
+    return ListenableBuilder(
+      listenable: _focusController,
+      builder: (context, child) => AnimatedOpacity(
+        opacity: _focusController.visible ? 1.0 : 0.0,
+        duration: AppDurations.base,
+        curve: AppCurves.standard,
+        child: ExcludeSemantics(
+          excluding: !_focusController.visible,
+          child: IgnorePointer(
+            ignoring: !_focusController.visible,
+            child: child,
+          ),
+        ),
+      ),
+      child: child,
+    );
+  }
+
   bool _useSidePanel(BuildContext context) =>
       context.isTablet && context.isLandscape;
 
@@ -120,6 +146,11 @@ class _RsvpReaderScreenState extends ConsumerState<RsvpReaderScreen>
   /// screen (not the scroll view) because the switcher floats over every
   /// mode, including RSVP, which has nothing to scroll.
   bool _modeFabHiddenByScroll = false;
+
+  /// Owns reader-chrome visibility while RSVP is playing (focus mode).
+  /// Plain controller (not a provider): its lifetime is the screen, and it
+  /// never touches playback state — it only fades the chrome.
+  late final FocusModeController _focusController;
 
   void _setModeFabHidden(bool hidden) {
     if (_modeFabHiddenByScroll == hidden) return;
@@ -139,6 +170,17 @@ class _RsvpReaderScreenState extends ConsumerState<RsvpReaderScreen>
   Widget build(BuildContext context) {
     final state = ref.watch(rsvpEngineProvider(widget.bookId));
     final engine = ref.read(rsvpEngineProvider(widget.bookId).notifier);
+
+    // Focus mode follows playback: entering RSVP play shows the chrome and
+    // arms the auto-hide timer; anything else cancels it and shows chrome.
+    ref.listen<(bool, ReaderMode, bool)>(
+      rsvpEngineProvider(widget.bookId).select(
+        (s) => (s.isPlaying, s.mode, s.displaySettings.focusMode),
+      ),
+      (_, next) => _focusController.setActive(
+        next.$1 && next.$2 == ReaderMode.rsvp && next.$3,
+      ),
+    );
 
     ref.listen<RsvpState>(rsvpEngineProvider(widget.bookId), (prev, next) {
       if (prev != null && next.finishTicket > prev.finishTicket) {
@@ -205,7 +247,7 @@ class _RsvpReaderScreenState extends ConsumerState<RsvpReaderScreen>
     final readerBody = SafeArea(
       child: Column(
         children: [
-          _buildTopBar(state, engine),
+          _focusFade(child: _buildTopBar(state, engine)),
           Expanded(
             child: NotificationListener<UserScrollNotification>(
               // Reading down hides the mode switcher, reading back up brings
@@ -241,7 +283,7 @@ class _RsvpReaderScreenState extends ConsumerState<RsvpReaderScreen>
             ),
           ),
           if (state.mode != ReaderMode.ereader)
-            RsvpControls(bookId: widget.bookId),
+            _focusFade(child: RsvpControls(bookId: widget.bookId)),
         ],
       ),
     );
@@ -263,17 +305,34 @@ class _RsvpReaderScreenState extends ConsumerState<RsvpReaderScreen>
     final body = MediaQuery.removeViewInsets(
       context: context,
       removeBottom: true,
-      child: useSidePanel
-          ? Row(
-              children: [
-                Expanded(child: wrappedReaderBody),
-                ReaderSidePanel(
-                  bookId: widget.bookId,
-                  settings: state.displaySettings,
-                ),
-              ],
-            )
-          : wrappedReaderBody,
+      // Full-screen reveal layer. A raw Listener (not a gesture recognizer)
+      // observes every contact independent of the gesture arena: onTapDown
+      // would NOT work here — the word-area recognizer wins the arena on
+      // the word, the outer tap recognizer gets rejected and its onTapDown
+      // never fires, so the reveal tap would fall through to play/pause.
+      // `opaque` hit-testing covers the top/bottom bands too, where hidden
+      // pointer-transparent chrome leaves no other hit target.
+      child: Listener(
+        behavior: HitTestBehavior.opaque,
+        onPointerDown: (_) {
+          if (_focusController.isActive) {
+            _focusController.onUserInteraction();
+          }
+        },
+        child: useSidePanel
+            ? Row(
+                children: [
+                  Expanded(child: wrappedReaderBody),
+                  _focusFade(
+                    child: ReaderSidePanel(
+                      bookId: widget.bookId,
+                      settings: state.displaySettings,
+                    ),
+                  ),
+                ],
+              )
+            : wrappedReaderBody,
+      ),
     );
 
     return Scaffold(
@@ -369,15 +428,20 @@ class _RsvpReaderScreenState extends ConsumerState<RsvpReaderScreen>
       key: const ValueKey('rsvp'),
       behavior: HitTestBehavior.opaque,
       onTap: () {
+        // First tap after an auto-hide only brings the chrome back —
+        // it must never toggle playback by accident (FR-003).
+        if (_focusController.handleWordTap()) return;
         HapticFeedback.mediumImpact();
         engine.togglePlayPause();
       },
       onLongPress: () {
+        _focusController.clearPendingTap();
         final word = state.currentWord;
         if (word == null || word.isImage) return;
         _onBookmarkRange(state, engine, word, word);
       },
       onHorizontalDragEnd: (details) {
+        _focusController.clearPendingTap();
         if (details.primaryVelocity == null) return;
         if (details.primaryVelocity! < -200) {
           engine.skipForward();
@@ -386,6 +450,7 @@ class _RsvpReaderScreenState extends ConsumerState<RsvpReaderScreen>
         }
       },
       onVerticalDragEnd: (details) {
+        _focusController.clearPendingTap();
         if (details.primaryVelocity == null) return;
         if (details.primaryVelocity! < -200) {
           engine.increaseWpm();

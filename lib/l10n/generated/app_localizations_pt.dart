@@ -320,6 +320,13 @@ class AppLocalizationsPt extends AppLocalizations {
       'Exibe a barra de progresso com marcadores de capítulo acima dos controles';
 
   @override
+  String get settingsFocusMode => 'Modo de foco';
+
+  @override
+  String get settingsFocusModeDesc =>
+      'Esconde a interface enquanto as palavras passam; toque para mostrar';
+
+  @override
   String get settingsTimeRemaining => 'Tempo restante';
 
   @override

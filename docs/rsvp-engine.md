@@ -130,3 +130,7 @@ Optional horizontal line below the word in RSVP mode. Controlled by two flags in
 When `focusLineShowsProgress = false`, the line renders as a solid `wordColor.withAlpha(60)` — purely a visual anchor for the eye.
 
 The line spans edge to edge (`left: 0, right: 0`). For that reason `RsvpWordDisplay` applies the full horizontal margin internally for the word (`margin = 32`) — the parent widget MUST NOT add lateral padding, otherwise the line would be visibly inset from the screen edges.
+
+## Focus mode
+
+During RSVP playback the surrounding chrome (top bar, controls dock, tablet side panel) fades out after 3s without interaction, leaving only the word, ORP mark, and focus line. Any tap brings the chrome back without pausing (the first tap after an auto-hide is reveal-only); pausing restores it too. Driven by `FocusModeController` (plain `ChangeNotifier`, unit-tested with fake timers) — the word area itself never rebuilds for the fade. Toggle in settings → Reader Chrome → Focus mode (`DisplaySettings.focusMode`, default on, synced via Drive).

@@ -141,6 +141,8 @@
   "showLibraryPanel": "Show library",
   "settingsProgressSlider": "Progress slider",
   "settingsProgressSliderDesc": "Show the seek bar with chapter markers above the playback controls",
+  "settingsFocusMode": "Focus mode",
+  "settingsFocusModeDesc": "Hide the interface while words are playing; tap to bring it back",
   "settingsTimeRemaining": "Time remaining",
   "settingsTimeRemainingDesc": "How to display the time remaining next to the chapter title",
   "timeRemainingTotal": "Whole book",
